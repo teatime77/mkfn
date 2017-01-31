@@ -18,6 +18,7 @@ namespace mkfn {
         Variable MulFnc = new Variable("*", null, null);
         Variable DivFnc = new Variable("/", null, null);
         Variable SumFnc = new Variable("Sum", null, null);
+        Variable ProdFnc = new Variable("Prod", null, null);
         Variable MaxFnc = new Variable("Max", null, null);
         Variable NewFnc = new Variable("new", null, null);
         Variable σ_prime;
@@ -30,9 +31,9 @@ namespace mkfn {
 
             Debug.WriteLine("深層学習");
 
-            SimpleType layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
+            Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
 
-            SimpleType[] layers = (from cls in AppClasses where cls.IsSubClass(layer) select cls).ToArray();
+            Class[] layers = (from cls in AppClasses where cls.IsSubClass(layer) select cls).ToArray();
 
             StringWriter sw = new StringWriter();
 
@@ -40,7 +41,7 @@ namespace mkfn {
             tanh_prime = (from fnc in layer.Functions where fnc.Name == "tanh_prime" select fnc).First();
 
             // アプリのクラスの親クラスに対し
-            foreach (SimpleType cls in layers) {
+            foreach (Class cls in layers) {
                 Debug.WriteLine("layer : {0}", cls.Name, "");
 
                 Function fnc = (from f in cls.Functions where f.Name == "Forward" select f).First();
@@ -429,11 +430,16 @@ namespace mkfn {
       });
     </script>
 
-    <script type=""text/javascript"" src=""MathJax/MathJax.js"" ></script>
+    <script type=""text/javascript"" src=""http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML""></script>
 </head>
 <body>
 ";
-            File.WriteAllText(HomeDir + "\\html\\MathJax.html", head + sw.ToString() + "\r\n</body></html>", Encoding.UTF8);
+            string html_dir = HomeDir + "\\html";
+            if (! Directory.Exists(html_dir)) {
+
+                Directory.CreateDirectory(html_dir);
+            }
+            File.WriteAllText(html_dir + "\\MathJax.html", head + sw.ToString() + "\r\n</body></html>", Encoding.UTF8);
         }
 
         /*
@@ -1029,7 +1035,7 @@ namespace mkfn {
                 for1 = for1.ParentStmt as ForEach;
                 vfor.Add(for1);
             }
-            Debug.Assert(for1.ParentStmt == null);
+            Debug.Assert(for1.ParentStmt is BlockStatement);
 
             vfor.Reverse();
             return vfor.ToArray();
@@ -1057,7 +1063,9 @@ namespace mkfn {
                 return;
             }
 
-            before(obj);
+            if(before != null) {
+                before(obj);
+            }
 
             if (obj is Term) {
 
@@ -1109,6 +1117,12 @@ namespace mkfn {
                         Navi(s, before, after);
                     }
                 }
+                else if (obj is BlockStatement) {
+                    BlockStatement blc1 = obj as BlockStatement;
+                    foreach (Statement s in blc1.Statements) {
+                        Navi(s, before, after);
+                    }
+                }
                 else {
                     Debug.Assert(false);
                 }
@@ -1128,11 +1142,15 @@ namespace mkfn {
                 return null;
             }
 
-            object ret;
-            bool done = before(obj, out ret);
-            if (done) {
+            object ret = obj;
 
-                return ret;
+            if (before != null) {
+
+                bool done = before(obj, out ret);
+                if (done) {
+
+                    return ret;
+                }
             }
 
             if (obj is Term) {
@@ -1202,6 +1220,13 @@ namespace mkfn {
 
                     for1.LoopVariable.ParentVar = obj;
                     foreach(Statement stmt in for1.Statements) {
+                        stmt.ParentStmt = obj;
+                    }
+                }
+                else if (obj is BlockStatement) {
+                    BlockStatement blc1 = obj as BlockStatement;
+                    blc1.Statements = (from s in blc1.Statements select NaviRep(s, before, after) as Statement).ToList();
+                    foreach (Statement stmt in blc1.Statements) {
                         stmt.ParentStmt = obj;
                     }
                 }

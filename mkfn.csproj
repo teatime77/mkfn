@@ -49,6 +49,7 @@
     <Compile Include="NeuralNetwork.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Syntax.cs" />
     <Compile Include="SyntaxAnalysis.cs" />
   </ItemGroup>
   <ItemGroup>
