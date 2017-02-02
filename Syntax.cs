@@ -20,6 +20,10 @@ namespace mkfn {
             Name = name;
         }
 
+        public virtual Class ValueType() {
+            return this;
+        }
+
         public override string ToString() {
             return Name;
         }
@@ -39,6 +43,10 @@ namespace mkfn {
         public ArrayType(Class element_type, int dim_cnt) : base(element_type.Name) {
             ElementType = element_type;
             DimCnt = dim_cnt;
+        }
+
+        public override Class ValueType() {
+            return ElementType;
         }
 
         public override string ToString() {
@@ -103,10 +111,10 @@ namespace mkfn {
         代入文
     */
     public class Assignment : Statement {
-        public Term Left;
+        public Reference Left;
         public Term Right;
 
-        public Assignment(Term left, Term right) {
+        public Assignment(Reference left, Term right) {
             Left = left;
             Right = right;
 
@@ -297,6 +305,14 @@ namespace mkfn {
             }
         }
 
+        public bool Defined() {
+            return Parent is Assignment && (Parent as Assignment).Left == this;
+        }
+
+        public bool Used() {
+            return !Defined();
+        }
+
         public override string ToString() {
             if (Indexes == null) {
                 return Name;
@@ -353,6 +369,28 @@ namespace mkfn {
 
                 return Function.Name + "(" + string.Join(", ", from x in Args select x.ToString()) + ")";
             }
+        }
+
+        public override bool Eq(Object obj) {
+            if (!(obj is Apply)) {
+                return false;
+            }
+
+            Apply app = obj as Apply;
+
+            if ( ! Function.Eq(app.Function) ) {
+                return false;
+            }
+            if (Args.Length != app.Args.Length) {
+                return false;
+            }
+
+            for (int i = 0; i < Args.Length; i++) {
+                if (!Args[i].Eq(app.Args[i])) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public int Precedence() {

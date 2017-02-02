@@ -415,7 +415,7 @@ namespace mkfn {
                 GetToken(";");
 
                 Assignment asn = new Assignment(left, right);
-                Debug.WriteLine(asn.ToString());
+                //Debug.WriteLine(asn.ToString());
                 return asn;
             }
             else if(CurrentToken.Text == "return") {
@@ -522,7 +522,7 @@ namespace mkfn {
                         cls.Fields.Add(field);
                         field.ParentVar = cls;
 
-                        Debug.WriteLine("field {0}", field.ToString(), "");
+                        //Debug.WriteLine("field {0}", field.ToString(), "");
                     }
                     else {
                         // メソッドの場合

@@ -24,10 +24,6 @@ public abstract class Layer {
         return null;
     }
 
-    public int Len(object a) {
-        return 0;
-    }
-
     public int Dim(object a, int i) {
         return 0;
     }
@@ -74,6 +70,9 @@ public abstract class Layer {
 }
 
 public class FullyConnectedLayer : Layer {
+    public int X;
+    public int Y;
+
     public double[] x;
     public double[] y;
 
@@ -82,26 +81,30 @@ public class FullyConnectedLayer : Layer {
     public double[] u;
 
     public override void Forward() {
-        foreach (int i in Range(Len(y))) {
-            u[i] = (from j in Range(Len(x)) select x[j] * w[i, j]).Sum() + b[i];
+        foreach (int i in Range(Y)) {
+            u[i] = (from j in Range(X) select x[j] * w[i, j]).Sum() + b[i];
             y[i] = σ(u[i]);
         }
     }
 }
 
 public class ConvolutionalLayer : Layer {
+    public int M;   // 行数
+    public int N;   // 列数
+    public int K;   // フィルター数
+    public int H;
+
     public double[,] x;
     public double[,,] y;
 
-    public int H;
     public double[,,] u;
     public double[,,] h;
     public double[] b;
 
     public override void Forward() {
-        foreach (int i in Range(Dim(y, 0))) {
-            foreach (int j in Range(Dim(y, 1))) {
-                foreach (int k in Range(Dim(y, 2))) {
+        foreach (int i in Range(M)) {
+            foreach (int j in Range(N)) {
+                foreach (int k in Range(K)) {
                     u[i, j, k] = (from p in Range(H) from q in Range(H) select x[i + p, j + q] * h[p, q, k]).Sum() + b[k];
                     y[i, j, k] = σ(u[i, j, k]);
                 }
@@ -114,12 +117,15 @@ public class MaxPoolingLayer : Layer {
     public double[,,] x;
     public double[,,] y;
 
+    public int M;   // 行数
+    public int N;   // 列数
+    public int K;   // フィルター数
     public int H;
 
     public override void Forward() {
-        foreach (int i in Range(Dim(y, 0))) {
-            foreach (int j in Range(Dim(y, 1))) {
-                foreach (int k in Range(Dim(y, 2))) {
+        foreach (int i in Range(M)) {
+            foreach (int j in Range(N)) {
+                foreach (int k in Range(K)) {
                     y[i, j, k] = (from p in Range(H) from q in Range(H) select x[i + p, j + q, k]).Max();
                 }
             }
@@ -128,6 +134,10 @@ public class MaxPoolingLayer : Layer {
 }
 
 public class RecurrentLayer : Layer {
+    public int T;
+    public int Y;
+    public int X;
+
     public double[,] x;
     public double[,] y;
 
@@ -139,10 +149,10 @@ public class RecurrentLayer : Layer {
     public double[,] u;
 
     public override void Forward() {
-        foreach (int t in Range(Dim(y, 0))) {
-            foreach (int j in Range(Dim(y, 1))) {
-                u[t, j] = (from i in Range(Dim(x, 1)) select x[t, i] * win[j, i]).Sum()
-                    + (from i in Range(Dim(y, 1)) select w[j, i] * y[t - 1, i]).Sum() + b[j];
+        foreach (int t in Range(T)) {
+            foreach (int j in Range(Y)) {
+                u[t, j] = (from i in Range(X) select x[t, i] * win[j, i]).Sum()
+                    + (from i in Range(Y) select w[j, i] * y[t - 1, i]).Sum() + b[j];
                 y[t, j] = σ(u[t, j]);
             }
         }
@@ -150,6 +160,7 @@ public class RecurrentLayer : Layer {
 }
 
 public class LSTMLayer : Layer {
+    public int T;
     public int X;
     public int Y;
 
@@ -187,11 +198,11 @@ public class LSTMLayer : Layer {
     public double[,] uO;
 
     public override void Forward() {
-        foreach (int t in Range(Dim(y, 0))) {
+        foreach (int t in Range(T)) {
             //foreach (int k in Range(Dim(z, 1))) {
             //    z[t, k] = (from j in Range(Dim(y, 1)) select wZ[k, j] * y[t, j]).Sum();
             //}
-            foreach (int j in Range(Dim(y, 1))) {
+            foreach (int j in Range(Y)) {
                 y[t, j] = σ(uO[t, j]) * σ(s[t, j]);
                 s[t, j] = σ(uF[t, j]) * s[t - 1, j] + σ(uI[t, j]) * σ(u[t, j]);
                 uO[t, j] = (from i in Range(X) select wOin[j, i] * x[t, i]).Sum() + (from i in Range(Y) select wOr[j, i] * y[t - 1, i]).Sum() + wO[j] * s[t, j] + bO[j];
@@ -266,7 +277,9 @@ public class DNC : Layer {
     public double[,,] b;     // backward weighting
     public double[,,] cr;    // read content weighting
     public double[,,] wr;    // read weighting
-    public double[,,] π;     // read mode
+    public double[,] π1;     // read mode
+    public double[,] π2;     // read mode
+    public double[,] π3;     // read mode
     public double[,,] Wr;   // read key weights
 
     public DNC() {
@@ -322,7 +335,9 @@ public class DNC : Layer {
         b = new double[T, R, N];
         cr = new double[T, R, N];
         wr = new double[T, R, N];
-        π = new double[T, R, 3];
+        π1 = new double[T, R];
+        π2 = new double[T, R];
+        π3 = new double[T, R];
         Wr = new double[R, W, Y];
     }
 
@@ -368,11 +383,11 @@ public class DNC : Layer {
                 ψ[t, n] = Prod(from ir in Range(R) select 1.0 - gf[t, ir] * wr[t - 1, ir, n]);
                 u[t, n] = (u[t - 1, n] + ww[t - 1, n] - (u[t - 1, n] * ww[t - 1, n])) * ψ[t, n];
                 φ[t, n] = 0;// SortIndicesAscending(ut)
-                a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * Prod(from i in Range(n) select u[t, φ[t, i]]);
+                a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * Prod(from i in Range(N) select u[t, φ[t, i]]);
                 cw[t, n] = C(Mat(M, t - 1), Row(kw, t), βw[t], n);
                 ww[t, n] = gw[t] * (ga[t] * a[t, n] + (1 - ga[t]) * cw[t, n]);
                 foreach (int iw in Range(W)) {
-                    M[t, n, iw] = M[t - 1, n, iw] * (1 - ww[t, iw] * e[t, iw]) + ww[t, iw] * ν[t, iw];
+                    M[t, n, iw] = M[t - 1, n, iw] * (1 - ww[t, n] * e[t, iw]) + ww[t, n] * ν[t, iw];
                 }
                 p[t, n] = (1 - (from i in Range(N) select ww[t, i]).Sum()) * p[t - 1, n] + ww[t, n];
                 foreach (int j in Range(N)) {
@@ -385,7 +400,7 @@ public class DNC : Layer {
                     f[t, ir, n] = (from j in Range(N) select L[t, n, j] * wr[t - 1, ir, j]).Sum();
                     b[t, ir, n] = (from j in Range(N) select L[t, j, n] * wr[t - 1, ir, j]).Sum();
                     cr[t, ir, n] = C(Mat(M, t), Row(kr, t, ir), βr[t, ir], n);
-                    wr[t, ir, n] = π[t, ir, 0] * b[t, ir, n] + π[t, ir, 1] * cr[t, ir, n] + π[t, ir, 2] * f[t, ir, n];
+                    wr[t, ir, n] = π1[t, ir] * b[t, ir, n] + π2[t, ir] * cr[t, ir, n] + π3[t, ir] * f[t, ir, n];
                 }
                 foreach (int iw in Range(W)) {
                     r[t, ir, iw] = (from n in Range(N) select M[t, n, iw] * wr[t, ir, n]).Sum();
