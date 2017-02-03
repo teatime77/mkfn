@@ -42,6 +42,8 @@ namespace mkfn {
 
             // アプリのクラスの親クラスに対し
             foreach (Class cls in layers) {
+                //if (cls.Name != "ConvolutionalLayer" && cls.Name != "MaxPoolingLayer") continue;//????????????????????????
+
                 Debug.WriteLine("layer : {0}", cls.Name, "");
 
                 Function fnc = (from f in cls.Functions where f.Name == "Forward" select f).First();
@@ -121,7 +123,8 @@ namespace mkfn {
                 }
 
                 // すべてのフィールドに対し
-                foreach(Variable fld in cls.Fields) {
+                lefts.Clear();
+                foreach (Variable fld in cls.Fields) {
                     
                     // フィールドの値を使用する変数参照のリスト
                     Reference[] vref = (from r in all_refs where r.VarRef == fld && r.Indexes != null && r.Used() select r).ToArray();
@@ -129,209 +132,17 @@ namespace mkfn {
                     if (vref.Any()) {
                         // フィールドの値を使用する変数参照がある場合
 
-                        int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
-                        Term[] idxes = new Term[dim_cnt];
-
-                        for(int i = 0; i < dim_cnt; i++) {
-
-                            // 変数参照の添え字のリスト
-                            var vidx_ref = from r in vref where r.Indexes[i] is Reference select r.Indexes[i] as Reference;
-                            if (vidx_ref.Any()) {
-                                // 変数参照の添え字がある場合
-
-                                // スカラーの変数参照の添え字のリスト
-                                var vi2 = from idx in vidx_ref where idx.Indexes == null select idx;
-                                if (vi2.Any()) {
-                                    // スカラーの変数参照の添え字がある場合
-
-                                    // foreachのループ変数を参照する添え字のリスト
-                                    var vi3 = from idx in vi2 where idx.VarRef.ParentVar is ForEach select idx;
-                                    if (vi3.Any()) {
-                                        // foreachのループ変数を参照する添え字がある場合
-
-                                        idxes[i] = vi3.First();
-                                    }
-                                    else {
-                                        // foreachのループ変数を参照する添え字がない場合
-
-                                        // LINQのループ変数を参照する添え字のリスト
-                                        var vi4 = from idx in vi2 where idx.VarRef.ParentVar is LINQ select idx;
-                                        if (vi4.Any()) {
-                                            // LINQのループ変数を参照する添え字がある場合
-
-                                            idxes[i] = vi4.First();
-                                        }
-                                        else {
-                                            // LINQのループ変数を参照する添え字がない場合
-
-                                            throw new Exception();
-                                        }
-                                    }
-                                }
-                                else {
-
-                                    throw new Exception();
-                                }
-                            }
-                            else {
-
-                                // 関数適用の添え字のリスト
-                                var vidx_app = from r in vref where r.Indexes[i] is Apply select r.Indexes[i] as Apply;
-                                if (vidx_app.Any()) {
-                                    // 関数適用の添え字がある場合
-
-                                    // t - 1 以外の関数適用の添え字のリスト
-                                    var vidx_app2 = from ap in vidx_app where !ap.Eq(t_sub_1) select ap;
-                                    if (vidx_app2.Any()) {
-                                        // t - 1 以外の関数適用の添え字がある場合
-
-                                        if (vref.Count() == 1) {
-                                            // 変数参照が1個の場合
-
-                                            idxes[i] = vidx_app2.First();
-                                        }
-                                        else {
-                                            // 変数参照が複数の場合
-
-                                            throw new Exception();
-                                        }
-                                    }
-                                    else {
-                                        // すべて t - 1 の関数適用の添え字のある場合
-
-                                        idxes[i] = vidx_app.First();
-                                    }
-                                }
-                                else {
-                                    // 関数適用の添え字がない場合
-
-                                    throw new Exception();
-                                }                                
-                            }
-                        }
-
-                        for (int i = 0; i < dim_cnt; i++) {
-                            Debug.Assert(idxes[i] != null);
-
-                            foreach(Reference r1 in vref) {
-                                if(!r1.Indexes[i].Eq(idxes[i])) {
-                                    // 添え字が等しくない場合
-
-                                    if(idxes[i] is Reference) {
-
-                                        Reference idx_ref1 = idxes[i] as Reference;
-                                        if(idx_ref1.VarRef == t_var) {
-
-                                            if (r1.Indexes[i].Eq(t_sub_1)) {
-
-                                            }
-                                            else {
-
-                                                throw new Exception();
-                                            }
-                                        }
-                                        else {
-
-                                            if (r1.Indexes[i] is Reference) {
-                                                Reference idx_ref2 = r1.Indexes[i] as Reference;
-
-                                                if(idx_ref1.VarRef.Domain != null && idx_ref1.VarRef.Domain.Eq(idx_ref2.VarRef.Domain)) {
-
-                                                }
-                                                else {
-
-                                                    Debug.WriteLine("IDX domain ERR: {0} != {1}", idx_ref1.ToString(), idx_ref2.ToString());
-                                                }
-                                            }
-                                            else {
-
-                                                throw new Exception();
-                                            }
-                                        }
-                                    }
-                                    else {
-                                        throw new Exception();
-                                    }
-                                }
-                            }
-                        }
-
-
-                        // 添え字に t -1 以外の関数適用がある変数参照のリスト
-                        // !(idx is Reference) && !(idx is Number)
-                        var vref_app = (from r in vref where (from idx in r.Indexes where idx is Apply && !idx.Eq(t_sub_1) select idx).Any() select r).ToArray();
-                        if (vref_app.Any()) {
-                            // 添え字に関数適用がある場合
-
-                            Debug.WriteLine("------------------------------ IDX apply ------------------------------");
-                            Debug.WriteLine(string.Join("\r\n", from r in vref_app select r.ToString()));
-                        }
-                        else {
-                            // 添え字に関数適用がない場合
-
-                            Reference ref0 = vref[0];
-
-                            for(int i = 1; i < vref.Length; i++) {
-                                Reference ref2 = vref[i];
-
-                                if(ref2.Indexes.Length != ref0.Indexes.Length) {
-
-                                    Debug.Assert(false);
-                                }
-                                else {
-
-                                    if (!ref2.Eq(ref0)) {
-
-                                        for(int j = 0; j < ref0.Indexes.Length; j++) {
-                                            if(!ref2.Indexes[j].Eq(ref0.Indexes[j])) {
-                                                // 添え字が等しくない場合
-
-                                                if (ref0.Indexes[j].Eq(t_sub_1) || ref2.Indexes[j].Eq(t_sub_1)) {
-                                                    // 片方が t - 1 の場合
-
-                                                    Debug.Write("");
-                                                }
-                                                else {
-                                                    // 両方が t - 1 でない場合
-
-                                                    if (ref0.Indexes[j] is Reference && ref2.Indexes[j] is Reference) {
-                                                        // 両方が変数参照の場合
-
-                                                        Reference ref0_i = ref0.Indexes[j] as Reference;
-                                                        Reference ref2_i = ref2.Indexes[j] as Reference;
-
-                                                        if (ref0_i.VarRef.Domain != null && ref0_i.VarRef.Domain.Eq(ref2_i.VarRef.Domain)) {
-                                                            // 変数の領域が同じ場合
-
-                                                        }
-                                                        else {
-                                                            // 変数の領域が違う場合
-
-                                                            Debug.WriteLine("IDX domain: {0} != {1}", ref0.ToString(), ref2.ToString());
-                                                        }
-                                                    }
-                                                    else {
-                                                        // 両方が変数参照でない場合
-
-                                                        Debug.WriteLine("IDX ref   : {0} != {1}", ref0.ToString(), ref2.ToString());
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
+                        Reference left = MakeDifferentialReference(t_var, t_sub_1, fld, vref);
+                        lefts.Add(left);
                     }
                 }
-                var vlist = from v in cls.Fields where !(from r in lefts where r.VarRef == v select r).Any() select v;
 
                 // すべての代入文の左辺の変数参照に対し
                 foreach (Reference left in lefts) {
-                    Debug.Assert(left.Defined());
+                    //Debug.Assert(left.Defined());
                     List<Reference> prop = new List<Reference>();
-                    List<Reference> propt1 = new List<Reference>();
+                    List<Reference> prop_t_1 = new List<Reference>();
+                    List<Reference> prop_plus_linq = new List<Reference>();
 
                     // 変数を使用している変数参照に対し
                     foreach (Reference ref_use in (from r in all_refs where r.VarRef == left.VarRef && r.Used() && r.Indexes != null select r)) {
@@ -462,7 +273,25 @@ namespace mkfn {
                                 Debug.Assert(false);
                             }
 
-                            if (t_1 == 0) {
+                            if (t_1 != 0) {
+
+                                if (!(from r in prop_t_1 where r.Eq(left_use) select r).Any()) {
+                                    // t-1の伝播先リストにない場合
+
+                                    // t-1の伝播先リストに追加する。
+                                    prop_t_1.Add(left_use);
+                                }
+                            }
+                            else if (plus_linq != 0) {
+
+                                if (!(from r in prop_plus_linq where r.Eq(left_use) select r).Any()) {
+                                    // t-1の伝播先リストにない場合
+
+                                    // t-1の伝播先リストに追加する。
+                                    prop_plus_linq.Add(left_use);
+                                }
+                            }
+                            else {
                                 if (!(from r in prop where r.Eq(left_use) select r).Any()) {
                                     // 伝播先リストにない場合
 
@@ -470,34 +299,26 @@ namespace mkfn {
                                     prop.Add(left_use);
                                 }
                             }
-                            else {
-                                if (!(from r in propt1 where r.Eq(left_use) select r).Any()) {
-                                    // t-1の伝播先リストにない場合
-
-                                    // t-1の伝播先リストに追加する。
-                                    propt1.Add(left_use);
-                                }
-                            }
                         }
                     }
 
-                    if(prop.Any() || propt1.Any()) {
+                    if(prop.Any() || prop_t_1.Any() || prop_plus_linq.Any()) {
 
                         // 右辺
                         Dictionary<Reference, Term> use_right = prop.ToDictionary(r => r, r => (r.Parent as Assignment).Right);
 
                         // 左辺を+1する。
-                        Dictionary<Reference, Reference> use_left_inc = propt1.ToDictionary(r => r, r => Tplus1(r, t_var, null) as Reference);
+                        Dictionary<Reference, Reference> use_left_inc = prop_t_1.ToDictionary(r => r, r => Tplus1(r, t_var, null) as Reference);
 
                         // 右辺を+1する。
-                        Dictionary<Reference, Term> use_right_inc = propt1.ToDictionary(r => r, r => Tplus1((r.Parent as Assignment).Right, t_var, null));
+                        Dictionary<Reference, Term> use_right_inc = prop_t_1.ToDictionary(r => r, r => Tplus1((r.Parent as Assignment).Right, t_var, null));
 
                         // 右辺を+1して簡約化する。
-                        Dictionary<Reference, Term> use_right_inc_simple = propt1.ToDictionary(r => r, r => SimplifyExpression(use_right_inc[r].Clone(null)));
+                        Dictionary<Reference, Term> use_right_inc_simple = prop_t_1.ToDictionary(r => r, r => SimplifyExpression(use_right_inc[r].Clone(null)));
 
                         // tとt+1の合併
-                        Debug.Assert(! prop.Intersect(propt1).Any());
-                        List<Reference> prop_union = prop.Union(propt1).ToList();
+                        Debug.Assert(! prop.Intersect(prop_t_1).Any());
+                        List<Reference> prop_union = prop.Union(prop_t_1).ToList();
 
                         // tとt+1の左辺の合併
                         Dictionary<Reference, Reference> use_left_union = prop_union.ToDictionary(r => r, r => (prop.Contains(r) ? r : use_left_inc[r]));
@@ -538,11 +359,11 @@ namespace mkfn {
                         sw.WriteLine(string.Join(@" \\ + ", from r in prop select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
                             MathJax(r), MathJax(use_right[r]), MathJax(left))));
 
-                        if (prop.Any() && propt1.Any()) {
+                        if (prop.Any() && prop_t_1.Any()) {
                             sw.WriteLine(" + ");
                         }
 
-                        sw.WriteLine(string.Join(@" \\ + ", from r in propt1
+                        sw.WriteLine(string.Join(@" \\ + ", from r in prop_t_1
                                                             select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
                                                             MathJax(use_left_inc[r]), MathJax(use_right_inc[r]), MathJax(left))));
                         sw.WriteLine("$$");
@@ -556,11 +377,11 @@ namespace mkfn {
                                                             select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
                                                             MathJax(r), MathJax(use_right[r]), MathJax(left))));
 
-                        if (prop.Any() && propt1.Any()) {
+                        if (prop.Any() && prop_t_1.Any()) {
                             sw.WriteLine(" + ");
                         }
 
-                        sw.WriteLine(string.Join(@" \\ + ", from r in propt1
+                        sw.WriteLine(string.Join(@" \\ + ", from r in prop_t_1
                                                             select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
                                                             MathJax(use_left_inc[r]), MathJax(use_right_inc_simple[r]), MathJax(left))));
                         sw.WriteLine("$$");
@@ -593,17 +414,160 @@ namespace mkfn {
                             select Mul(new Apply(new Reference(delta_fnc[r]), (from i in r.Indexes select i.Clone(null)).ToArray()), use_right_diff_simple[r])).ToArray()).Clone(null));
                         
                         sw.WriteLine("<pre><b>");
-                        sw.WriteLine("double δ_" + left.Name + "(" + string.Join(", ", from i in left.Indexes select "int " + (i as Reference).Name) + "){");
+                        sw.WriteLine("double δ_" + left.Name + "(" + string.Join(", ", from i in left.Indexes select "int " + i.ToString()) + "){");
                         sw.WriteLine("\treturn " + result.ToString() + ";");
                         sw.WriteLine("}");
                         sw.WriteLine("</b></pre>");
                     }
 
-                    //Debug.WriteLine(left.ToString() + " : " + string.Join(" ", from v in prop select v.Name) + " t-1:" + string.Join(" ", from v in propt1 select v.Name));
+                    //Debug.WriteLine(left.ToString() + " : " + string.Join(" ", from v in prop select v.Name) + " t-1:" + string.Join(" ", from v in prop_t_1 select v.Name));
                 }
             }
 
             WriteMathJax(sw);
+        }
+
+        Reference MakeDifferentialReference(Variable t_var, Apply t_sub_1, Variable fld, Reference[] vref) {
+            int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
+            Term[] idxes = new Term[dim_cnt];
+
+            for (int i = 0; i < dim_cnt; i++) {
+
+                // 変数参照の添え字のリスト
+                var vidx_ref = from r in vref where r.Indexes[i] is Reference select r.Indexes[i] as Reference;
+                if (vidx_ref.Any()) {
+                    // 変数参照の添え字がある場合
+
+                    // スカラーの変数参照の添え字のリスト
+                    var vi2 = from idx in vidx_ref where idx.Indexes == null select idx;
+                    if (vi2.Any()) {
+                        // スカラーの変数参照の添え字がある場合
+
+                        // foreachのループ変数を参照する添え字のリスト
+                        var vi3 = from idx in vi2 where idx.VarRef.ParentVar is ForEach select idx;
+                        if (vi3.Any()) {
+                            // foreachのループ変数を参照する添え字がある場合
+
+                            idxes[i] = vi3.First();
+                        }
+                        else {
+                            // foreachのループ変数を参照する添え字がない場合
+
+                            // LINQのループ変数を参照する添え字のリスト
+                            var vi4 = from idx in vi2 where idx.VarRef.ParentVar is LINQ select idx;
+                            if (vi4.Any()) {
+                                // LINQのループ変数を参照する添え字がある場合
+
+                                idxes[i] = vi4.First();
+                            }
+                            else {
+                                // LINQのループ変数を参照する添え字がない場合
+
+                                throw new Exception();
+                            }
+                        }
+                    }
+                    else {
+
+                        throw new Exception();
+                    }
+                }
+                else {
+
+                    // 関数適用の添え字のリスト
+                    var vidx_app = from r in vref where r.Indexes[i] is Apply select r.Indexes[i] as Apply;
+                    if (vidx_app.Any()) {
+                        // 関数適用の添え字がある場合
+
+                        // t - 1 以外の関数適用の添え字のリスト
+                        var vidx_app2 = from ap in vidx_app where !ap.Eq(t_sub_1) select ap;
+                        if (vidx_app2.Any()) {
+                            // t - 1 以外の関数適用の添え字がある場合
+
+                            if (vref.Count() == 1) {
+                                // 変数参照が1個の場合
+
+                                idxes[i] = vidx_app2.First();
+                            }
+                            else {
+                                // 変数参照が複数の場合
+
+                                throw new Exception();
+                            }
+                        }
+                        else {
+                            // すべて t - 1 の関数適用の添え字の場合
+
+                            idxes[i] = vidx_app.First();
+                        }
+                    }
+                    else {
+                        // 関数適用の添え字がない場合
+
+                        throw new Exception();
+                    }
+                }
+            }
+
+            for (int i = 0; i < dim_cnt; i++) {
+                Debug.Assert(idxes[i] != null);
+
+                foreach (Reference r1 in vref) {
+                    if (!r1.Indexes[i].Eq(idxes[i])) {
+                        // 添え字が等しくない場合
+
+                        if (idxes[i] is Reference) {
+                            // 基本の添え字が変数参照の場合
+
+                            Reference idx_ref1 = idxes[i] as Reference;
+                            if (idx_ref1.VarRef == t_var) {
+                                // 基本の添え字が t の場合
+
+                                if (r1.Indexes[i].Eq(t_sub_1)) {
+                                    // 対象の添え字が t-1 の場合
+
+                                }
+                                else {
+                                    // 対象の添え字が t-1 でない場合
+
+                                    throw new Exception();
+                                }
+                            }
+                            else {
+                                // 基本の添え字が t でない場合
+
+                                if (r1.Indexes[i] is Reference) {
+                                    // 対象の添え字が変数参照の場合
+
+                                    Reference idx_ref2 = r1.Indexes[i] as Reference;
+
+                                    if (idx_ref1.VarRef.Domain != null && idx_ref1.VarRef.Domain.Eq(idx_ref2.VarRef.Domain)) {
+                                        // 領域が同じ場合
+
+                                    }
+                                    else {
+                                        // 領域が違う場合
+
+                                        Debug.WriteLine("IDX domain ERR: {0} != {1}", idx_ref1.ToString(), idx_ref2.ToString());
+                                    }
+                                }
+                                else {
+                                    // 対象の添え字が変数参照でない場合
+
+                                    throw new Exception();
+                                }
+                            }
+                        }
+                        else {
+                            // 添え字が変数参照でない場合
+
+                            throw new Exception();
+                        }
+                    }
+                }
+            }
+
+            return new Reference(fld.Name, fld, idxes);
         }
 
         void WriteMathJax(StringWriter sw) {
@@ -693,6 +657,14 @@ namespace mkfn {
 
             return v1;
         }
+
+        // u[i, j, k] = (from p in Range(H) from q in Range(H) select x[i + p, j + q] * h[p, q, k]).Sum() + b[k];
+        // m = i + p   : 0 <= i <= I - 1   0 <= p <= H - 1
+        //  i = m - p  : 0 <= m - p <= I - 1    m - I + 1 <= p <= m  max(0, m - I + 1) <= p <= min(H - 1, m)
+        // n = j + q   : 0 <= j <= J - 1   0 <= q <= H - 1
+        //  j = n - q  : 0 <= n - q <= J - 1    n - J + 1 <= q <= n  max(0, n - J + 1) <= q <= min(H - 1, n)
+        // 
+
 
         Apply Mul(params Term[] args) {
             return new Apply(new Reference(MulFnc), args);
@@ -906,8 +878,12 @@ namespace mkfn {
                     Term[] args = (from t in app.Args select t.Clone(var_tbl)).ToArray();
                     return Mul(new Apply(new Reference(tanh_prime), args), diffs[0]);
                 }
+                else if (app.Function.Name == "Mat" || app.Function.Name == "Row" || app.Function.Name == "C") {
+                    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 未実装 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    return Zero;
+                }
                 else {
-                    Debug.Write("");
+                    Debug.Assert(false);
                 }
             }
             else if (t1 is LINQ) {
@@ -916,7 +892,8 @@ namespace mkfn {
             else {
                 Debug.Assert(false);
             }
-            
+
+            Debug.Assert(false);
             return null;
         }
 
