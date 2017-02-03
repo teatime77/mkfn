@@ -20,7 +20,12 @@ namespace mkfn {
         Variable SumFnc = new Variable("Sum", null, null);
         Variable ProdFnc = new Variable("Prod", null, null);
         Variable MaxFnc = new Variable("Max", null, null);
+        Variable maxFnc = new Variable("max", null, null);
+        Variable minFnc = new Variable("min", null, null);
         Variable NewFnc = new Variable("new", null, null);
+        Variable DomainFnc = new Variable("Domain", null, null);
+        Variable RangeFnc;
+        Variable DiffFnc = new Variable("Diff", null, null);
         Variable σ_prime;
         Variable tanh_prime;
 
@@ -32,6 +37,8 @@ namespace mkfn {
             Debug.WriteLine("深層学習");
 
             Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
+
+            RangeFnc = (from f in layer.Functions where f.Name == "Range" select f).First();
 
             Class[] layers = (from cls in AppClasses where cls.IsSubClass(layer) select cls).ToArray();
 
@@ -143,6 +150,7 @@ namespace mkfn {
                     List<Reference> prop = new List<Reference>();
                     List<Reference> prop_t_1 = new List<Reference>();
                     List<Reference> prop_plus_linq = new List<Reference>();
+                    Dictionary<Reference, LINQ> prop_plus_linq_diff = new Dictionary<Reference, LINQ>();
 
                     // 変数を使用している変数参照に対し
                     foreach (Reference ref_use in (from r in all_refs where r.VarRef == left.VarRef && r.Used() && r.Indexes != null select r)) {
@@ -167,7 +175,9 @@ namespace mkfn {
                             int dim_cnt = ref_use.Indexes.Length;
                             int ref_linq = 0;
                             int t_1 = 0;
-                            int plus_linq = 0;
+                            ForEach plus_linq_foreach = null;
+                            LINQ plus_linq_linq = null;
+                            List<int> plus_linq_dim = new List<int>();
 
                             // 変数参照の各添え字に対し
                             for (int dim = 0; dim < dim_cnt; dim++) {
@@ -259,7 +269,20 @@ namespace mkfn {
                                         }
 
                                         // i + p, j + q
-                                        plus_linq++;
+                                        plus_linq_dim.Add(dim);
+                                        if (plus_linq_foreach == null) {
+
+                                            // 添え字の関数適用の最初の引数はforeachのループ変数
+                                            plus_linq_foreach = vfor[dim];
+
+                                            // 添え字の関数適用の2番目の引数はLINQのループ変数
+                                            plus_linq_linq = lnq;
+                                        }
+                                        else {
+
+                                            //Debug.Assert(plus_linq_foreach == vfor[dim]);
+                                            Debug.Assert(plus_linq_linq == lnq);
+                                        }
                                     }
                                     else {
                                         Debug.Assert(false);
@@ -269,7 +292,7 @@ namespace mkfn {
                             if (t_1 != 0 && ref_linq != 0) {
 
                             }
-                            else if (ref_linq != 0 && plus_linq != 0 || plus_linq != 0 && t_1 != 0) {
+                            else if (ref_linq != 0 && plus_linq_foreach != null || plus_linq_foreach != null && t_1 != 0) {
                                 Debug.Assert(false);
                             }
 
@@ -282,13 +305,16 @@ namespace mkfn {
                                     prop_t_1.Add(left_use);
                                 }
                             }
-                            else if (plus_linq != 0) {
+                            else if (plus_linq_foreach != null) {
 
                                 if (!(from r in prop_plus_linq where r.Eq(left_use) select r).Any()) {
-                                    // t-1の伝播先リストにない場合
+                                    // i+pの伝播先リストにない場合
 
-                                    // t-1の伝播先リストに追加する。
+                                    // i+pの伝播先リストに追加する。
                                     prop_plus_linq.Add(left_use);
+
+                                    LINQ lnq = plus_linq(ref_use, plus_linq_dim, plus_linq_linq);
+                                    prop_plus_linq_diff.Add(left_use, lnq);
                                 }
                             }
                             else {
@@ -315,6 +341,17 @@ namespace mkfn {
 
                         // 右辺を+1して簡約化する。
                         Dictionary<Reference, Term> use_right_inc_simple = prop_t_1.ToDictionary(r => r, r => SimplifyExpression(use_right_inc[r].Clone(null)));
+
+
+                        foreach (Reference r in prop_plus_linq) {
+                            LINQ lnq = prop_plus_linq_diff[r];
+
+                            sw.WriteLine("--------------------------------------------------");
+                            sw.WriteLine("$$");
+                            sw.WriteLine(MathJax(lnq));
+                            sw.WriteLine("$$");
+                        }
+
 
                         // tとt+1の合併
                         Debug.Assert(! prop.Intersect(prop_t_1).Any());
@@ -665,17 +702,150 @@ namespace mkfn {
         //  j = n - q  : 0 <= n - q <= J - 1    n - J + 1 <= q <= n  max(0, n - J + 1) <= q <= min(H - 1, n)
         // 
 
-
-        Apply Mul(params Term[] args) {
-            return new Apply(new Reference(MulFnc), args);
+        Apply Range(Term start, Term end) {
+            return new Apply(RangeFnc, start, end);
         }
 
-        Apply Add(params Term[] args) {
-            return new Apply(new Reference(AddFnc), args);
+        Apply Intersect(Term t1, Term t2) {
+            if(t1 is Apply && t2 is Apply) {
+
+                Apply app1 = t1 as Apply;
+                Apply app2 = t2 as Apply;
+
+                if(app1.Function.VarRef == RangeFnc && app2.Function.VarRef == RangeFnc) {
+
+                    Apply min = new Apply(maxFnc, new Term[] { MinRange(t1), MinRange(t2) });
+                    Apply max = new Apply(minFnc, new Term[] { MaxRange(t1), MaxRange(t2) });
+
+                    return Range(min, max);
+                }
+            }
+            return null;
         }
 
-        Apply Sub(params Term[] args) {
-            return new Apply(new Reference(SubFnc), args);
+        Term MinRange(Term rng) {
+            if (rng is Apply) {
+                Apply app = rng as Apply;
+
+                if (app.Function.VarRef == RangeFnc) {
+
+                    if (app.Args.Length == 1) {
+
+                        return Zero;
+                    }
+                    else {
+
+                        return app.Args[0];
+                    }
+                }
+            }
+
+            throw new Exception();
+        }
+
+        Term MaxRange(Term rng) {
+            if(rng is Apply) {
+                Apply app = rng as Apply;
+
+                if(app.Function.VarRef == RangeFnc) {
+
+                    if(app.Args.Length == 1) {
+
+                        return app.Args[0];
+                    }
+                    else {
+
+                        return app.Args[1];
+                    }
+                }
+            }
+
+            throw new Exception();
+        }
+
+        Apply Diff(Term t, Reference r) {
+            return new Apply(DiffFnc, new Term[] { t, r });
+        }
+
+
+        LINQ plus_linq(Reference ref1, List<int> plus_linq_dim, LINQ lnq1) {
+            List<Apply> i_plus_p = new List<Apply>();
+            List<Variable> lnq_vars = new List<Variable>();
+
+            Statement stmt = ParentStatement(ref1);
+            Debug.Assert(stmt is Assignment);
+            Assignment asn = stmt as Assignment;
+
+            Term[] u_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
+            Term[] x_idxes = (from t in ref1.Indexes select t.Clone()).ToArray();
+            foreach (int dim in plus_linq_dim) {
+                Apply app = ref1.Indexes[dim] as Apply;
+
+                var v = from a in i_plus_p where a.Eq(app) select a;
+                if (! v.Any()) {
+
+                    i_plus_p.Add(app);
+
+                    Variable for_var1 = (app.Args[0] as Reference).VarRef;
+                    Variable linq_var1 = (app.Args[1] as Reference).VarRef;
+
+                    string name = for_var1.Name + "." + linq_var1.Name;
+                    Apply for_var2_domain = new Apply(new Reference(DomainFnc), new Term[] { new Reference(ref1.VarRef), new Number(dim) });
+                    Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
+
+                    x_idxes[dim] = new Reference(for_var2);
+
+                    Apply start = Add(Sub(for_var2, MaxRange(for_var1.Domain)), One);
+                    Reference end = new Reference(for_var2);
+                    Apply linq_var2_domain = Intersect(linq_var1.Domain, Range(start, end));
+
+                    Variable linq_var2 = new Variable(linq_var1.Name, linq_var1.TypeVar, linq_var2_domain);
+
+                    lnq_vars.Add(linq_var2);
+
+                    var vv = asn.Left.Indexes.Select((t, i) => new { Val = t, Idx = i }).Where(p => p.Val is Reference && (p.Val as Reference).VarRef == for_var1).Select(p => p.Idx);
+                    if (vv.Any()) {
+
+                        u_idxes[vv.First()] = Sub(for_var2, linq_var1);
+                    }
+                }
+                else {
+
+                    x_idxes[dim] = ref1.Indexes[dim].Clone();
+                }
+            }
+
+            Reference u = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
+            Apply diff1 = Diff(new Reference("E", null, null), u);
+
+            Reference x = new Reference(ref1.Name, ref1.VarRef, x_idxes);
+            Apply diff2 = Diff(u.Clone(), x);
+
+            Apply mul = Mul(diff1, diff2);
+
+            LINQ lnq2 = new LINQ(lnq_vars.ToArray(), mul, new Reference(SumFnc));
+
+
+
+
+
+            return lnq2;
+        }
+
+        Term[] VariableToReference(object[] args) {
+            return (from x in args select (Term)(x is Variable ? new Reference(x as Variable) : x as Term)).ToArray();
+        }
+
+        Apply Mul(params object[] args) {
+            return new Apply(new Reference(MulFnc), VariableToReference(args));
+        }
+
+        Apply Add(params object[] args) {
+            return new Apply(new Reference(AddFnc), VariableToReference(args));
+        }
+
+        Apply Sub(params object[] args) {
+            return new Apply(new Reference(SubFnc), VariableToReference(args));
         }
 
         public int[] Range(int n) {
@@ -897,7 +1067,7 @@ namespace mkfn {
             return null;
         }
 
-        Term Subst(Term t1, Dictionary<Variable, Term> subst_tbl, Dictionary<Variable, Variable> var_tbl) {
+        Term Subst(Term t1, Dictionary<Variable, Term> subst_tbl, Dictionary<Variable, Variable> var_tbl = null) {
             return NaviRep(t1,
                 delegate (object obj, out object ret) {
                     ret = obj;
@@ -1095,6 +1265,16 @@ namespace mkfn {
                 }
                 else {
                     string name = app.Function.Name;
+
+                    if(app.Function.VarRef == DiffFnc) {
+
+                        string arg0 = MathJax(app.Args[0]);
+                        if (app.Args[0] is Apply && ! Char.IsLetter( (app.Args[0] as Apply).Function.Name[0]) ) {
+
+                            arg0 = "(" + arg0 + ")";
+                        }
+                        return string.Format(@"\frac{{ \partial {0} }}{{ \partial {1} }}", arg0, MathJax(app.Args[1]));
+                    }
                     if(app.Function.VarRef == σ_prime) {
                         name = "σ'";
                     }

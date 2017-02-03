@@ -179,7 +179,7 @@ namespace mkfn {
             return false;
         }
 
-        public Term Clone(Dictionary<Variable, Variable> var_tbl) {
+        public Term Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (var_tbl == null) {
                 var_tbl = new Dictionary<Variable, Variable>();
             }
@@ -338,6 +338,9 @@ namespace mkfn {
             foreach (Term t in Args) {
                 t.Parent = this;
             }
+        }
+
+        public Apply(Variable function, params Term[] args) : this(new Reference(function), args) {
         }
 
         public new Apply Clone(Dictionary<Variable, Variable> var_tbl) {
