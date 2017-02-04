@@ -174,6 +174,7 @@ namespace mkfn {
     */
     public abstract class Term {
         public object Parent;
+        public double Value = 1;
 
         public virtual bool Eq(Object obj) {
             return false;
@@ -191,7 +192,7 @@ namespace mkfn {
                 return (this as Number).Clone(var_tbl);
             }
             else if (this is Apply) {
-                return (this as Apply).Clone(var_tbl);
+                return ToApply().Clone(var_tbl);
             }
             else if (this is LINQ) {
                 return (this as LINQ).Clone(var_tbl);
@@ -201,14 +202,32 @@ namespace mkfn {
                 return null;
             }
         }
+
+        public Number ToNumber() {
+            return this as Number;
+        }
+
+        public Apply ToApply() {
+            return this as Apply;
+        }
+
+        public bool IsAdd() {
+            return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.AddFnc;
+        }
+
+        public bool IsSub() {
+            return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.SubFnc;
+        }
+
+        public bool IsMul() {
+            return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.MulFnc;
+        }
     }
 
     /*
         数値定数
     */
     public class Number : Term {
-        public double Value;
-
         public Number(string text) {
 
             if (!double.TryParse(text, out Value)) {
@@ -262,7 +281,7 @@ namespace mkfn {
             Indexes = null;
         }
 
-        public new Reference Clone(Dictionary<Variable, Variable> var_tbl) {
+        public new Reference Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (var_tbl == null) {
                 var_tbl = new Dictionary<Variable, Variable>();
             }
@@ -343,7 +362,7 @@ namespace mkfn {
         public Apply(Variable function, params Term[] args) : this(new Reference(function), args) {
         }
 
-        public new Apply Clone(Dictionary<Variable, Variable> var_tbl) {
+        public new Apply Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Term[] args = (from t in Args select t.Clone(var_tbl)).ToArray();
             return new Apply(Function.Clone(var_tbl), args);
         }

@@ -13,9 +13,9 @@ namespace mkfn {
     public partial class mkfn {
         Number Zero = new Number(0);
         Number One = new Number(1);
-        Variable AddFnc = new Variable("+", null, null);
-        Variable SubFnc = new Variable("-", null, null);
-        Variable MulFnc = new Variable("*", null, null);
+        public Variable AddFnc = new Variable("+", null, null);
+        public Variable SubFnc = new Variable("-", null, null);
+        public Variable MulFnc = new Variable("*", null, null);
         Variable DivFnc = new Variable("/", null, null);
         Variable SumFnc = new Variable("Sum", null, null);
         Variable ProdFnc = new Variable("Prod", null, null);
@@ -26,6 +26,7 @@ namespace mkfn {
         Variable DomainFnc = new Variable("Domain", null, null);
         Variable RangeFnc;
         Variable DiffFnc = new Variable("Diff", null, null);
+        Variable EFnc = new Variable("E", null, null);
         Variable σ_prime;
         Variable tanh_prime;
 
@@ -151,6 +152,7 @@ namespace mkfn {
                     List<Reference> prop_t_1 = new List<Reference>();
                     List<Reference> prop_plus_linq = new List<Reference>();
                     Dictionary<Reference, LINQ> prop_plus_linq_diff = new Dictionary<Reference, LINQ>();
+                    Dictionary<Reference, LINQ> prop_plus_linq_diff_right = new Dictionary<Reference, LINQ>();
 
                     // 変数を使用している変数参照に対し
                     foreach (Reference ref_use in (from r in all_refs where r.VarRef == left.VarRef && r.Used() && r.Indexes != null select r)) {
@@ -313,8 +315,10 @@ namespace mkfn {
                                     // i+pの伝播先リストに追加する。
                                     prop_plus_linq.Add(left_use);
 
-                                    LINQ lnq = plus_linq(ref_use, plus_linq_dim, plus_linq_linq);
-                                    prop_plus_linq_diff.Add(left_use, lnq);
+                                    LINQ lnq1, lnq2;
+                                    plus_linq(ref_use, plus_linq_dim, out lnq1, out lnq2);
+                                    prop_plus_linq_diff.Add(left_use, lnq1);
+                                    prop_plus_linq_diff_right.Add(left_use, lnq2);
                                 }
                             }
                             else {
@@ -344,11 +348,11 @@ namespace mkfn {
 
 
                         foreach (Reference r in prop_plus_linq) {
-                            LINQ lnq = prop_plus_linq_diff[r];
-
-                            sw.WriteLine("--------------------------------------------------");
+                            sw.WriteLine("<hr/>");
                             sw.WriteLine("$$");
-                            sw.WriteLine(MathJax(lnq));
+                            sw.WriteLine(MathJax(prop_plus_linq_diff[r]));
+                            sw.WriteLine(@"\\ =");
+                            sw.WriteLine(MathJax(prop_plus_linq_diff_right[r]));
                             sw.WriteLine("$$");
                         }
 
@@ -768,7 +772,7 @@ namespace mkfn {
         }
 
 
-        LINQ plus_linq(Reference ref1, List<int> plus_linq_dim, LINQ lnq1) {
+        void plus_linq(Reference ref1, List<int> plus_linq_dim, out LINQ lnq1, out LINQ lnq2) {
             List<Apply> i_plus_p = new List<Apply>();
             List<Variable> lnq_vars = new List<Variable>();
 
@@ -778,6 +782,8 @@ namespace mkfn {
 
             Term[] u_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
             Term[] x_idxes = (from t in ref1.Indexes select t.Clone()).ToArray();
+            Dictionary<Reference, Term> subst_tbl = new Dictionary<Reference, Term>();
+
             foreach (int dim in plus_linq_dim) {
                 Apply app = ref1.Indexes[dim] as Apply;
 
@@ -789,7 +795,7 @@ namespace mkfn {
                     Variable for_var1 = (app.Args[0] as Reference).VarRef;
                     Variable linq_var1 = (app.Args[1] as Reference).VarRef;
 
-                    string name = for_var1.Name + "." + linq_var1.Name;
+                    string name = for_var1.Name + "" + linq_var1.Name;
                     Apply for_var2_domain = new Apply(new Reference(DomainFnc), new Term[] { new Reference(ref1.VarRef), new Number(dim) });
                     Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
 
@@ -806,7 +812,15 @@ namespace mkfn {
                     var vv = asn.Left.Indexes.Select((t, i) => new { Val = t, Idx = i }).Where(p => p.Val is Reference && (p.Val as Reference).VarRef == for_var1).Select(p => p.Idx);
                     if (vv.Any()) {
 
-                        u_idxes[vv.First()] = Sub(for_var2, linq_var1);
+                        int i = vv.First();
+
+                        Debug.Assert(u_idxes[i] is Reference);
+
+                        Apply sub2 = Sub(for_var2, linq_var1);
+
+                        subst_tbl.Add(u_idxes[i] as Reference, sub2);
+
+                        u_idxes[i] = sub2;
                     }
                 }
                 else {
@@ -816,20 +830,23 @@ namespace mkfn {
             }
 
             Reference u = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
-            Apply diff1 = Diff(new Reference("E", null, null), u);
+            Apply diff1 = Diff(new Reference(EFnc), u);
 
             Reference x = new Reference(ref1.Name, ref1.VarRef, x_idxes);
             Apply diff2 = Diff(u.Clone(), x);
 
-            Apply mul = Mul(diff1, diff2);
+            Apply mul2 = Mul(diff1, diff2);
 
-            LINQ lnq2 = new LINQ(lnq_vars.ToArray(), mul, new Reference(SumFnc));
-
-
+            lnq1 = new LINQ(lnq_vars.ToArray(), mul2, new Reference(SumFnc));
 
 
+            Term u_right = Subst(asn.Right.Clone(), subst_tbl);
 
-            return lnq2;
+            Apply diff1_2 = diff1.Clone();
+            Apply diff2_2 = Diff(u_right, x.Clone());
+            Apply mul3 = Mul(diff1_2, diff2_2);
+
+            lnq2 = new LINQ(lnq_vars.ToArray(), mul3, new Reference(SumFnc));
         }
 
         Term[] VariableToReference(object[] args) {
@@ -864,7 +881,7 @@ namespace mkfn {
         Term DifferentialLINQ(LINQ lnq, Reference r1, Dictionary<Variable, Variable> var_tbl) {
             Debug.Assert(lnq.Aggregate != null);
 
-            Dictionary<Reference, Dictionary<Variable, Term>> rs = new Dictionary<Reference, Dictionary<Variable, Term>>();
+            Dictionary<Reference, Dictionary<Reference, Term>> rs = new Dictionary<Reference, Dictionary<Reference, Term>>();
             bool exact = false;
             Navi(lnq.Select,
                 delegate (object obj) {
@@ -885,7 +902,7 @@ namespace mkfn {
                                 else {
                                         // 一致しない添え字がある場合
 
-                                        Dictionary<Variable, Term> pairs = new Dictionary<Variable, Term>();
+                                    Dictionary<Reference, Term> pairs = new Dictionary<Reference, Term>();
                                     bool ok = true;
                                     for (int i = 0; i < r1.Indexes.Length; i++) {
                                         if (!r1.Indexes[i].Eq(r2.Indexes[i])) {
@@ -905,9 +922,9 @@ namespace mkfn {
                                                 if (linq_eq_vars.Any()) {
                                                         // LINQの変数の場合
 
-                                                        Variable v = linq_eq_vars.First();
-                                                    Debug.Assert(!pairs.ContainsKey(v));
-                                                    pairs.Add(v, r1.Indexes[i]);
+                                                    Variable v = linq_eq_vars.First();
+                                                    Debug.Assert(! (from r in pairs.Keys where r.VarRef == v select r).Any());
+                                                    pairs.Add(new Reference( v ), r1.Indexes[i]);
                                                 }
                                                 else {
                                                         // LINQの変数でない場合
@@ -962,7 +979,7 @@ namespace mkfn {
                 // 代入で一致の変数参照がある場合
 
                 Debug.Assert(rs.Keys.Count == 1, "代入で一致の変数参照は1種類のみ実装");
-                Dictionary<Variable, Term> subst_tbl = rs.First().Value;
+                Dictionary<Reference, Term> subst_tbl = rs.First().Value;
                 Debug.Assert(subst_tbl.Count == lnq.Variables.Length, "LINQの全変数に代入する。");
 
                 // LINQのselect句の変数参照に代入する。
@@ -1067,7 +1084,7 @@ namespace mkfn {
             return null;
         }
 
-        Term Subst(Term t1, Dictionary<Variable, Term> subst_tbl, Dictionary<Variable, Variable> var_tbl = null) {
+        Term Subst(Term t1, Dictionary<Reference, Term> subst_tbl, Dictionary<Variable, Variable> var_tbl = null) {
             return NaviRep(t1,
                 delegate (object obj, out object ret) {
                     ret = obj;
@@ -1075,7 +1092,9 @@ namespace mkfn {
                         Reference r2 = obj as Reference;
 
                         Term t2;
-                        if(subst_tbl.TryGetValue(r2.VarRef, out t2)) {
+                        var vref = from r in subst_tbl.Keys where r.Eq(r2) select r;
+                        if (vref.Any()) {
+                            t2 = subst_tbl[vref.First()];
                             Term t3 = t2.Clone(var_tbl);
                             t3.Parent = r2.Parent;
                             ret = t3;
@@ -1097,19 +1116,145 @@ namespace mkfn {
 
         }
 
+        /*
+            数式の簡約化
+        */
         Term SimplifyExpression(Term t1) {
             return NaviRep(t1,
                 delegate (object obj, out object ret) {
                     ret = obj;
 
                     if (obj is Apply) {
+                        // 関数適用の場合
+
                         Apply app = obj as Apply;
 
+                        // 引数を簡約化する。
                         Term[] args1 = (from t in app.Args select SimplifyExpression(t)).ToArray();
 
                         List<Term> args2 = new List<Term>();
+                        List<double> constants = new List<double>();
 
-                        if (app.Function.VarRef == SubFnc && args1[0] is Apply && (args1[0] as Apply).Function.VarRef == AddFnc && args1[1] is Number) {
+                        if (app.IsAdd() || app.IsSub()) {
+
+                            double sign;
+                            for(int i = 0; i < app.Args.Length; i++) {
+                                Term t2 = app.Args[i];
+
+                                if(app.IsSub() && i != 0) {
+                                    // 減算で最初でない場合
+
+                                    // 符号を負にする。
+                                    sign = -1;
+                                }
+                                else {
+                                    // 加算か最初の場合
+
+                                    // 符号を正にする。
+                                    sign = 1;
+                                }
+
+                                if(t2 is Number) {
+                                    // 引数が定数の場合
+
+                                    Number n = t2.ToNumber();
+
+                                    // すでに定数があるか調べる。
+                                    var vn = args2.Select((x, idx) => new { Val = x, Idx = idx }).Where(p => p.Val is Number).Select(p => p.Idx);
+
+                                    if (vn.Any()) {
+                                        // すでに定数がある場合
+
+                                        int idx = vn.First();
+                                        args2[idx] = new Number( args2[idx].ToNumber().Value + (sign * n.Value) );
+                                    }
+                                    else {
+
+                                        args2.Add(new Number(sign * n.Value));
+                                        constants.Add(1);
+                                    }
+                                }
+                                else if (t2.IsAdd()) {
+                                    // 引数が加算の場合
+
+                                    foreach (Term t3 in t2.ToApply().Args) {
+
+                                        args2.Add(t3);
+                                        constants.Add(sign);
+                                    }
+                                }
+                                else if (t2.IsSub()) {
+                                    // 引数が減算の場合
+
+                                    for (int j = 0; j < t2.ToApply().Args.Length; j++) {
+                                        if (j != 0) {
+                                            // 最初でない場合
+
+                                            // 符号を反転する。
+                                            sign *= -1;
+                                        }
+
+                                        args2.Add(t2.ToApply().Args[j] );
+                                        constants.Add(sign);
+                                    }
+                                }
+                                else {
+                                    // 引数が加算や減算でない場合
+
+                                    args2.Add(t2);
+                                    constants.Add(sign);
+                                }
+                            }
+
+                            for(int i = 0; i < args2.Count; i++) {
+
+                                for (int j = i + 1; j < args2.Count;) {
+                                    if(args2[i].Eq(args2[j])) {
+                                        // 同じ項がある場合
+
+                                        // 係数を加算する。
+                                        constants[i] += constants[j];
+
+                                        // 同じ項を取り除く
+                                        args2.RemoveAt(j);
+                                        constants.RemoveAt(j);
+
+                                        if(constants[i] == 0) {
+                                            // 係数が0の場合
+
+                                            // 項を取り除く
+                                            args2.RemoveAt(i);
+                                            constants.RemoveAt(i);
+
+                                            j--;
+                                        }
+                                    }
+                                    else {
+                                        // 同じ項がない場合
+
+                                        j++;
+                                    }
+                                }
+                            }
+
+                            // すでに定数があるか調べる。
+                            var vplus = constants.Select((x, idx) => new { Val = x, Idx = idx }).Where(p => 0<= p.Val).Select(p => p.Idx);
+
+                            switch (args2.Count) {
+                            case 0:
+                                ret = Zero;
+                                return true;
+
+                            case 1:
+                                args2[0].Parent = app.Parent;
+                                ret = args2[0];
+
+                                return true;
+                            }
+
+                        }
+
+                        if (app.IsSub() && args1[0].IsAdd() && args1[1] is Number) {
                             // (t + 1) - 1
 
                             Debug.Assert(args1.Length == 2);
@@ -1125,7 +1270,7 @@ namespace mkfn {
                         /*
                         */
 
-                        if (app.Function.VarRef == AddFnc || app.Function.VarRef == MulFnc) {
+                        if (app.IsAdd() || app.IsMul()) {
                             foreach(Term t in args1) {
                                 if(t is Apply && (t as Apply).Function.VarRef == app.Function.VarRef) {
                                     args2.AddRange((t as Apply).Args);
@@ -1137,7 +1282,7 @@ namespace mkfn {
 
                             Number[] ns = (from t in args1 where t is Number select t as Number).ToArray();
                             if (ns.Any()) {
-                                if (app.Function.VarRef == AddFnc) {
+                                if (app.IsAdd()) {
 
                                     double d = (from x in ns select x.Value).Sum();
                                     if (d != 0) {
@@ -1163,11 +1308,11 @@ namespace mkfn {
 
                             switch (args2.Count) {
                             case 0:
-                                if (app.Function.VarRef == AddFnc) {
+                                if (app.IsAdd()) {
 
                                     ret = Zero;
                                 }
-                                else if (app.Function.VarRef == MulFnc) {
+                                else if (app.IsMul()) {
 
                                     ret = One;
                                 }
