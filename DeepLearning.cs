@@ -11,10 +11,9 @@ namespace mkfn {
 
     //------------------------------------------------------------ TProject
     public partial class mkfn {
-        Number Zero = new Number(0);
-        Number One = new Number(1);
+        Number Zero() { return new Number(0); }
+        Number One() { return new Number(1) ; }
         public Variable AddFnc = new Variable("+", null, null);
-        public Variable SubFnc = new Variable("-", null, null);
         public Variable MulFnc = new Variable("*", null, null);
         Variable DivFnc = new Variable("/", null, null);
         Variable SumFnc = new Variable("Sum", null, null);
@@ -127,7 +126,8 @@ namespace mkfn {
 
                 Apply t_sub_1 = null;
                 if(t_var != null) {
-                    t_sub_1 = Sub(new Term[] { new Reference(t_var), One });
+
+                    t_sub_1 = Add(new Term[] { new Reference(t_var), new Number(-1) });
                 }
 
                 // すべてのフィールドに対し
@@ -236,18 +236,19 @@ namespace mkfn {
                                     Reference arg_ref1 = app.Args[0] as Reference;
                                     Debug.Assert(arg_ref1.VarRef == vfor[dim].LoopVariable);
 
-                                    if (app.Function.Name == "-") {
+                                    Debug.Assert(app.IsAdd());
+                                    if (app.Args[1].Value < 0) {
                                         // 添え字が"-"式の場合
 
                                         Debug.Assert(app.Args[1] is Number);
 
                                         // 添え字の関数適用の2番目の引数
                                         Number n = app.Args[1] as Number;
-                                        Debug.Assert(arg_ref1.VarRef == t_var && n.Value == 1);
+                                        Debug.Assert(arg_ref1.VarRef == t_var && n.Value == -1);
                                         // t - 1
                                         t_1++;
                                     }
-                                    else if (app.Function.Name == "+") {
+                                    else {
                                         // 添え字が"+"式の場合
 
                                         Debug.Assert(app.Args[1] is Reference);
@@ -285,9 +286,6 @@ namespace mkfn {
                                             //Debug.Assert(plus_linq_foreach == vfor[dim]);
                                             Debug.Assert(plus_linq_linq == lnq);
                                         }
-                                    }
-                                    else {
-                                        Debug.Assert(false);
                                     }
                                 }
                             }
@@ -375,7 +373,7 @@ namespace mkfn {
 
 
                         sw.WriteLine("<hr/>");
-                        sw.WriteLine("<div style='font-size:120%;'>");                        
+                        sw.WriteLine("<div style='font-size:120%; color:red;'>");
                         sw.WriteLine("$$");
                         sw.WriteLine(@"\frac{{ \partial E }}{{ \partial {0} }}", MathJax(left), "");
                         sw.WriteLine("$$");
@@ -735,7 +733,7 @@ namespace mkfn {
 
                     if (app.Args.Length == 1) {
 
-                        return Zero;
+                        return Zero();
                     }
                     else {
 
@@ -801,7 +799,7 @@ namespace mkfn {
 
                     x_idxes[dim] = new Reference(for_var2);
 
-                    Apply start = Add(Sub(for_var2, MaxRange(for_var1.Domain)), One);
+                    Apply start = Add(Add(for_var2, MaxRange(for_var1.Domain).Minus()), One());
                     Reference end = new Reference(for_var2);
                     Apply linq_var2_domain = Intersect(linq_var1.Domain, Range(start, end));
 
@@ -862,7 +860,12 @@ namespace mkfn {
         }
 
         Apply Sub(params object[] args) {
-            return new Apply(new Reference(SubFnc), VariableToReference(args));
+            Term[] v = VariableToReference(args);
+            for(int i = 1; i < v.Length; i++) {
+                v[i].Value *= -1;
+            }
+
+            return new Apply(new Reference(AddFnc), v);
         }
 
         public int[] Range(int n) {
@@ -948,7 +951,7 @@ namespace mkfn {
             if (!(exact || rs.Any())) {
                 // 完全一致や代入で一致の変数参照がない場合
 
-                return Zero;
+                return Zero();
             }
 
             // LINQをコピーする。
@@ -1015,16 +1018,16 @@ namespace mkfn {
                 // 変数参照の場合
 
                 if (t1.Eq(r1)) {
-                    return One;
+                    return One();
                 }
                 else {
-                    return Zero;
+                    return Zero();
                 }
             }
             else if (t1 is Number) {
                 // 数値の場合
 
-                return Zero;
+                return Zero();
             }
 
             Dictionary<Variable, Variable> var_tbl = (var_tbl_up == null ? new Dictionary<Variable, Variable>() : new Dictionary<Variable, Variable>(var_tbl_up));
@@ -1039,11 +1042,6 @@ namespace mkfn {
                     // 加算の場合
 
                     return Add(diffs);
-                }
-                else if (app.Function.VarRef == SubFnc) {
-                    // 減算の場合
-
-                    return Sub(diffs);
                 }
                 else if (app.Function.VarRef == MulFnc) {
                     // 乗算の場合
@@ -1067,7 +1065,7 @@ namespace mkfn {
                 }
                 else if (app.Function.Name == "Mat" || app.Function.Name == "Row" || app.Function.Name == "C") {
                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 未実装 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                    return Zero;
+                    return Zero();
                 }
                 else {
                     Debug.Assert(false);
@@ -1132,102 +1130,45 @@ namespace mkfn {
                         // 引数を簡約化する。
                         Term[] args1 = (from t in app.Args select SimplifyExpression(t)).ToArray();
 
-                        List<Term> args2 = new List<Term>();
-                        List<double> constants = new List<double>();
 
-                        if (app.IsAdd() || app.IsSub()) {
+                        if (app.IsAdd() || app.IsMul()) {
 
-                            double sign;
-                            for(int i = 0; i < app.Args.Length; i++) {
-                                Term t2 = app.Args[i];
+                            List<Term> args2 = new List<Term>();
 
-                                if(app.IsSub() && i != 0) {
-                                    // 減算で最初でない場合
+                            foreach(Term t2 in args1) {
+                                if (t2 is Apply && (t2 as Apply).Function.VarRef == app.Function.VarRef) {
+                                    // 引数が同じ演算の場合
 
-                                    // 符号を負にする。
-                                    sign = -1;
-                                }
-                                else {
-                                    // 加算か最初の場合
-
-                                    // 符号を正にする。
-                                    sign = 1;
-                                }
-
-                                if(t2 is Number) {
-                                    // 引数が定数の場合
-
-                                    Number n = t2.ToNumber();
-
-                                    // すでに定数があるか調べる。
-                                    var vn = args2.Select((x, idx) => new { Val = x, Idx = idx }).Where(p => p.Val is Number).Select(p => p.Idx);
-
-                                    if (vn.Any()) {
-                                        // すでに定数がある場合
-
-                                        int idx = vn.First();
-                                        args2[idx] = new Number( args2[idx].ToNumber().Value + (sign * n.Value) );
-                                    }
-                                    else {
-
-                                        args2.Add(new Number(sign * n.Value));
-                                        constants.Add(1);
-                                    }
-                                }
-                                else if (t2.IsAdd()) {
-                                    // 引数が加算の場合
-
-                                    foreach (Term t3 in t2.ToApply().Args) {
-
-                                        args2.Add(t3);
-                                        constants.Add(sign);
-                                    }
-                                }
-                                else if (t2.IsSub()) {
-                                    // 引数が減算の場合
-
-                                    for (int j = 0; j < t2.ToApply().Args.Length; j++) {
-                                        if (j != 0) {
-                                            // 最初でない場合
-
-                                            // 符号を反転する。
-                                            sign *= -1;
-                                        }
-
-                                        args2.Add(t2.ToApply().Args[j] );
-                                        constants.Add(sign);
-                                    }
+                                    args2.AddRange(t2.ToApply().Args);
                                 }
                                 else {
                                     // 引数が加算や減算でない場合
 
                                     args2.Add(t2);
-                                    constants.Add(sign);
                                 }
                             }
 
                             for(int i = 0; i < args2.Count; i++) {
 
                                 for (int j = i + 1; j < args2.Count;) {
-                                    if(args2[i].Eq(args2[j])) {
-                                        // 同じ項がある場合
+                                    if(args2[i].EqBody(args2[j])) {
+                                        // 本体が同じ項がある場合
 
-                                        // 係数を加算する。
-                                        constants[i] += constants[j];
+                                        if (app.IsAdd()) {
+                                            // 加算の場合
+
+                                            // 係数を加算する。
+                                            args2[i].Value += args2[j].Value;
+                                        }
+                                        else {
+                                            // 乗算の場合
+
+                                            // 係数を乗算する。
+                                            args2[i].Value *= args2[j].Value;
+                                        }
 
                                         // 同じ項を取り除く
                                         args2.RemoveAt(j);
-                                        constants.RemoveAt(j);
-
-                                        if(constants[i] == 0) {
-                                            // 係数が0の場合
-
-                                            // 項を取り除く
-                                            args2.RemoveAt(i);
-                                            constants.RemoveAt(i);
-
-                                            j--;
-                                        }
                                     }
                                     else {
                                         // 同じ項がない場合
@@ -1237,106 +1178,69 @@ namespace mkfn {
                                 }
                             }
 
-                            // すでに定数があるか調べる。
-                            var vplus = constants.Select((x, idx) => new { Val = x, Idx = idx }).Where(p => 0<= p.Val).Select(p => p.Idx);
+                            if (app.IsAdd()) {
+                                // 加算の場合
 
-                            switch (args2.Count) {
-                            case 0:
-                                ret = Zero;
-                                return true;
+                                // 係数が0の項を除く。
+                                Term[] args3 = (from t in args2 where t.Value != 0 select t).ToArray();
 
-                            case 1:
-                                args2[0].Parent = app.Parent;
-                                ret = args2[0];
+                                switch (args3.Length) {
+                                case 0:
+                                    ret = Zero();
+                                    return true;
 
-                                return true;
-                            }
+                                case 1:
+                                    ret = args3[0];
 
-                        }
+                                    return true;
 
-                        if (app.IsSub() && args1[0].IsAdd() && args1[1] is Number) {
-                            // (t + 1) - 1
-
-                            Debug.Assert(args1.Length == 2);
-
-                            Apply app3 = args1[0] as Apply;
-                            Number n = args1[1] as Number;
-
-                            app.Function = app3.Function;
-                            List<Term> v = new List<Term>(app3.Args);
-                            v.Add(new Number(- n.Value));
-                            args1 = v.ToArray();
-                        }
-                        /*
-                        */
-
-                        if (app.IsAdd() || app.IsMul()) {
-                            foreach(Term t in args1) {
-                                if(t is Apply && (t as Apply).Function.VarRef == app.Function.VarRef) {
-                                    args2.AddRange((t as Apply).Args);
-                                }
-                                else if(! (t is Number)) {
-                                    args2.Add(t);
+                                default:
+                                    ret = Add(args3);
+                                    return true;
                                 }
                             }
+                            else {
+                                // 乗算の場合
 
-                            Number[] ns = (from t in args1 where t is Number select t as Number).ToArray();
-                            if (ns.Any()) {
-                                if (app.IsAdd()) {
-
-                                    double d = (from x in ns select x.Value).Sum();
-                                    if (d != 0) {
-
-                                        args2.Add(new Number(d));
-                                    }
+                                // 引数の係数をすべてかけてまとめる。
+                                double n = (from t in args2 select t.Value).Aggregate((x, y) => x * y);
+                                foreach(Term t in args2) {
+                                    t.Value = 1;
                                 }
-                                else {
 
-                                    double d = (from x in ns select x.Value).Aggregate((x,y) => x * y);
-                                    if(d == 0) {
+                                if (n == 0) {
+                                    // 係数の積が0の場合
 
-                                        ret = Zero;
-
-                                        return true;
-                                    }
-                                    else if (d != 1) {
-
-                                        args2.Insert(0, new Number(d));
-                                    }
+                                    // 結果は0
+                                    ret = Zero();
+                                    return true;
                                 }
-                            }
 
-                            switch (args2.Count) {
-                            case 0:
-                                if (app.IsAdd()) {
+                                // 定数を除く。
+                                Term[] args3 = (from t in args2 where ! (t is Number) select t).ToArray();
 
-                                    ret = Zero;
+                                switch (args3.Length) {
+                                case 0:
+                                    Debug.Assert(args2.Count == 1 && args2[0] is Number && (args2[0] as Number).Value == 1);
+
+                                    ret = One();
+                                    break;
+
+                                case 1:
+                                    ret = args3[0];
+                                    break;
+
+                                default:
+                                    ret = Mul(args3);
+                                    break;
                                 }
-                                else if (app.IsMul()) {
 
-                                    ret = One;
-                                }
-                                else {
-
-                                    Debug.Assert(false);
-                                }
-                                return true;
-
-                            case 1:
-                                args2[0].Parent = app.Parent;
-                                ret = args2[0];
-
+                                (ret as Term).Value = app.Value * n;
                                 return true;
                             }
                         }
-                        else {
-                            args2 = new List<Term>(args1);
-                        }
 
-                        Dictionary<Variable, Variable> var_tbl = new Dictionary<Variable, Variable>();
-                        Apply app2 = new Apply(app.Function.Clone(var_tbl), args2.ToArray());
-                        app2.Parent = app.Parent;
-                        ret = app2;
+                        ret = new Apply(app.Function.VarRef, args1);
 
                         return true;
                     }
@@ -1353,6 +1257,17 @@ namespace mkfn {
         }
 
         string MathJax(Term t1) {
+            if (!(t1 is Number) && t1.Value != 1) {
+
+                return t1.Value.ToString() + @" \cdot " + MathJaxBody(t1);
+            }
+            else {
+
+                return MathJaxBody(t1);
+            }
+        }
+
+        string MathJaxBody(Term t1) {
             if (t1 is Reference) {
                 Reference r1 = t1 as Reference;
                 if(r1.Indexes == null) {
@@ -1388,17 +1303,18 @@ namespace mkfn {
                     }
                     else {
 
-                        if(app.Function.VarRef == MulFnc) {
+                        if(app.IsMul()) {
 
                             s = string.Join(@" \cdot ", from x in app.Args select MathJax(x));
+                        }
+                        else if (app.IsAdd()) {
+
+                            s = string.Join(" ", from x in app.Args select (x == app.Args[0] || x.Value < 0 ? "" : "+ ") + MathJax(x));
                         }
                         else {
 
                             s = string.Join(" " + app.Function.Name + " ", from x in app.Args select MathJax(x));
                         }
-                    }
-                    if(s.IndexOf("0 + 0 + [0 \\cdot s_{t}^{j} + wI_{j} \\cdot 1] + 0") != -1) {
-                        //MathJax(t1);
                     }
 
                     if (app.Parent is Apply && (app.Parent as Apply).Precedence() <= app.Precedence()) {

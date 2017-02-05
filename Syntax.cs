@@ -176,8 +176,10 @@ namespace mkfn {
         public object Parent;
         public double Value = 1;
 
+        public abstract bool EqBody(Object obj);
+
         public virtual bool Eq(Object obj) {
-            return false;
+            return obj is Term && Value == (obj as Term).Value && EqBody(obj);
         }
 
         public Term Clone(Dictionary<Variable, Variable> var_tbl = null) {
@@ -203,6 +205,12 @@ namespace mkfn {
             }
         }
 
+        public Term Minus() {
+            Value *= -1;
+
+            return this;
+        }
+
         public Number ToNumber() {
             return this as Number;
         }
@@ -213,10 +221,6 @@ namespace mkfn {
 
         public bool IsAdd() {
             return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.AddFnc;
-        }
-
-        public bool IsSub() {
-            return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.SubFnc;
         }
 
         public bool IsMul() {
@@ -243,11 +247,8 @@ namespace mkfn {
             return new Number(Value);
         }
 
-        public override bool Eq(Object obj) {
-            if (!(obj is Number)) {
-                return false;
-            }
-            return Value == (obj as Number).Value;
+        public override bool EqBody(Object obj) {
+            return obj is Number;
         }
 
         public override string ToString() {
@@ -299,7 +300,7 @@ namespace mkfn {
             return new Reference(Name, v1, idx);
         }
 
-        public override bool Eq(Object obj) {
+        public override bool EqBody(Object obj) {
             if (!(obj is Reference)) {
                 return false;
             }
@@ -393,7 +394,7 @@ namespace mkfn {
             }
         }
 
-        public override bool Eq(Object obj) {
+        public override bool EqBody(Object obj) {
             if (!(obj is Apply)) {
                 return false;
             }
@@ -453,6 +454,10 @@ namespace mkfn {
 
                 Aggregate.Parent = this;
             }
+        }
+
+        public override bool EqBody(Object obj) {
+            return this == obj;
         }
 
         public new LINQ Clone(Dictionary<Variable, Variable> var_tbl) {

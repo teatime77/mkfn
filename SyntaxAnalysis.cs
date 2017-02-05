@@ -323,7 +323,10 @@ namespace mkfn {
 
                 Term t1 = PrimaryExpression();
 
-                return new Apply(new Reference(SubFnc), new Term[] { t1 });
+                // 符号を反転する。
+                t1.Value *= -1;
+
+                return t1;
             }
             else {
 
@@ -375,14 +378,16 @@ namespace mkfn {
                     args.Add( MultiplicativeExpression() );
                 }
 
-                if(opr == "+") {
+                if(opr == "-") {
+                    // 減算の場合
 
-                    t1 = new Apply(new Reference(AddFnc), args.ToArray());
-                }
-                else {
+                    // 2番目以降の項の符号を反転する。
+                    for (int i = 1; i < args.Count; i++) {
 
-                    t1 = new Apply(new Reference(SubFnc), args.ToArray());
+                        args[i].Value *= -1;
+                    }
                 }
+                t1 = new Apply(new Reference(AddFnc), args.ToArray());
             }
 
             return t1;
