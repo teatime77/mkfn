@@ -30,10 +30,6 @@ namespace mkfn {
         Variable tanh_prime;
 
         public void DeepLearning() {
-
-            var intArray = new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-            Debug.WriteLine( string.Join(", ", (from x in intArray select (x*10).ToString()) ));
-
             Debug.WriteLine("深層学習");
 
             Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
@@ -53,22 +49,30 @@ namespace mkfn {
 
                 Debug.WriteLine("layer : {0}", cls.Name, "");
 
+                // 順伝播の関数
                 Function fnc = (from f in cls.Functions where f.Name == "Forward" select f).First();
 
+                // 入力変数
                 Variable x_var = (from f in cls.Fields where f.Name == "x" select f).First();
+
+                // 出力変数
                 Variable y_var = (from f in cls.Fields where f.Name == "y" select f).First();
                 Debug.Assert(x_var.TypeVar is ArrayType && y_var.TypeVar is ArrayType);
 
+                // 順伝播の関数定義の直下のforeach
                 Debug.Assert(fnc.Statement.Statements.Count == 1 && fnc.Statement.Statements[0] is ForEach);
-
                 ForEach top_for = (ForEach)fnc.Statement.Statements[0];
 
+                // 時刻tの変数
                 Variable t_var = null;
                 if(top_for.LoopVariable.Name == "t") {
                     t_var = top_for.LoopVariable;
                 }
 
+                // すべての項のリスト
                 List<Term> all_terms = new List<Term>();
+
+                // すべての代入文のリスト
                 List<Assignment> all_asns = new List<Assignment>();
                 Navi(top_for, 
                     delegate (object obj) {
@@ -80,6 +84,7 @@ namespace mkfn {
                         }
                     });
 
+                // すべての変数参照のリスト
                 Reference[] all_refs = (from t in all_terms where t is Reference select t as Reference).ToArray();
 
                 //------------------------------------------------------------ 順伝播
@@ -90,8 +95,6 @@ namespace mkfn {
                 sw.WriteLine("$$");
 
 
-                List<Reference> lefts = new List<Reference>();
-//???????????                lefts.Add(x_var);
 
                 // すべての代入文に対し
                 foreach (Assignment asn in all_asns) {
@@ -121,7 +124,6 @@ namespace mkfn {
                             Debug.Assert(left.Indexes[dim] is Reference && (left.Indexes[dim] as Reference).VarRef == vfor[dim].LoopVariable);
                         }
                     }
-                    lefts.Add(left);
                 }
 
                 Apply t_sub_1 = null;
@@ -130,8 +132,10 @@ namespace mkfn {
                     t_sub_1 = Add(new Term[] { new Reference(t_var), new Number(-1) });
                 }
 
+                // フィールドの正規形の変数参照のリスト
+                List<Reference> norm_refs = new List<Reference>();
+
                 // すべてのフィールドに対し
-                lefts.Clear();
                 foreach (Variable fld in cls.Fields) {
                     
                     // フィールドの値を使用する変数参照のリスト
@@ -140,13 +144,14 @@ namespace mkfn {
                     if (vref.Any()) {
                         // フィールドの値を使用する変数参照がある場合
 
-                        Reference left = MakeDifferentialReference(t_var, t_sub_1, fld, vref);
-                        lefts.Add(left);
+                        // フィールドの正規形の変数参照
+                        Reference left = NormalizedReference(t_var, t_sub_1, fld, vref);
+                        norm_refs.Add(left);
                     }
                 }
 
-                // すべての代入文の左辺の変数参照に対し
-                foreach (Reference left in lefts) {
+                // すべてのフィールドの正規形の変数参照に対し
+                foreach (Reference left in norm_refs) {
                     //Debug.Assert(left.Defined());
                     List<Reference> prop = new List<Reference>();
                     List<Reference> prop_t_1 = new List<Reference>();
@@ -154,7 +159,7 @@ namespace mkfn {
                     Dictionary<Reference, LINQ> prop_plus_linq_diff = new Dictionary<Reference, LINQ>();
                     Dictionary<Reference, LINQ> prop_plus_linq_diff_right = new Dictionary<Reference, LINQ>();
 
-                    // 変数を使用している変数参照に対し
+                    // 同じ変数を使用している変数参照に対し
                     foreach (Reference ref_use in (from r in all_refs where r.VarRef == left.VarRef && r.Used() && r.Indexes != null select r)) {
                         Debug.Assert(ref_use.Used());
 
@@ -351,6 +356,8 @@ namespace mkfn {
                             sw.WriteLine(MathJax(prop_plus_linq_diff[r]));
                             sw.WriteLine(@"\\ =");
                             sw.WriteLine(MathJax(prop_plus_linq_diff_right[r]));
+                            sw.WriteLine(@"\\ =");
+                            sw.WriteLine(MathJax(SimplifyExpression( prop_plus_linq_diff_right[r].Clone())));
                             sw.WriteLine("$$");
                         }
 
@@ -466,10 +473,14 @@ namespace mkfn {
             WriteMathJax(sw);
         }
 
-        Reference MakeDifferentialReference(Variable t_var, Apply t_sub_1, Variable fld, Reference[] vref) {
+        /*
+        正規形の変数参照を返す。
+        */
+        Reference NormalizedReference(Variable t_var, Apply t_sub_1, Variable fld, Reference[] vref) {
             int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
             Term[] idxes = new Term[dim_cnt];
 
+            // すべての次元に対し
             for (int i = 0; i < dim_cnt; i++) {
 
                 // 変数参照の添え字のリスト
@@ -697,12 +708,12 @@ namespace mkfn {
             return v1;
         }
 
-        // u[i, j, k] = (from p in Range(H) from q in Range(H) select x[i + p, j + q] * h[p, q, k]).Sum() + b[k];
-        // m = i + p   : 0 <= i <= I - 1   0 <= p <= H - 1
-        //  i = m - p  : 0 <= m - p <= I - 1    m - I + 1 <= p <= m  max(0, m - I + 1) <= p <= min(H - 1, m)
-        // n = j + q   : 0 <= j <= J - 1   0 <= q <= H - 1
-        //  j = n - q  : 0 <= n - q <= J - 1    n - J + 1 <= q <= n  max(0, n - J + 1) <= q <= min(H - 1, n)
-        // 
+        // u[iu, ju, k] = (from p in Range(H) from q in Range(H) select x[iu + p, ju + q] * h[p, q, k]).Sum() + b[k];
+        // ix = iu + p   : 0 <= iu <= IU - 1   0 <= p <= H - 1
+        //   iu = ix - p  : 0 <= ix - p <= IU - 1    ix - IU + 1 <= p <= ix  max(0, ix - IU + 1) <= p <= min(H - 1, ix)
+        // jx = ju + q   : 0 <= ju <= JU - 1   0 <= q <= H - 1
+        //   ju = jx - q  : 0 <= jx - q <= JU - 1    jx - JU + 1 <= q <= jx  max(0, jx - JU + 1) <= q <= min(H - 1, jx)
+        // H
 
         Apply Range(Term start, Term end) {
             return new Apply(RangeFnc, start, end);
@@ -781,7 +792,9 @@ namespace mkfn {
             Term[] u_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
             Term[] x_idxes = (from t in ref1.Indexes select t.Clone()).ToArray();
             Dictionary<Reference, Term> subst_tbl = new Dictionary<Reference, Term>();
+            Dictionary<Variable, Variable> var_tbl = new Dictionary<Variable, Variable>();
 
+            LINQ lnq0 = null;
             foreach (int dim in plus_linq_dim) {
                 Apply app = ref1.Indexes[dim] as Apply;
 
@@ -790,11 +803,18 @@ namespace mkfn {
 
                     i_plus_p.Add(app);
 
+                    // i
                     Variable for_var1 = (app.Args[0] as Reference).VarRef;
+
+                    // p
                     Variable linq_var1 = (app.Args[1] as Reference).VarRef;
+
+                    lnq0 = linq_var1.ParentVar as LINQ;
 
                     string name = for_var1.Name + "" + linq_var1.Name;
                     Apply for_var2_domain = new Apply(new Reference(DomainFnc), new Term[] { new Reference(ref1.VarRef), new Number(dim) });
+
+                    // ip
                     Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
 
                     x_idxes[dim] = new Reference(for_var2);
@@ -803,7 +823,9 @@ namespace mkfn {
                     Reference end = new Reference(for_var2);
                     Apply linq_var2_domain = Intersect(linq_var1.Domain, Range(start, end));
 
+                    // p
                     Variable linq_var2 = new Variable(linq_var1.Name, linq_var1.TypeVar, linq_var2_domain);
+                    var_tbl.Add(linq_var1, linq_var2);
 
                     lnq_vars.Add(linq_var2);
 
@@ -814,8 +836,10 @@ namespace mkfn {
 
                         Debug.Assert(u_idxes[i] is Reference);
 
-                        Apply sub2 = Sub(for_var2, linq_var1);
+                        // ip - p
+                        Apply sub2 = Sub(for_var2, linq_var2);
 
+                        // 右辺の i に ip - p を代入する。
                         subst_tbl.Add(u_idxes[i] as Reference, sub2);
 
                         u_idxes[i] = sub2;
@@ -827,23 +851,47 @@ namespace mkfn {
                 }
             }
 
+            NaviRep(asn.Right,
+                delegate (object obj, out object ret) {
+                    ret = obj;
+
+                    if (obj == lnq0) {
+                        
+                        ret = lnq0.Select.Clone(var_tbl);
+                        return true;
+                    }
+
+                    return false;
+                });
+
             Reference u = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
+
+            // δE/δu
             Apply diff1 = Diff(new Reference(EFnc), u);
 
             Reference x = new Reference(ref1.Name, ref1.VarRef, x_idxes);
+
+            // δu/δx
             Apply diff2 = Diff(u.Clone(), x);
 
+            // δE/δu * δu/δx
             Apply mul2 = Mul(diff1, diff2);
 
             lnq1 = new LINQ(lnq_vars.ToArray(), mul2, new Reference(SumFnc));
 
-
+            // 右辺の i に ip - p を代入する。
             Term u_right = Subst(asn.Right.Clone(), subst_tbl);
 
+            // δE/δu
             Apply diff1_2 = diff1.Clone();
+
+            // δ(Σxh)/δx
             Apply diff2_2 = Diff(u_right, x.Clone());
+
+            // δE/δu * δ(Σxh)/δx
             Apply mul3 = Mul(diff1_2, diff2_2);
 
+            // Σp' δE/δu * δ(Σxh)/δx
             lnq2 = new LINQ(lnq_vars.ToArray(), mul3, new Reference(SumFnc));
         }
 
@@ -1257,9 +1305,20 @@ namespace mkfn {
         }
 
         string MathJax(Term t1) {
-            if (!(t1 is Number) && t1.Value != 1) {
+            if (!(t1 is Number)) {
 
-                return t1.Value.ToString() + @" \cdot " + MathJaxBody(t1);
+                if (t1.Value == 1) {
+
+                    return MathJaxBody(t1);
+                }
+                else if (t1.Value == -1) {
+
+                    return "- " + MathJaxBody(t1);
+                }
+                else {
+
+                    return t1.Value.ToString() + @" \cdot " + MathJaxBody(t1);
+                }
             }
             else {
 
@@ -1297,24 +1356,18 @@ namespace mkfn {
                 if ("+-*/%".Contains(app.Function.Name[0])) {
                     string s;
 
-                    if (app.Args.Length == 1) {
+                    Debug.Assert(app.Args.Length != 1);
+                    if (app.IsMul()) {
 
-                        s = app.Function.Name + " " + MathJax(app.Args[0]);
+                        s = string.Join(@" \cdot ", from x in app.Args select MathJax(x));
+                    }
+                    else if (app.IsAdd()) {
+
+                        s = string.Join(" ", from x in app.Args select (x == app.Args[0] || x.Value < 0 ? "" : "+ ") + MathJax(x));
                     }
                     else {
 
-                        if(app.IsMul()) {
-
-                            s = string.Join(@" \cdot ", from x in app.Args select MathJax(x));
-                        }
-                        else if (app.IsAdd()) {
-
-                            s = string.Join(" ", from x in app.Args select (x == app.Args[0] || x.Value < 0 ? "" : "+ ") + MathJax(x));
-                        }
-                        else {
-
-                            s = string.Join(" " + app.Function.Name + " ", from x in app.Args select MathJax(x));
-                        }
+                        s = string.Join(" " + app.Function.Name + " ", from x in app.Args select MathJax(x));
                     }
 
                     if (app.Parent is Apply && (app.Parent as Apply).Precedence() <= app.Precedence()) {

@@ -226,6 +226,30 @@ namespace mkfn {
         public bool IsMul() {
             return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.MulFnc;
         }
+
+        public override string ToString() {
+            if (!(this is Number)) {
+
+                if (Value == 1) {
+
+                    return ToStringBody();
+                }
+                else if (Value == -1) {
+
+                    return "- " + ToStringBody();
+                }
+                else {
+
+                    return Value.ToString() + " * " + ToStringBody();
+                }
+            }
+            else {
+
+                return ToStringBody();
+            }
+        }
+
+        public abstract string ToStringBody();
     }
 
     /*
@@ -251,7 +275,7 @@ namespace mkfn {
             return obj is Number;
         }
 
-        public override string ToString() {
+        public override string ToStringBody() {
             return Value.ToString();
         }
     }
@@ -264,10 +288,11 @@ namespace mkfn {
         public Variable VarRef;
         public Term[] Indexes;
 
-        public Reference(string name, Variable ref_var, Term[] idx) {
+        public Reference(string name, Variable ref_var, Term[] idx, double val = 1) {
             Name = name;
             VarRef = ref_var;
             Indexes = idx;
+            Value = val;
 
             if (Indexes != null) {
                 foreach (Term t in Indexes) {
@@ -276,7 +301,7 @@ namespace mkfn {
             }
         }
 
-        public Reference(Variable v) {
+        public Reference(Variable v, double val = 1) {
             Name = v.Name;
             VarRef = v;
             Indexes = null;
@@ -292,12 +317,12 @@ namespace mkfn {
             }
 
             if (Indexes == null) {
-                return new Reference(Name, v1, null);
+                return new Reference(Name, v1, null, Value);
             }
 
             Term[] idx = (from t in Indexes select t.Clone(var_tbl)).ToArray();
 
-            return new Reference(Name, v1, idx);
+            return new Reference(Name, v1, idx, Value);
         }
 
         public override bool EqBody(Object obj) {
@@ -333,7 +358,7 @@ namespace mkfn {
             return !Defined();
         }
 
-        public override string ToString() {
+        public override string ToStringBody() {
             if (Indexes == null) {
                 return Name;
             }
@@ -365,16 +390,22 @@ namespace mkfn {
 
         public new Apply Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Term[] args = (from t in Args select t.Clone(var_tbl)).ToArray();
-            return new Apply(Function.Clone(var_tbl), args);
+            Apply app = new Apply(Function.Clone(var_tbl), args);
+            app.Value = Value;
+
+            return app;
         }
 
-        public override string ToString() {
+        public override string ToStringBody() {
             if ("+-*/%".Contains(Function.Name[0])) {
                 string s;
 
-                if (Args.Length == 1) {
+                Debug.Assert(Args.Length != 1);
 
-                    s = Function.Name + " " + Args[0].ToString();
+                if (IsAdd()) {
+
+                    //s = string.Join(" ", from x in Args select (x == Args[0] || x.Value < 0 ? "" : "+ ") + (Math.Abs(x.Value) == 1 ? x.ToStringBody() : x.ToString()));
+                    s = string.Join(" ", from x in Args select (x == Args[0] || x.Value < 0 ? "" : "+ ") + x.ToString());
                 }
                 else {
 
@@ -441,10 +472,11 @@ namespace mkfn {
         public Term Select;
         public Reference Aggregate;
 
-        public LINQ(Variable[] variables, Term select, Reference aggregate) {
+        public LINQ(Variable[] variables, Term select, Reference aggregate, double val = 1) {
             Variables = variables;
             Select = select;
             Aggregate = aggregate;
+            Value = val;
 
             foreach (Variable v in Variables) {
                 v.ParentVar = this;
@@ -462,10 +494,10 @@ namespace mkfn {
 
         public new LINQ Clone(Dictionary<Variable, Variable> var_tbl) {
             Variable[] vars = (from v in Variables select v.Clone(var_tbl)).ToArray();
-            return new LINQ(vars, Select.Clone(var_tbl), (Aggregate == null ? null : Aggregate.Clone(var_tbl)));
+            return new LINQ(vars, Select.Clone(var_tbl), (Aggregate == null ? null : Aggregate.Clone(var_tbl)), Value);
         }
 
-        public override string ToString() {
+        public override string ToStringBody() {
             string list = string.Join(" ", from x in Variables select "from " + x.Name + " in " + x.Domain.ToString()) + " select " + Select.ToString();
             if (Aggregate == null) {
 
