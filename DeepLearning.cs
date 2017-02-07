@@ -6,6 +6,32 @@ using System.Linq;
 using System.Text;
 
 namespace mkfn {
+    public enum IndexType {
+        Simple,
+        PrevT,
+        Linq,
+        PlusLinq
+    }
+
+    public class Propagation {
+        public Assignment Asn;
+        public Reference UsedRef;
+        public IndexType[] IndexTypes;
+
+        public Reference NormRef;
+        public Reference Left;
+        public Term RightInc;
+        public Term RightIncSimple;
+        public Term RightDiff;
+        public Term RightDiffSimple;
+
+        public Propagation(Reference used_ref, Assignment asn) {
+            UsedRef = used_ref;
+            IndexTypes = new IndexType[used_ref.Indexes.Length];
+            Asn = asn;
+        }
+    }
+
     public delegate void NaviAction(object self);
     public delegate bool NaviFnc(object self, out object ret);
 
@@ -134,25 +160,31 @@ namespace mkfn {
 
                 // フィールドの正規形の変数参照のリスト
                 List<Reference> norm_refs = new List<Reference>();
+                Dictionary<Reference, List<Propagation>> Props = new Dictionary<Reference, List<Propagation>>();
 
                 // すべてのフィールドに対し
                 foreach (Variable fld in cls.Fields) {
                     
                     // フィールドの値を使用する変数参照のリスト
-                    Reference[] vref = (from r in all_refs where r.VarRef == fld && r.Indexes != null && r.Used() select r).ToArray();
+                    Reference[] used_refs = (from r in all_refs where r.VarRef == fld && r.Indexes != null && r.Used() select r).ToArray();
 
-                    if (vref.Any()) {
+                    if (used_refs.Any()) {
                         // フィールドの値を使用する変数参照がある場合
 
                         // フィールドの正規形の変数参照
-                        Reference left = NormalizedReference(t_var, t_sub_1, fld, vref);
+                        Reference left = NormalizedReference(t_var, t_sub_1, fld, used_refs);
                         norm_refs.Add(left);
+
+                        // フィールドの値を使用する変数参照に対し伝播を作る。
+                        Props.Add(left, (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, used_ref)).ToList());
                     }
                 }
 
                 // すべてのフィールドの正規形の変数参照に対し
                 foreach (Reference left in norm_refs) {
                     //Debug.Assert(left.Defined());
+
+                    List<Propagation> prs = Props[left];
                     List<Reference> prop = new List<Reference>();
                     List<Reference> prop_t_1 = new List<Reference>();
                     List<Reference> prop_plus_linq = new List<Reference>();
@@ -160,17 +192,17 @@ namespace mkfn {
                     Dictionary<Reference, LINQ> prop_plus_linq_diff_right = new Dictionary<Reference, LINQ>();
 
                     // 同じ変数を使用している変数参照に対し
-                    foreach (Reference ref_use in (from r in all_refs where r.VarRef == left.VarRef && r.Used() && r.Indexes != null select r)) {
-                        Debug.Assert(ref_use.Used());
+                    foreach (Reference used_ref in (from r in all_refs where r.VarRef == left.VarRef && r.Used() && r.Indexes != null select r)) {
+                        Debug.Assert(used_ref.Used());
 
                         // 変数を使用している変数参照の親の文
-                        Statement stmt = ParentStatement(ref_use);
+                        Statement stmt = ParentStatement(used_ref);
+                        Debug.Assert(stmt is Assignment);
                         if(stmt is Assignment) {
                             // 変数を使用している変数参照の親の文が代入文の場合
 
                             // 変数を使用している代入文
                             Assignment asn_use = stmt as Assignment;
-                            Debug.Assert(asn_use.Left is Reference);
 
                             // 変数を使用している代入文の左辺の変数参照
                             Reference left_use = asn_use.Left as Reference;
@@ -179,7 +211,7 @@ namespace mkfn {
                             ForEach[] vfor = AncestorForEach(asn_use);
 
                             // 変数参照の次元
-                            int dim_cnt = ref_use.Indexes.Length;
+                            int dim_cnt = used_ref.Indexes.Length;
                             int ref_linq = 0;
                             int t_1 = 0;
                             ForEach plus_linq_foreach = null;
@@ -188,34 +220,18 @@ namespace mkfn {
 
                             // 変数参照の各添え字に対し
                             for (int dim = 0; dim < dim_cnt; dim++) {
-                                if (ref_use.Indexes[dim] is Reference) {
+                                if (used_ref.Indexes[dim] is Reference) {
                                     // 添え字が変数参照の場合
 
                                     // 変数参照の添え字の変数参照
-                                    Reference idx_ref = ref_use.Indexes[dim] as Reference;
+                                    Reference idx_ref = used_ref.Indexes[dim] as Reference;
                                     if (idx_ref.Indexes == null) {
                                         // 変数参照の添え字が添え字を持たない場合
 
                                         if (idx_ref.VarRef.ParentVar is LINQ) {
                                             // 変数参照の添え字がLINQのループ変数の場合
 
-                                            // 変数参照の添え字がループ変数のLINQ
-                                            LINQ lnq = idx_ref.VarRef.ParentVar as LINQ;
-                                            Debug.Assert(lnq.Aggregate != null);
                                             ref_linq++;
-
-                                            if (lnq.Aggregate.Name == "Sum") {
-                                                Debug.Write("");
-                                            }
-                                            else if (lnq.Aggregate.Name == "Prod") {
-                                                Debug.Write("");
-                                            }
-                                            else if (lnq.Aggregate.Name == "Max") {
-                                                Debug.Assert(false, "未実装");
-                                            }
-                                            else {
-                                                Debug.Assert(false);
-                                            }
                                         }
                                         else if(idx_ref.VarRef.ParentVar is ForEach){
                                             // 変数参照の添え字がForEachのループ変数の場合
@@ -231,10 +247,10 @@ namespace mkfn {
                                 }
                                 else {
                                     // 添え字が変数参照でない場合
-                                    Debug.Assert(ref_use.Indexes[dim] is Apply);
+                                    Debug.Assert(used_ref.Indexes[dim] is Apply);
 
                                     // 添え字の関数適用
-                                    Apply app = ref_use.Indexes[dim] as Apply;
+                                    Apply app = used_ref.Indexes[dim] as Apply;
                                     Debug.Assert(app.Args.Length == 2 && app.Args[0] is Reference);
 
                                     // 添え字の関数適用の最初の引数
@@ -265,16 +281,6 @@ namespace mkfn {
 
                                         // 添え字の関数適用の2番目の引数はLINQのループ変数
                                         LINQ lnq = arg_ref2.VarRef.ParentVar as LINQ;
-
-                                        if (lnq.Aggregate.Name == "Sum") {
-                                            Debug.Write("");
-                                        }
-                                        else if (lnq.Aggregate.Name == "Max") {
-                                            Debug.Write("");
-                                        }
-                                        else {
-                                            Debug.Assert(false);
-                                        }
 
                                         // i + p, j + q
                                         plus_linq_dim.Add(dim);
@@ -319,7 +325,7 @@ namespace mkfn {
                                     prop_plus_linq.Add(left_use);
 
                                     LINQ lnq1, lnq2;
-                                    plus_linq(ref_use, plus_linq_dim, out lnq1, out lnq2);
+                                    plus_linq(used_ref, plus_linq_dim, out lnq1, out lnq2);
                                     prop_plus_linq_diff.Add(left_use, lnq1);
                                     prop_plus_linq_diff_right.Add(left_use, lnq2);
                                 }
@@ -391,9 +397,14 @@ namespace mkfn {
                         sw.WriteLine("$$");
                         sw.Write("= ");
 
-                        sw.WriteLine(string.Join(" + ", from r in prop.Union(use_left_inc.Values)
+                        //sw.WriteLine(string.Join(" + ", from r in prop.Union(use_left_inc.Values)
+                        //                                select string.Format(@"\frac{{ \partial E }}{{ \partial {0} }} \cdot \frac{{ \partial {0} }}{{ \partial {1} }}",
+                        //                                MathJax(r), MathJax(left))));
+
+
+                        sw.WriteLine(string.Join(" + ", from pr in prs
                                                         select string.Format(@"\frac{{ \partial E }}{{ \partial {0} }} \cdot \frac{{ \partial {0} }}{{ \partial {1} }}",
-                                                        MathJax(r), MathJax(left))));
+                                                        MathJax(pr.Left), MathJax(left))));
 
                         sw.WriteLine("$$");
 
@@ -402,16 +413,23 @@ namespace mkfn {
                         sw.WriteLine("$$");
                         sw.Write("= ");
 
-                        sw.WriteLine(string.Join(@" \\ + ", from r in prop select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
-                            MathJax(r), MathJax(use_right[r]), MathJax(left))));
+                        //sw.WriteLine(string.Join(@" \\ + ", from r in prop select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
+                        //    MathJax(r), MathJax(use_right[r]), MathJax(left))));
 
-                        if (prop.Any() && prop_t_1.Any()) {
-                            sw.WriteLine(" + ");
-                        }
+                        //if (prop.Any() && prop_t_1.Any()) {
+                        //    sw.WriteLine(" + ");
+                        //}
 
-                        sw.WriteLine(string.Join(@" \\ + ", from r in prop_t_1
+                        //sw.WriteLine(string.Join(@" \\ + ", from r in prop_t_1
+                        //                                    select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
+                        //                                    MathJax(use_left_inc[r]), MathJax(use_right_inc[r]), MathJax(left))));
+
+                        sw.WriteLine(string.Join(@" \\ + ", from pr in prs
                                                             select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
-                                                            MathJax(use_left_inc[r]), MathJax(use_right_inc[r]), MathJax(left))));
+                                         MathJax(pr.Left),
+                                         MathJax(pr.RightInc != null ? pr.RightInc : pr.Asn.Right), 
+                                         MathJax(left))));
+
                         sw.WriteLine("$$");
 
                         //------------------------------------------------------------  (t + 1) − 1 を t に簡約化する。
@@ -419,17 +437,25 @@ namespace mkfn {
                         sw.WriteLine("$$");
                         sw.Write("= ");
 
-                        sw.WriteLine(string.Join(@" \\ + ", from r in prop
-                                                            select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
-                                                            MathJax(r), MathJax(use_right[r]), MathJax(left))));
+                        //sw.WriteLine(string.Join(@" \\ + ", from r in prop
+                        //                                    select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
+                        //                                    MathJax(r), MathJax(use_right[r]), MathJax(left))));
 
-                        if (prop.Any() && prop_t_1.Any()) {
-                            sw.WriteLine(" + ");
-                        }
+                        //if (prop.Any() && prop_t_1.Any()) {
+                        //    sw.WriteLine(" + ");
+                        //}
 
-                        sw.WriteLine(string.Join(@" \\ + ", from r in prop_t_1
+                        //sw.WriteLine(string.Join(@" \\ + ", from r in prop_t_1
+                        //                                    select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
+                        //                                    MathJax(use_left_inc[r]), MathJax(use_right_inc_simple[r]), MathJax(left))));
+
+                        sw.WriteLine(string.Join(@" \\ + ", from pr in prs
                                                             select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
-                                                            MathJax(use_left_inc[r]), MathJax(use_right_inc_simple[r]), MathJax(left))));
+                                         MathJax(pr.Left),
+                                         MathJax(pr.RightIncSimple != null ? pr.RightIncSimple : pr.Asn.Right),
+                                         MathJax(left))));
+
+
                         sw.WriteLine("$$");
 
                         //------------------------------------------------------------  微分の計算をする。
@@ -438,8 +464,15 @@ namespace mkfn {
                         sw.Write("= ");
 
                         sw.WriteLine(string.Join(" \\\\ \r\n + ", from r in prop_union
-                                                            select string.Format(@"\delta^{{ {0} }} \cdot ( {1} )",
-                                                            MathJax(use_left_union[r]), MathJax(use_right_diff[r]))));
+                                                                  select string.Format(@"\delta^{{ {0} }} \cdot ( {1} )",
+                                                                  MathJax(use_left_union[r]), MathJax(use_right_diff[r]))));
+
+                        sw.WriteLine(@"\\ \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \\");
+
+                        sw.WriteLine(string.Join(" \\\\ \r\n + ", from pr in prs
+                                                                  select string.Format(@"\delta^{{ {0} }} \cdot ( {1} )",
+                                                                  MathJax(pr.Left), 
+                                                                  MathJax(pr.RightDiff))));
 
                         sw.WriteLine("$$");
 
@@ -449,8 +482,14 @@ namespace mkfn {
                         sw.Write("= ");
 
                         sw.WriteLine(string.Join(" + ", from r in prop_union
-                                                            select string.Format(@"\delta^{{ {0} }} \cdot {1}",
-                                                            MathJax(use_left_union[r]), MathJax(use_right_diff_simple[r]))));
+                                                        select string.Format(@"\delta^{{ {0} }} \cdot {1}",
+                                                        MathJax(use_left_union[r]), MathJax(use_right_diff_simple[r]))));
+
+                        sw.WriteLine(@"\\ \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \cdots \\");
+
+                        sw.WriteLine(string.Join(" + ", from pr in prs
+                                                        select string.Format(@"\delta^{{ {0} }} \cdot {1}",
+                                                        MathJax(pr.Left), MathJax(pr.RightDiffSimple))));
 
                         sw.WriteLine("$$");
 
@@ -473,10 +512,143 @@ namespace mkfn {
             WriteMathJax(sw);
         }
 
+        Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Reference used_ref) {
+            int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
+
+            // 変数を使用している変数参照の親の文
+            Statement stmt = ParentStatement(used_ref);
+            Debug.Assert(stmt is Assignment);
+
+            Assignment asn = stmt as Assignment;
+            Propagation pr = new Propagation(used_ref, asn);
+
+            Term[] idxes = new Term[dim_cnt];
+
+            // すべての添え字に対し
+            for (int i = 0; i < dim_cnt; i++) {
+
+                if (used_ref.Indexes[i] is Reference) {
+                    // 添え字が変数参照の場合
+
+                    Reference idx_ref = used_ref.Indexes[i] as Reference;
+
+                    if (idx_ref.VarRef.ParentVar is ForEach) {
+                        // foreachのループ変数を参照する添え字の場合
+
+                        pr.IndexTypes[i] = IndexType.Simple;
+                        idxes[i] = idx_ref.Clone();
+                    }
+                    else if (idx_ref.VarRef.ParentVar is LINQ) {
+                        // LINQのループ変数を参照する添え字の場合
+
+                        pr.IndexTypes[i] = IndexType.Linq;
+                        idxes[i] = idx_ref.Clone();
+
+
+                        // 変数参照の添え字がループ変数のLINQ
+                        LINQ lnq = idx_ref.VarRef.ParentVar as LINQ;
+                        Debug.Assert(lnq.Aggregate != null);
+
+                        if (lnq.Aggregate.Name == "Sum") {
+                            Debug.Write("");
+                        }
+                        else if (lnq.Aggregate.Name == "Prod") {
+                            Debug.Write("");
+                        }
+                        else if (lnq.Aggregate.Name == "Max") {
+                            Debug.Assert(false, "未実装");
+                        }
+                        else {
+                            Debug.Assert(false);
+                        }
+                    }
+                    else {
+
+                        if (stmt.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from i in Range(N) select u[t, φ[t, i]]).Prod()") {
+
+                            idxes[i] = used_ref.Indexes[i].Clone();
+                        }
+                        else {
+
+                            throw new Exception();
+                        }
+                    }
+
+                }
+                else if (used_ref.Indexes[i].Eq(t_sub_1)) {
+                    // 添え字がt - 1の場合
+
+                    pr.IndexTypes[i] = IndexType.PrevT;
+                    idxes[i] = new Reference(t_var);
+                }
+                else if (used_ref.Indexes[i].IsAdd()) {
+                    // 添え字が加算の場合
+
+                    Apply app = used_ref.Indexes[i] as Apply;
+
+                    if (app.Args.Length == 2 && app.Args[0] is Reference && app.Args[1] is Reference) {
+                        // 引数の数が2個で、それぞれが変数参照の場合
+
+                        Reference ref1 = app.Args[0] as Reference;
+                        Reference ref2 = app.Args[1] as Reference;
+
+                        if (ref1.VarRef.ParentVar is ForEach && ref2.VarRef.ParentVar is LINQ) {
+                            // 最初がforeachのループ変数の参照で、2番目がLINQのループ変数の参照の場合
+
+                            pr.IndexTypes[i] = IndexType.PlusLinq;
+
+                            // 2番目の引数のLINQ
+                            LINQ lnq = ref2.VarRef.ParentVar as LINQ;
+
+                            if (lnq.Aggregate.Name == "Sum") {
+                                Debug.Write("");
+                            }
+                            else if (lnq.Aggregate.Name == "Max") {
+                                Debug.Write("");
+                            }
+                            else {
+                                Debug.Assert(false);
+                            }
+                        }
+
+                        idxes[i] = ref1.Clone();
+                    }
+                    else {
+                        throw new Exception();
+                    }
+                }
+                else {
+
+                    throw new Exception();
+                }
+
+                Debug.Assert(idxes[i] != null);
+            }
+
+            pr.NormRef = new Reference(fld.Name, fld, idxes);
+
+            if ((from e in pr.IndexTypes where e == IndexType.PrevT select e).Any()) {
+                // t - 1の添え字がある場合
+
+                pr.Left = Tplus1(asn.Left, t_var, null) as Reference;
+                pr.RightInc = Tplus1(asn.Right, t_var, null);
+                pr.RightIncSimple = SimplifyExpression(pr.RightInc.Clone());
+                pr.RightDiff = SetParent(Differential(pr.RightIncSimple, pr.NormRef, null));
+
+            }
+            else {
+                pr.Left = pr.Asn.Left;
+                pr.RightDiff = SetParent(Differential(asn.Right, pr.NormRef, null));
+            }
+            pr.RightDiffSimple = SimplifyExpression(pr.RightDiff.Clone());
+
+            return pr;
+        }
+
         /*
         正規形の変数参照を返す。
         */
-        Reference NormalizedReference(Variable t_var, Apply t_sub_1, Variable fld, Reference[] vref) {
+        Reference NormalizedReference(Variable t_var, Apply t_sub_1, Variable fld, Reference[] used_refs) {
             int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
             Term[] idxes = new Term[dim_cnt];
 
@@ -484,7 +656,7 @@ namespace mkfn {
             for (int i = 0; i < dim_cnt; i++) {
 
                 // 変数参照の添え字のリスト
-                var vidx_ref = from r in vref where r.Indexes[i] is Reference select r.Indexes[i] as Reference;
+                var vidx_ref = from r in used_refs where r.Indexes[i] is Reference select r.Indexes[i] as Reference;
                 if (vidx_ref.Any()) {
                     // 変数参照の添え字がある場合
 
@@ -525,7 +697,7 @@ namespace mkfn {
                 else {
 
                     // 関数適用の添え字のリスト
-                    var vidx_app = from r in vref where r.Indexes[i] is Apply select r.Indexes[i] as Apply;
+                    var vidx_app = from r in used_refs where r.Indexes[i] is Apply select r.Indexes[i] as Apply;
                     if (vidx_app.Any()) {
                         // 関数適用の添え字がある場合
 
@@ -534,7 +706,7 @@ namespace mkfn {
                         if (vidx_app2.Any()) {
                             // t - 1 以外の関数適用の添え字がある場合
 
-                            if (vref.Count() == 1) {
+                            if (used_refs.Count() == 1) {
                                 // 変数参照が1個の場合
 
                                 idxes[i] = vidx_app2.First();
@@ -562,7 +734,7 @@ namespace mkfn {
             for (int i = 0; i < dim_cnt; i++) {
                 Debug.Assert(idxes[i] != null);
 
-                foreach (Reference r1 in vref) {
+                foreach (Reference r1 in used_refs) {
                     if (!r1.Indexes[i].Eq(idxes[i])) {
                         // 添え字が等しくない場合
 
@@ -829,21 +1001,15 @@ namespace mkfn {
 
                     lnq_vars.Add(linq_var2);
 
-                    var vv = asn.Left.Indexes.Select((t, i) => new { Val = t, Idx = i }).Where(p => p.Val is Reference && (p.Val as Reference).VarRef == for_var1).Select(p => p.Idx);
-                    if (vv.Any()) {
+                    Debug.Assert(u_idxes[dim] is Reference);
 
-                        int i = vv.First();
+                    // ip - p
+                    Apply sub2 = Sub(for_var2, linq_var2);
 
-                        Debug.Assert(u_idxes[i] is Reference);
+                    // 右辺の dim に ip - p を代入する。
+                    subst_tbl.Add(u_idxes[dim] as Reference, sub2);
 
-                        // ip - p
-                        Apply sub2 = Sub(for_var2, linq_var2);
-
-                        // 右辺の i に ip - p を代入する。
-                        subst_tbl.Add(u_idxes[i] as Reference, sub2);
-
-                        u_idxes[i] = sub2;
-                    }
+                    u_idxes[dim] = sub2;
                 }
                 else {
 
