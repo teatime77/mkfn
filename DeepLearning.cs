@@ -19,14 +19,14 @@ namespace mkfn {
         public IndexType[] IndexTypes;
 
         public Reference NormRef;
-        public Reference Left;
         public Term Right;
-        public Term RightSimple;
         public Term RightDiff;
         public Term RightDiffSimple;
         public Term Delta;
-        public Term Delta2;
+        public Term DeltaSubst;
         public Term DeltaSimple;
+
+        public Apply DiffE;
 
         public Propagation(Reference used_ref, Assignment asn) {
             UsedRef = used_ref;
@@ -48,6 +48,8 @@ namespace mkfn {
         Variable SumFnc = new Variable("Sum", null, null);
         Variable ProdFnc = new Variable("Prod", null, null);
         Variable MaxFnc = new Variable("Max", null, null);
+        Variable MaxPoolFnc = new Variable("MaxPool", null, null);
+        Variable MaxPoolPrimeFnc = new Variable("MaxPoolPrime", null, null);
         Variable maxFnc = new Variable("max", null, null);
         Variable minFnc = new Variable("min", null, null);
         Variable NewFnc = new Variable("new", null, null);
@@ -206,7 +208,7 @@ namespace mkfn {
                     sw.WriteLine("$$");
                     sw.Write("= ");
 
-                    sw.WriteLine(string.Join("\r\n\\\\ + ", from pr in prs select MathJax(pr.Delta2)));
+                    sw.WriteLine(string.Join("\r\n\\\\ + ", from pr in prs select MathJax(pr.DeltaSubst)));
 
                     sw.WriteLine("$$");
 
@@ -237,8 +239,6 @@ namespace mkfn {
 
                     sw.WriteLine("$$");
 
-                    Dictionary<Propagation, Variable> delta_fnc = prs.ToDictionary(pr => pr, pr => new Variable("δ_" + pr.Left.Name, null, null));
-
                     Term result = SimplifyExpression(Add((from pr in prs select pr.RightDiffSimple.Clone()).ToArray()));
 
                     sw.WriteLine("<pre><b>");
@@ -247,13 +247,14 @@ namespace mkfn {
                     sw.WriteLine("}");
                     sw.WriteLine("</b></pre>");
                 }
+
                 WriteMathJax(sw, cls.Name);
                 sw = new StringWriter();
             }
         }
 
 
-        void plus_linq(Propagation pr, Reference ref1, List<int> plus_linq_dim) {
+        void LinqPropagation(Propagation pr, Reference ref1, List<int> plus_linq_dim) {
             List<Apply> i_plus_p = new List<Apply>();
             List<Variable> lnq_vars = new List<Variable>();
 
@@ -317,47 +318,55 @@ namespace mkfn {
                 }
             }
 
-            NaviRep(asn.Right,
+            NaviRep(asn,
                 delegate (object obj, out object ret) {
                     ret = obj;
 
                     if (obj == lnq0) {
 
-                        ret = lnq0.Select.Clone(var_tbl);
+                        if(lnq0.Aggregate.VarRef == MaxFnc) {
+
+                            ret = new Apply(MaxPoolFnc, lnq0.Select.Clone(var_tbl));
+                        }
+                        else {
+
+                            ret = lnq0.Select.Clone(var_tbl);
+                        }
                         return true;
                     }
 
                     return false;
                 });
 
-            pr.Left = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
+            Reference norm_left = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
 
             // δE/δu
-            Apply diff1 = Diff(new Reference(EFnc), pr.Left.Clone());
+            pr.DiffE = Diff(new Reference(EFnc), norm_left.Clone());
 
             pr.NormRef = new Reference(ref1.Name, ref1.VarRef, x_idxes);
 
-            // δu/δx
-            Apply diff2 = Diff(pr.Left.Clone(), pr.NormRef);
-
             // δE/δu * δu/δx
-            Apply mul2 = Mul(diff1, diff2);
-
-            pr.Delta = new LINQ(lnq_vars.ToArray(), mul2, new Reference(SumFnc));
+            pr.Delta = MakeLinqMulDiff(pr, lnq_vars, Diff(norm_left.Clone(), pr.NormRef));
 
             // 右辺の i に ip - p を代入する。
             Term u_right = Subst(asn.Right.Clone(), subst_tbl);
 
-            // Σp' δE/δu * δ(Σxh)/δx
-            pr.Delta2 = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), Diff(u_right, pr.NormRef.Clone())), new Reference(SumFnc));
+            // Σ δE/δu * δ(Σxh)/δx
+            pr.DeltaSubst = MakeLinqMulDiff(pr, lnq_vars, Diff(u_right, pr.NormRef.Clone()));
 
-            pr.RightSimple = SimplifyExpression(u_right.Clone());
-            pr.DeltaSimple = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), Diff(pr.RightSimple, pr.NormRef.Clone())), new Reference(SumFnc));
+            Term right_simple = SimplifyExpression(u_right.Clone());
 
-            Term diff3 = SetParent(Differential(pr.RightSimple, pr.NormRef, null));
-            pr.RightDiff = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), diff3), new Reference(SumFnc));
+            pr.DeltaSimple = MakeLinqMulDiff(pr, lnq_vars, Diff(right_simple, pr.NormRef.Clone()));
 
-            pr.RightDiffSimple = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), SimplifyExpression(diff3.Clone())), new Reference(SumFnc));
+            Term diff3 = SetParent(Differential(right_simple, pr.NormRef, null));
+
+            pr.RightDiff = MakeLinqMulDiff(pr, lnq_vars, diff3);
+
+            pr.RightDiffSimple = MakeLinqMulDiff(pr, lnq_vars, SimplifyExpression(diff3.Clone()));
+        }
+
+        LINQ MakeLinqMulDiff(Propagation pr, List<Variable> lnq_vars, Term t) {
+            return new LINQ(lnq_vars.ToArray(), Mul(pr.DiffE.Clone(),t), new Reference(SumFnc));
         }
 
 
@@ -483,36 +492,38 @@ namespace mkfn {
             if (plus_linq_dim.Any()) {
                 // i + q の添え字がある場合
 
-                plus_linq(pr, used_ref, plus_linq_dim);
+                LinqPropagation(pr, used_ref, plus_linq_dim);
             }
             else {
+                Term right_simple;
+                Reference norm_left;
 
                 if ((from e in pr.IndexTypes where e == IndexType.PrevT select e).Any()) {
                     // t - 1の添え字がある場合
 
-                    pr.Left = Tplus1(asn.Left, t_var, null) as Reference;
+                    norm_left = Tplus1(asn.Left, t_var, null) as Reference;
                     pr.Right = Tplus1(asn.Right, t_var, null);
-                    pr.RightSimple = SimplifyExpression(pr.Right.Clone());
+                    right_simple = SimplifyExpression(pr.Right.Clone());
                 }
                 else {
-                    pr.Left = asn.Left;
+                    norm_left = asn.Left;
                     pr.Right = asn.Right;
-                    pr.RightSimple = asn.Right;
+                    right_simple = asn.Right;
                 }
 
                 // δE/δu
-                Apply diff1 = Diff(new Reference(EFnc), pr.Left.Clone());
+                pr.DiffE = Diff(new Reference(EFnc), norm_left.Clone());
 
-                pr.Delta = Mul(diff1.Clone(), Diff(pr.Left.Clone(), pr.NormRef.Clone()));
+                pr.Delta = Mul(pr.DiffE.Clone(), Diff(norm_left.Clone(), pr.NormRef.Clone()));
 
-                pr.Delta2 = Mul(diff1.Clone(), Diff(pr.Right.Clone(), pr.NormRef.Clone()));
+                pr.DeltaSubst = Mul(pr.DiffE.Clone(), Diff(pr.Right.Clone(), pr.NormRef.Clone()));
 
-                pr.DeltaSimple = Mul(diff1.Clone(), Diff(pr.RightSimple.Clone(), pr.NormRef.Clone()));
+                pr.DeltaSimple = Mul(pr.DiffE.Clone(), Diff(right_simple.Clone(), pr.NormRef.Clone()));
 
-                Term diff2 = SetParent(Differential(pr.RightSimple, pr.NormRef, null));
-                pr.RightDiff = Mul(diff1.Clone(), diff2);
+                Term diff2 = SetParent(Differential(right_simple, pr.NormRef, null));
+                pr.RightDiff = Mul(pr.DiffE.Clone(), diff2);
 
-                pr.RightDiffSimple = Mul(diff1.Clone(), SimplifyExpression(diff2.Clone()));
+                pr.RightDiffSimple = Mul(pr.DiffE.Clone(), SimplifyExpression(diff2.Clone()));
             }
 
             return pr;
@@ -883,6 +894,9 @@ namespace mkfn {
                     }
 
                     return Add(args);
+                }
+                else if (app.Function.VarRef == MaxPoolFnc) {
+                    return new Apply(MaxPoolPrimeFnc, app.Args[0].Clone(var_tbl));
                 }
                 else if (app.Function.Name == "σ") {
 
