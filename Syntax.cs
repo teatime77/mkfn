@@ -421,7 +421,14 @@ namespace mkfn {
             }
             else {
 
-                return Function.Name + "(" + string.Join(", ", from x in Args select x.ToString()) + ")";
+                if (Function.VarRef == mkfn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == mkfn.Singleton.EFnc) {
+
+                    return "δ_" + Args[1].ToString();
+                }
+                else {
+
+                    return Function.Name + "(" + string.Join(", ", from x in Args select x.ToString()) + ")";
+                }
             }
         }
 

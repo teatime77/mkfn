@@ -24,7 +24,9 @@ namespace mkfn {
         public Term RightSimple;
         public Term RightDiff;
         public Term RightDiffSimple;
-        public LINQ PlusLinqDiff;
+        public Term Delta;
+        public Term Delta2;
+        public Term DeltaSimple;
 
         public Propagation(Reference used_ref, Assignment asn) {
             UsedRef = used_ref;
@@ -51,10 +53,11 @@ namespace mkfn {
         Variable NewFnc = new Variable("new", null, null);
         Variable DomainFnc = new Variable("Domain", null, null);
         Variable RangeFnc;
-        Variable DiffFnc = new Variable("Diff", null, null);
-        Variable EFnc = new Variable("E", null, null);
+        public Variable DiffFnc = new Variable("Diff", null, null);
+        public Variable EFnc = new Variable("E", null, null);
         Variable σ_prime;
         Variable tanh_prime;
+        bool MathJaxDelta = false;
 
         public void DeepLearning() {
             Debug.WriteLine("深層学習");
@@ -115,6 +118,7 @@ namespace mkfn {
                 Reference[] all_refs = (from t in all_terms where t is Reference select t as Reference).ToArray();
 
                 //------------------------------------------------------------ 順伝播
+                MathJaxDelta = false;
                 sw.WriteLine("<hr/>");
                 sw.WriteLine("<h4 style='color : red;'>{0}順伝播</h4>", cls.Name, "");
                 sw.WriteLine("$$");
@@ -174,40 +178,17 @@ namespace mkfn {
 
                     // フィールドの値を使用する変数参照に対し伝播を作る。
                     foreach (Reference used_ref in used_refs) {
-                        try {
-
-                            Propagation pr = MakePropagation(t_var, t_sub_1, fld, used_ref);
-                            Props.Add(pr);
-                        }
-                        catch (Exception) {
-
-                            Debug.WriteLine("伝播ERR {0}", used_ref.ToString(), "");
-                        }
+                        Propagation pr = MakePropagation(t_var, t_sub_1, fld, used_ref);
+                        Props.Add(pr);
                     }
 
                     List<Propagation> prs = Props;
-                    Reference left = prs.First().NormRef;
-
-                    var vv = from x in prs where x.PlusLinqDiff != null select x;
-                    if (vv.Any()) {
-
-                        foreach (Propagation pr in vv) {
-                            sw.WriteLine("<hr/>");
-                            sw.WriteLine("$$");
-                            sw.WriteLine(MathJax(pr.PlusLinqDiff));
-                            sw.WriteLine(@"\\ =");
-                            sw.WriteLine(MathJax(pr.Right));
-                            sw.WriteLine(@"\\ =");
-                            sw.WriteLine(MathJax(pr.RightSimple));
-                            sw.WriteLine("$$");
-                        }
-                        continue;
-                    }
+                    Reference norm_ref = prs.First().NormRef;
 
                     sw.WriteLine("<hr/>");
                     sw.WriteLine("<div style='font-size:120%; color:red;'>");
                     sw.WriteLine("$$");
-                    sw.WriteLine(@"\frac{{ \partial E }}{{ \partial {0} }}", MathJax(left), "");
+                    sw.WriteLine(@"\frac{{ \partial E }}{{ \partial {0} }}", MathJax(norm_ref), "");
                     sw.WriteLine("$$");
                     sw.WriteLine("</div>");
 
@@ -215,37 +196,26 @@ namespace mkfn {
                     sw.WriteLine("<h5>順伝播先の変数の偏微分から計算式を作る。</h5>");
                     sw.WriteLine("$$");
                     sw.Write("= ");
-
-                    sw.WriteLine(string.Join(" + ", from pr in prs
-                                                    select string.Format(@"\frac{{ \partial E }}{{ \partial {0} }} \cdot \frac{{ \partial {0} }}{{ \partial {1} }}",
-                                                    MathJax(pr.Left), MathJax(left))));
+                    sw.WriteLine(string.Join(" + ", from pr in prs select MathJax(pr.Delta)));
 
                     sw.WriteLine("$$");
 
                     //------------------------------------------------------------  順伝播先の変数に定義式を代入する。
+                    MathJaxDelta = true;
                     sw.WriteLine("<h5>順伝播先の変数に定義式を代入する。</h5>");
                     sw.WriteLine("$$");
                     sw.Write("= ");
 
-                    sw.WriteLine(string.Join(@" \\ + ", from pr in prs
-                                                        select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
-                                     MathJax(pr.Left),
-                                     MathJax(pr.Right),
-                                     MathJax(left))));
+                    sw.WriteLine(string.Join("\r\n\\\\ + ", from pr in prs select MathJax(pr.Delta2)));
 
                     sw.WriteLine("$$");
 
                     //------------------------------------------------------------  (t + 1) − 1 を t に簡約化する。
-                    sw.WriteLine("<h5>(t + 1) − 1 を t に簡約化する。</h5>");
+                    sw.WriteLine("<h5>簡約化する。</h5>");
                     sw.WriteLine("$$");
                     sw.Write("= ");
 
-
-                    sw.WriteLine(string.Join(@" \\ + ", from pr in prs
-                                                        select string.Format(@"\delta^{{ {0} }} \cdot \frac{{ \partial ({1}) }}{{ \partial {2} }}",
-                                     MathJax(pr.Left),
-                                     MathJax(pr.RightSimple),
-                                     MathJax(left))));
+                    sw.WriteLine(string.Join("\r\n\\\\ + ", from pr in prs select MathJax(pr.DeltaSimple)));
 
                     sw.WriteLine("$$");
 
@@ -254,10 +224,7 @@ namespace mkfn {
                     sw.WriteLine("$$");
                     sw.Write("= ");
 
-                    sw.WriteLine(string.Join(" \\\\ \r\n + ", from pr in prs
-                                                              select string.Format(@"\delta^{{ {0} }} \cdot ( {1} )",
-                                                              MathJax(pr.Left),
-                                                              MathJax(pr.RightDiff))));
+                    sw.WriteLine(string.Join("\r\n\\\\ + ", from pr in prs select MathJax(pr.RightDiff)));
 
                     sw.WriteLine("$$");
 
@@ -266,30 +233,27 @@ namespace mkfn {
                     sw.WriteLine("$$");
                     sw.Write("= ");
 
-                    sw.WriteLine(string.Join(" + ", from pr in prs
-                                                    select string.Format(@"\delta^{{ {0} }} \cdot {1}",
-                                                    MathJax(pr.Left), MathJax(pr.RightDiffSimple))));
+                    sw.WriteLine(string.Join(" + ", from pr in prs select MathJax(pr.RightDiffSimple)));
 
                     sw.WriteLine("$$");
 
                     Dictionary<Propagation, Variable> delta_fnc = prs.ToDictionary(pr => pr, pr => new Variable("δ_" + pr.Left.Name, null, null));
 
-                    Term result = SimplifyExpression(Add((from pr in prs
-                                                          select Mul(new Apply(new Reference(delta_fnc[pr]), (from i in pr.Left.Indexes select i.Clone(null)).ToArray()), pr.RightDiffSimple)).ToArray()).Clone(null));
+                    Term result = SimplifyExpression(Add((from pr in prs select pr.RightDiffSimple.Clone()).ToArray()));
 
                     sw.WriteLine("<pre><b>");
-                    sw.WriteLine("double δ_" + left.Name + "(" + string.Join(", ", from i in left.Indexes select "int " + i.ToString()) + "){");
+                    sw.WriteLine("double δ_" + norm_ref.Name + "(" + string.Join(", ", from i in norm_ref.Indexes select "int " + i.ToString()) + "){");
                     sw.WriteLine("\treturn " + result.ToString() + ";");
                     sw.WriteLine("}");
                     sw.WriteLine("</b></pre>");
                 }
+                WriteMathJax(sw, cls.Name);
+                sw = new StringWriter();
             }
-
-            WriteMathJax(sw);
         }
 
 
-        void plus_linq(Reference ref1, List<int> plus_linq_dim, out LINQ lnq1, out LINQ lnq2) {
+        void plus_linq(Propagation pr, Reference ref1, List<int> plus_linq_dim) {
             List<Apply> i_plus_p = new List<Apply>();
             List<Variable> lnq_vars = new List<Variable>();
 
@@ -366,35 +330,34 @@ namespace mkfn {
                     return false;
                 });
 
-            Reference u = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
+            pr.Left = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
 
             // δE/δu
-            Apply diff1 = Diff(new Reference(EFnc), u);
+            Apply diff1 = Diff(new Reference(EFnc), pr.Left.Clone());
 
-            Reference x = new Reference(ref1.Name, ref1.VarRef, x_idxes);
+            pr.NormRef = new Reference(ref1.Name, ref1.VarRef, x_idxes);
 
             // δu/δx
-            Apply diff2 = Diff(u.Clone(), x);
+            Apply diff2 = Diff(pr.Left.Clone(), pr.NormRef);
 
             // δE/δu * δu/δx
             Apply mul2 = Mul(diff1, diff2);
 
-            lnq1 = new LINQ(lnq_vars.ToArray(), mul2, new Reference(SumFnc));
+            pr.Delta = new LINQ(lnq_vars.ToArray(), mul2, new Reference(SumFnc));
 
             // 右辺の i に ip - p を代入する。
             Term u_right = Subst(asn.Right.Clone(), subst_tbl);
 
-            // δE/δu
-            Apply diff1_2 = diff1.Clone();
-
-            // δ(Σxh)/δx
-            Apply diff2_2 = Diff(u_right, x.Clone());
-
-            // δE/δu * δ(Σxh)/δx
-            Apply mul3 = Mul(diff1_2, diff2_2);
-
             // Σp' δE/δu * δ(Σxh)/δx
-            lnq2 = new LINQ(lnq_vars.ToArray(), mul3, new Reference(SumFnc));
+            pr.Delta2 = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), Diff(u_right, pr.NormRef.Clone())), new Reference(SumFnc));
+
+            pr.RightSimple = SimplifyExpression(u_right.Clone());
+            pr.DeltaSimple = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), Diff(pr.RightSimple, pr.NormRef.Clone())), new Reference(SumFnc));
+
+            Term diff3 = SetParent(Differential(pr.RightSimple, pr.NormRef, null));
+            pr.RightDiff = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), diff3), new Reference(SumFnc));
+
+            pr.RightDiffSimple = new LINQ(lnq_vars.ToArray(), Mul(diff1.Clone(), SimplifyExpression(diff3.Clone())), new Reference(SumFnc));
         }
 
 
@@ -451,12 +414,13 @@ namespace mkfn {
                     }
                     else {
 
-                        if (stmt.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
+                        if (idx_ref.ToString() == "φ[t, n]" || idx_ref.ToString() == "φ[t, i]" || stmt.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
 
                             idxes[dim] = used_ref.Indexes[dim].Clone();
                         }
                         else {
 
+                            Debug.WriteLine(idx_ref.ToString());
                             throw new Exception();
                         }
                     }
@@ -516,34 +480,45 @@ namespace mkfn {
 
             pr.NormRef = new Reference(fld.Name, fld, idxes);
 
-            if ((from e in pr.IndexTypes where e == IndexType.PrevT select e).Any()) {
-                // t - 1の添え字がある場合
-
-                pr.Left = Tplus1(asn.Left, t_var, null) as Reference;
-                pr.Right = Tplus1(asn.Right, t_var, null);
-                pr.RightSimple = SimplifyExpression(pr.Right.Clone());
-            }
-            else if (plus_linq_dim.Any()) {
+            if (plus_linq_dim.Any()) {
                 // i + q の添え字がある場合
 
-                LINQ lnq2;
-
-                plus_linq(used_ref, plus_linq_dim, out pr.PlusLinqDiff, out lnq2);
-                pr.Right = lnq2;
-                pr.RightSimple = SimplifyExpression(pr.Right.Clone());
+                plus_linq(pr, used_ref, plus_linq_dim);
             }
             else {
-                pr.Left = asn.Left;
-                pr.Right = asn.Right;
-                pr.RightSimple = asn.Right;
+
+                if ((from e in pr.IndexTypes where e == IndexType.PrevT select e).Any()) {
+                    // t - 1の添え字がある場合
+
+                    pr.Left = Tplus1(asn.Left, t_var, null) as Reference;
+                    pr.Right = Tplus1(asn.Right, t_var, null);
+                    pr.RightSimple = SimplifyExpression(pr.Right.Clone());
+                }
+                else {
+                    pr.Left = asn.Left;
+                    pr.Right = asn.Right;
+                    pr.RightSimple = asn.Right;
+                }
+
+                // δE/δu
+                Apply diff1 = Diff(new Reference(EFnc), pr.Left.Clone());
+
+                pr.Delta = Mul(diff1.Clone(), Diff(pr.Left.Clone(), pr.NormRef.Clone()));
+
+                pr.Delta2 = Mul(diff1.Clone(), Diff(pr.Right.Clone(), pr.NormRef.Clone()));
+
+                pr.DeltaSimple = Mul(diff1.Clone(), Diff(pr.RightSimple.Clone(), pr.NormRef.Clone()));
+
+                Term diff2 = SetParent(Differential(pr.RightSimple, pr.NormRef, null));
+                pr.RightDiff = Mul(diff1.Clone(), diff2);
+
+                pr.RightDiffSimple = Mul(diff1.Clone(), SimplifyExpression(diff2.Clone()));
             }
-            pr.RightDiff = SetParent(Differential(pr.RightSimple, pr.NormRef, null));
-            pr.RightDiffSimple = SimplifyExpression(pr.RightDiff.Clone());
 
             return pr;
         }
 
-        void WriteMathJax(StringWriter sw) {
+        void WriteMathJax(StringWriter sw, string file_name) {
 /*
 
 */
@@ -553,7 +528,7 @@ namespace mkfn {
 <html lang=""en"" xmlns=""http://www.w3.org/1999/xhtml"">
 <head>
     <meta charset=""utf-8"" />
-    <title>MyML</title>
+    <title>" + file_name + @"</title>
     <script type=""text/x-mathjax-config"">
       MathJax.Hub.Config({
         extensions: [""tex2jax.js""],
@@ -571,7 +546,7 @@ namespace mkfn {
 
                 Directory.CreateDirectory(html_dir);
             }
-            File.WriteAllText(html_dir + "\\MathJax.html", head + sw.ToString() + "\r\n</body></html>", Encoding.UTF8);
+            File.WriteAllText(html_dir + "\\" + file_name + ".html", head + sw.ToString() + "\r\n</body></html>", Encoding.UTF8);
         }
 
         /*
@@ -1190,6 +1165,10 @@ namespace mkfn {
 
                     if(app.Function.VarRef == DiffFnc) {
 
+                        if (MathJaxDelta && app.Args[0] is Reference && (app.Args[0] as Reference).VarRef == EFnc) {
+
+                            return string.Format(@"\delta^{{ {0} }}", MathJax(app.Args[1]));
+                        }
                         string arg0 = MathJax(app.Args[0]);
                         if (app.Args[0] is Apply && ! Char.IsLetter( (app.Args[0] as Apply).Function.Name[0]) ) {
 
