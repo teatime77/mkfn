@@ -383,7 +383,7 @@ public class DNC : Layer {
                 ψ[t, n] = Prod(from ir in Range(R) select 1.0 - gf[t, ir] * wr[t - 1, ir, n]);
                 u[t, n] = (u[t - 1, n] + ww[t - 1, n] - (u[t - 1, n] * ww[t - 1, n])) * ψ[t, n];
                 φ[t, n] = 0;// SortIndicesAscending(ut)
-                a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * Prod(from i in Range(N) select u[t, φ[t, i]]);
+//                a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * Prod(from i in Range(N) select u[t, φ[t, i]]);
                 cw[t, n] = C(Mat(M, t - 1), Row(kw, t), βw[t], n);
                 ww[t, n] = gw[t] * (ga[t] * a[t, n] + (1 - ga[t]) * cw[t, n]);
                 foreach (int iw in Range(W)) {

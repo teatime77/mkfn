@@ -219,6 +219,10 @@ namespace mkfn {
             return this as Apply;
         }
 
+        public Reference AsReference() {
+            return this as Reference;
+        }
+
         public bool IsAdd() {
             return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.AddFnc;
         }
@@ -250,6 +254,19 @@ namespace mkfn {
         }
 
         public abstract string ToStringBody();
+
+        public List<Reference> AllRefs() {
+            List<Reference> all_refs = new List<Reference>();
+
+            mkfn.Navi(this,
+                delegate (object obj) {
+                    if (obj is Reference) {
+                        all_refs.Add(obj as Reference);
+                    }
+                });
+
+            return all_refs;
+        }
     }
 
     /*

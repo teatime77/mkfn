@@ -19,7 +19,6 @@ namespace mkfn {
         public IndexType[] IndexTypes;
 
         public Reference NormRef;
-        public Term Right;
         public Term RightDiff;
         public Term RightDiffSimple;
         public Term Delta;
@@ -254,122 +253,22 @@ namespace mkfn {
         }
 
 
-        void LinqPropagation(Propagation pr, Reference ref1, List<int> plus_linq_dim) {
-            List<Apply> i_plus_p = new List<Apply>();
-            List<Variable> lnq_vars = new List<Variable>();
+        Term MakeLinqMulDiff(Propagation pr, List<Variable> lnq_vars, Term t) {
+            if (lnq_vars.Any()) {
+                // LINQのループ変数がある場合
 
-            Statement stmt = ParentStatement(ref1);
-            Debug.Assert(stmt is Assignment);
-            Assignment asn = stmt as Assignment;
-
-            Term[] u_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
-            Term[] x_idxes = (from t in ref1.Indexes select t.Clone()).ToArray();
-            Dictionary<Reference, Term> subst_tbl = new Dictionary<Reference, Term>();
-            Dictionary<Variable, Variable> var_tbl = new Dictionary<Variable, Variable>();
-
-            LINQ lnq0 = null;
-            foreach (int dim in plus_linq_dim) {
-                Apply app = ref1.Indexes[dim] as Apply;
-
-                var v = from a in i_plus_p where a.Eq(app) select a;
-                if (!v.Any()) {
-
-                    i_plus_p.Add(app);
-
-                    // i
-                    Variable for_var1 = (app.Args[0] as Reference).VarRef;
-
-                    // p
-                    Variable linq_var1 = (app.Args[1] as Reference).VarRef;
-
-                    lnq0 = linq_var1.ParentVar as LINQ;
-
-                    string name = for_var1.Name + "" + linq_var1.Name;
-                    Apply for_var2_domain = new Apply(new Reference(DomainFnc), new Term[] { new Reference(ref1.VarRef), new Number(dim) });
-
-                    // ip
-                    Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
-
-                    x_idxes[dim] = new Reference(for_var2);
-
-                    Apply start = Add(Add(for_var2, MaxRange(for_var1.Domain).Minus()), One());
-                    Reference end = new Reference(for_var2);
-                    Apply linq_var2_domain = Intersect(linq_var1.Domain, Range(start, end));
-
-                    // p
-                    Variable linq_var2 = new Variable(linq_var1.Name, linq_var1.TypeVar, linq_var2_domain);
-                    var_tbl.Add(linq_var1, linq_var2);
-
-                    lnq_vars.Add(linq_var2);
-
-                    Debug.Assert(u_idxes[dim] is Reference);
-
-                    // ip - p
-                    Apply sub2 = Sub(for_var2, linq_var2);
-
-                    // 右辺の dim に ip - p を代入する。
-                    subst_tbl.Add(u_idxes[dim] as Reference, sub2);
-
-                    u_idxes[dim] = sub2;
-                }
-                else {
-
-                    x_idxes[dim] = ref1.Indexes[dim].Clone();
-                }
+                return new LINQ(lnq_vars.ToArray(), Mul(pr.DiffE.Clone(),t), new Reference(SumFnc));
             }
+            else {
+                // LINQのループ変数がない場合
 
-            NaviRep(asn,
-                delegate (object obj, out object ret) {
-                    ret = obj;
-
-                    if (obj == lnq0) {
-
-                        if(lnq0.Aggregate.VarRef == MaxFnc) {
-
-                            ret = new Apply(MaxPoolFnc, lnq0.Select.Clone(var_tbl));
-                        }
-                        else {
-
-                            ret = lnq0.Select.Clone(var_tbl);
-                        }
-                        return true;
-                    }
-
-                    return false;
-                });
-
-            Reference norm_left = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
-
-            // δE/δu
-            pr.DiffE = Diff(new Reference(EFnc), norm_left.Clone());
-
-            pr.NormRef = new Reference(ref1.Name, ref1.VarRef, x_idxes);
-
-            // δE/δu * δu/δx
-            pr.Delta = MakeLinqMulDiff(pr, lnq_vars, Diff(norm_left.Clone(), pr.NormRef));
-
-            // 右辺の i に ip - p を代入する。
-            Term u_right = Subst(asn.Right.Clone(), subst_tbl);
-
-            // Σ δE/δu * δ(Σxh)/δx
-            pr.DeltaSubst = MakeLinqMulDiff(pr, lnq_vars, Diff(u_right, pr.NormRef.Clone()));
-
-            Term right_simple = SimplifyExpression(u_right.Clone());
-
-            pr.DeltaSimple = MakeLinqMulDiff(pr, lnq_vars, Diff(right_simple, pr.NormRef.Clone()));
-
-            Term diff3 = SetParent(Differential(right_simple, pr.NormRef, null));
-
-            pr.RightDiff = MakeLinqMulDiff(pr, lnq_vars, diff3);
-
-            pr.RightDiffSimple = MakeLinqMulDiff(pr, lnq_vars, SimplifyExpression(diff3.Clone()));
+                return Mul(pr.DiffE.Clone(), t);
+            }
         }
 
-        LINQ MakeLinqMulDiff(Propagation pr, List<Variable> lnq_vars, Term t) {
-            return new LINQ(lnq_vars.ToArray(), Mul(pr.DiffE.Clone(),t), new Reference(SumFnc));
-        }
-
-
+        /*
+            伝播の情報を作る。
+        */
         Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Reference used_ref) {
             int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
 
@@ -380,8 +279,22 @@ namespace mkfn {
             Assignment asn = stmt as Assignment;
             Propagation pr = new Propagation(used_ref, asn);
 
-            Term[] idxes = new Term[dim_cnt];
+            Term[] x_idxes = new Term[dim_cnt];
             List<int> plus_linq_dim = new List<int>();
+
+
+            List<Term> lnq_idxes = new List<Term>();
+            Term[] u_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
+            Dictionary<Reference, Term> subst_tbl = new Dictionary<Reference, Term>();
+            Dictionary<Variable, Variable> var_tbl = new Dictionary<Variable, Variable>();
+
+            LINQ lnq0 = null;
+
+            // 変数参照の添え字から参照されている変数のリスト
+            var all_vars = (from r in used_ref.AllRefs() where r != used_ref select r.VarRef);
+
+            // 左辺の添え字が参照している変数の中で、used_refの添え字で参照されていない変数のリスト
+            List<Variable> lnq_vars = (from idx in asn.Left.Indexes where idx is Reference && !all_vars.Contains(idx.AsReference().VarRef) select idx.AsReference().VarRef).ToList();
 
             // すべての添え字に対し
             for (int dim = 0; dim < dim_cnt; dim++) {
@@ -390,42 +303,46 @@ namespace mkfn {
                     // 添え字が変数参照の場合
 
                     Reference idx_ref = used_ref.Indexes[dim] as Reference;
+                    x_idxes[dim] = idx_ref.Clone();
 
                     if (idx_ref.VarRef.ParentVar is ForEach) {
                         // foreachのループ変数を参照する添え字の場合
 
                         pr.IndexTypes[dim] = IndexType.Simple;
-                        idxes[dim] = idx_ref.Clone();
                     }
                     else if (idx_ref.VarRef.ParentVar is LINQ) {
                         // LINQのループ変数を参照する添え字の場合
 
                         pr.IndexTypes[dim] = IndexType.Linq;
-                        idxes[dim] = idx_ref.Clone();
-
 
                         // 変数参照の添え字がループ変数のLINQ
-                        LINQ lnq = idx_ref.VarRef.ParentVar as LINQ;
-                        Debug.Assert(lnq.Aggregate != null);
+                        lnq0 = idx_ref.VarRef.ParentVar as LINQ;
+                        Debug.Assert(lnq0.Aggregate != null);
 
-                        if (lnq.Aggregate.Name == "Sum") {
+                        if (lnq0.Aggregate.Name == "Sum") {
                             Debug.Write("");
                         }
-                        else if (lnq.Aggregate.Name == "Prod") {
+                        else if (lnq0.Aggregate.Name == "Prod") {
                             Debug.Write("");
                         }
-                        else if (lnq.Aggregate.Name == "Max") {
+                        else if (lnq0.Aggregate.Name == "Max") {
                             Debug.Assert(false, "未実装");
                         }
                         else {
                             Debug.Assert(false);
+                        }
+
+                        var v = from a in lnq_idxes where a.Eq(idx_ref) select a;
+                        if (!v.Any()) {
+                            // 未処理の場合
+
+                            lnq_idxes.Add(idx_ref);
                         }
                     }
                     else {
 
                         if (idx_ref.ToString() == "φ[t, n]" || idx_ref.ToString() == "φ[t, i]" || stmt.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
 
-                            idxes[dim] = used_ref.Indexes[dim].Clone();
                         }
                         else {
 
@@ -433,13 +350,12 @@ namespace mkfn {
                             throw new Exception();
                         }
                     }
-
                 }
                 else if (used_ref.Indexes[dim].Eq(t_sub_1)) {
                     // 添え字がt - 1の場合
 
                     pr.IndexTypes[dim] = IndexType.PrevT;
-                    idxes[dim] = new Reference(t_var);
+                    x_idxes[dim] = new Reference(t_var);
                 }
                 else if (used_ref.Indexes[dim].IsAdd()) {
                     // 添え字が加算の場合
@@ -469,11 +385,61 @@ namespace mkfn {
                             else {
                                 Debug.Assert(false);
                             }
-                        }
 
-                        idxes[dim] = ref1.Clone();
-                        idxes[dim] = app.Clone();
-                        plus_linq_dim.Add(dim);
+                            plus_linq_dim.Add(dim);
+
+                            var v = from a in lnq_idxes where a.Eq(app) select a;
+                            if (!v.Any()) {
+                                // 同じ形の添え字が処理済みでない場合
+
+                                lnq_idxes.Add(app);
+
+                                // i
+                                Variable for_var1 = (ref1).VarRef;
+
+                                // p
+                                Variable linq_var1 = (ref2).VarRef;
+
+                                lnq0 = linq_var1.ParentVar as LINQ;
+
+                                string name = for_var1.Name + "" + linq_var1.Name;
+                                Apply for_var2_domain = new Apply(new Reference(DomainFnc), new Term[] { new Reference(used_ref.VarRef), new Number(dim) });
+
+                                // ip
+                                Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
+
+                                x_idxes[dim] = new Reference(for_var2);
+
+                                Apply start = Add(Add(for_var2, MaxRange(for_var1.Domain).Minus()), One());
+                                Reference end = new Reference(for_var2);
+                                Apply linq_var2_domain = Intersect(linq_var1.Domain, Range(start, end));
+
+                                // p
+                                Variable linq_var2 = new Variable(linq_var1.Name, linq_var1.TypeVar, linq_var2_domain);
+                                var_tbl.Add(linq_var1, linq_var2);
+
+                                lnq_vars.Add(linq_var2);
+
+                                Debug.Assert(u_idxes[dim] is Reference);
+
+                                // ip - p
+                                Apply sub2 = Sub(for_var2, linq_var2);
+
+                                // 右辺の dim に ip - p を代入する。
+                                subst_tbl.Add(u_idxes[dim] as Reference, sub2);
+
+                                u_idxes[dim] = sub2;
+                            }
+                            else {
+                                // 同じ形の添え字が処理済みの場合
+
+                                x_idxes[dim] = used_ref.Indexes[dim].Clone();
+                            }
+                        }
+                        else {
+
+                            throw new Exception();
+                        }
                     }
                     else {
                         throw new Exception();
@@ -484,48 +450,102 @@ namespace mkfn {
                     throw new Exception();
                 }
 
-                Debug.Assert(idxes[dim] != null);
+                Debug.Assert(x_idxes[dim] != null);
             }
 
-            pr.NormRef = new Reference(fld.Name, fld, idxes);
+            Term u_right;
+            Term right_simple;
+            Reference norm_left;
 
-            if (plus_linq_dim.Any()) {
-                // i + q の添え字がある場合
+            pr.NormRef = new Reference(fld.Name, fld, x_idxes);
 
-                LinqPropagation(pr, used_ref, plus_linq_dim);
-            }
-            else {
-                Term right_simple;
-                Reference norm_left;
+            if (lnq0 != null) {
+                // LINQ の添え字がある場合
 
-                if ((from e in pr.IndexTypes where e == IndexType.PrevT select e).Any()) {
-                    // t - 1の添え字がある場合
+                asn.Right = NaviRep(asn.Right,
+                    delegate (object obj, out object ret) {
+                        ret = obj;
 
-                    norm_left = Tplus1(asn.Left, t_var, null) as Reference;
-                    pr.Right = Tplus1(asn.Right, t_var, null);
-                    right_simple = SimplifyExpression(pr.Right.Clone());
+                        if (obj == lnq0) {
+                            // 対象のLINQの場合
+
+                            if (lnq0.Aggregate.VarRef == MaxFnc) {
+                                // 最大値の場合
+
+                                ret = new Apply(MaxPoolFnc, lnq0.Select.Clone(var_tbl));
+                            }
+                            else if (lnq0.Aggregate.VarRef == SumFnc || lnq0.Aggregate.VarRef == ProdFnc) {
+                                // 和か積の場合
+
+                                ret = lnq0.Select.Clone(var_tbl);
+                            }
+                            else {
+
+                                throw new Exception();
+                            }
+                            return true;
+                        }
+
+                        return false;
+                    }) as Term;
+
+                if (subst_tbl.Keys.Any()) {
+                    // 変数の置換がある場合
+
+                    // 右辺の i に ip - p を代入する。
+                    u_right = Subst(asn.Right.Clone(), subst_tbl);
                 }
                 else {
-                    norm_left = asn.Left;
-                    pr.Right = asn.Right;
-                    right_simple = asn.Right;
+                    // 変数の置換がない場合
+
+                    u_right = asn.Right.Clone();
                 }
+            }
+            else {
+                // LINQ の添え字がない場合
 
-                // δE/δu
-                pr.DiffE = Diff(new Reference(EFnc), norm_left.Clone());
-
-                pr.Delta = Mul(pr.DiffE.Clone(), Diff(norm_left.Clone(), pr.NormRef.Clone()));
-
-                pr.DeltaSubst = Mul(pr.DiffE.Clone(), Diff(pr.Right.Clone(), pr.NormRef.Clone()));
-
-                pr.DeltaSimple = Mul(pr.DiffE.Clone(), Diff(right_simple.Clone(), pr.NormRef.Clone()));
-
-                Term diff2 = SetParent(Differential(right_simple, pr.NormRef, null));
-                pr.RightDiff = Mul(pr.DiffE.Clone(), diff2);
-
-                pr.RightDiffSimple = Mul(pr.DiffE.Clone(), SimplifyExpression(diff2.Clone()));
+                u_right = asn.Right.Clone();
             }
 
+            if ((from e in pr.IndexTypes where e == IndexType.PrevT select e).Any()) {
+                // t - 1の添え字がある場合
+
+                // 左辺の t に t+1を代入する。
+                norm_left = Tplus1(asn.Left, t_var, null) as Reference;
+
+                // 右辺の t に t+1を代入する。
+                u_right = Tplus1(u_right, t_var, null);
+            }
+            else {
+                // t - 1の添え字がない場合
+
+                norm_left = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
+            }
+
+            // 右辺の簡約化
+            right_simple = SimplifyExpression(u_right.Clone());
+
+            // δE/δu
+            pr.DiffE = Diff(new Reference(EFnc), norm_left.Clone());
+
+            // δE/δu * δu/δx
+            pr.Delta = MakeLinqMulDiff(pr, lnq_vars, Diff(norm_left.Clone(), pr.NormRef.Clone()));
+
+            // Σ δE/δu * δ(置換右辺)/δx
+            pr.DeltaSubst = MakeLinqMulDiff(pr, lnq_vars, Diff(u_right.Clone(), pr.NormRef.Clone()));
+
+            // Σ δE/δu * δ(簡約置換右辺)/δx
+            pr.DeltaSimple = MakeLinqMulDiff(pr, lnq_vars, Diff(right_simple.Clone(), pr.NormRef.Clone()));
+
+            Term diff = SetParent(Differential(right_simple, pr.NormRef, null));
+
+            // Σ δE/δu * 微分簡約置換右辺
+            pr.RightDiff = MakeLinqMulDiff(pr, lnq_vars, diff);
+
+            // Σ δE/δu * 簡約微分簡約置換右辺
+            pr.RightDiffSimple = MakeLinqMulDiff(pr, lnq_vars, SimplifyExpression(diff.Clone()));
+
+            // 伝播の情報を返す。
             return pr;
         }
 
@@ -1325,7 +1345,7 @@ namespace mkfn {
             return new List<object>(processed);
         }
 
-        void Navi(object obj, NaviAction before, NaviAction after = null) {
+        public static void Navi(object obj, NaviAction before, NaviAction after = null) {
             if (obj == null) {
                 return;
             }
