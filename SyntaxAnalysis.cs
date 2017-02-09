@@ -7,9 +7,9 @@ using System.IO;
 using System.Diagnostics;
 using System.Reflection;
 
-namespace mkfn {
-    public partial class mkfn {
-        public static mkfn Singleton;
+namespace MkFn {
+    public partial class MkFn {
+        public static MkFn Singleton;
 
         string HomeDir = @"C:\usr\prj\mkfn\mkfn";
         public string[] Lines;

@@ -4,12 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace mkfn {
+namespace MkFn {
     partial class Program {
         
         static void Main(string[] args) {
-            mkfn.Singleton = new mkfn();
-            mkfn.Singleton.Main();
+            MkFn.Singleton = new MkFn();
+            MkFn.Singleton.Main();
         }
     }
 }

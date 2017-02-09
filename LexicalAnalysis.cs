@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
 
-namespace mkfn {
+namespace MkFn {
     public enum TokenType {
         Unknown,
 
@@ -56,7 +56,7 @@ namespace mkfn {
         }
     }
 
-    public partial class mkfn {
+    public partial class MkFn {
         // キーワードの文字列の辞書
         List<string> KeywordMap = new List<string>() {
             "using",

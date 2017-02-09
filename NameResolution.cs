@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Diagnostics;
 
-namespace mkfn {
-    public partial class mkfn {
+namespace MkFn {
+    public partial class MkFn {
         /*
          * 名前解決
          */

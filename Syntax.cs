@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Diagnostics;
 
-namespace mkfn {
+namespace MkFn {
     /*
         クラス
     */
@@ -224,11 +224,11 @@ namespace mkfn {
         }
 
         public bool IsAdd() {
-            return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.AddFnc;
+            return this is Apply && ToApply().Function.VarRef == MkFn.Singleton.AddFnc;
         }
 
         public bool IsMul() {
-            return this is Apply && ToApply().Function.VarRef == mkfn.Singleton.MulFnc;
+            return this is Apply && ToApply().Function.VarRef == MkFn.Singleton.MulFnc;
         }
 
         public override string ToString() {
@@ -258,7 +258,7 @@ namespace mkfn {
         public List<Reference> AllRefs() {
             List<Reference> all_refs = new List<Reference>();
 
-            mkfn.Navi(this,
+            MkFn.Navi(this,
                 delegate (object obj) {
                     if (obj is Reference) {
                         all_refs.Add(obj as Reference);
@@ -438,7 +438,7 @@ namespace mkfn {
             }
             else {
 
-                if (Function.VarRef == mkfn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == mkfn.Singleton.EFnc) {
+                if (Function.VarRef == MkFn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
 
                     return "δ_" + Args[1].ToString();
                 }
@@ -537,8 +537,8 @@ namespace mkfn {
     public class SyntaxException : Exception {
 
         public SyntaxException() {
-            Token tkn = mkfn.Singleton.CurrentToken;
-            string line = mkfn.Singleton.Lines[tkn.LineIndex];
+            Token tkn = MkFn.Singleton.CurrentToken;
+            string line = MkFn.Singleton.Lines[tkn.LineIndex];
             Debug.WriteLine("Err {0}行: {1} ^ {2}", tkn.LineIndex + 1, line.Substring(0, tkn.CharPos), line.Substring(tkn.CharPos));
             Debug.Write("");
         }

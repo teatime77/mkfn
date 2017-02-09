@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace mkfn {
+namespace MkFn {
     public enum IndexType {
         Simple,
         PrevT,
@@ -38,7 +38,8 @@ namespace mkfn {
     public delegate bool NaviFnc(object self, out object ret);
 
     //------------------------------------------------------------ TProject
-    public partial class mkfn {
+    public partial class MkFn {
+        Class[] Layers;
         Number Zero() { return new Number(0); }
         Number One() { return new Number(1) ; }
         public Variable AddFnc = new Variable("+", null, null);
@@ -67,7 +68,7 @@ namespace mkfn {
 
             RangeFnc = (from f in layer.Functions where f.Name == "Range" select f).First();
 
-            Class[] layers = (from cls in AppClasses where cls.IsSubClass(layer) select cls).ToArray();
+            Layers = (from cls in AppClasses where cls.IsSubClass(layer) select cls).ToArray();
 
             StringWriter sw = new StringWriter();
 
@@ -75,7 +76,7 @@ namespace mkfn {
             tanh_prime = (from fnc in layer.Functions where fnc.Name == "tanh_prime" select fnc).First();
 
             // アプリのクラスの親クラスに対し
-            foreach (Class cls in layers) {
+            foreach (Class cls in Layers) {
                 //if (cls.Name != "ConvolutionalLayer" && cls.Name != "MaxPoolingLayer") continue;//????????????????????????
 
                 Debug.WriteLine("layer : {0}", cls.Name, "");
