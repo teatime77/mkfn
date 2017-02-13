@@ -95,7 +95,7 @@ namespace MkFn {
     public class Function : Variable {
         public List<Variable> Params = new List<Variable>();
 
-        public BlockStatement Statement;
+        public BlockStatement BodyStatement;
         public Function(string name, Class type) : base(name, type, null) {
         }
     }
@@ -173,8 +173,16 @@ namespace MkFn {
         項
     */
     public abstract class Term {
+        public static int TermCnt;
+        public int TermIdx;
         public object Parent;
         public double Value = 1;
+        public Class TypeTerm;
+
+        public Term() {
+            TermCnt++;
+            TermIdx = TermCnt;
+        }
 
         public abstract bool EqBody(Object obj);
 
@@ -229,6 +237,10 @@ namespace MkFn {
 
         public bool IsMul() {
             return this is Apply && ToApply().Function.VarRef == MkFn.Singleton.MulFnc;
+        }
+
+        public static bool IsRange(Term t) {
+            return t is Apply && t.ToApply().Function.VarRef == MkFn.Singleton.RangeFnc;
         }
 
         public override string ToString() {

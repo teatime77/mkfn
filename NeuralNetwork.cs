@@ -67,6 +67,34 @@ public abstract class Layer {
     public double[,] Mat(double[,,] a, int i) {
         return null;
     }
+
+    public double oneplus(double x) {
+        return 1 + log(1.0 + pow(e_, x));
+    }
+
+    public double softmax(double[] x, int i) {
+        return pow(e_, x[i]) / (from xj in x select pow(e_, xj)).Sum();
+    }
+
+    public double Length(double[] u) {
+        return sqrt((from i in Indexes(u) select u[i] * u[i]).Sum());
+    }
+
+    public double Dot(double[] u, double[] v) {
+        return (from i in Indexes(u) select u[i] * v[i]).Sum();
+    }
+
+    public double C(double[,] M, double[] k, double β, int i) {
+        return exp(D(k, Row(M, i)) * β) / (from j in Indexes(M) select exp(D(k, Row(M, j)) * β)).Sum();
+    }
+
+    public double D(double[] u, double[] v) {
+        return Dot(u, v) / (Length(u) * Length(v));
+    }
+
+    public double Prod(object a) {
+        return 0;
+    }
 }
 
 public class FullyConnectedLayer : Layer {
@@ -339,34 +367,6 @@ public class DNC : Layer {
         π2 = new double[T, R];
         π3 = new double[T, R];
         Wr = new double[R, W, Y];
-    }
-
-    public double oneplus(double x) {
-        return 1 + log(1.0 + pow(e_, x));
-    }
-
-    public double softmax(double[] x, int i) {
-        return pow(e_, x[i]) / (from xj in x select pow(e_, xj)).Sum();
-    }
-
-    public double Length(double[] u) {
-        return sqrt((from i in Indexes(u) select u[i] * u[i]).Sum());
-    }
-
-    public double Dot(double[] u, double[] v) {
-        return (from i in Indexes(u) select u[i] * v[i]).Sum();
-    }
-
-    public double C(double[,] M, double[] k, double β, int i) {
-        return exp(D(k, Row(M, i)) * β) / (from j in Indexes(M) select exp(D(k, Row(M, j)) * β)).Sum();
-    }
-
-    public double D(double[] u, double[] v) {
-        return Dot(u, v) / (Length(u) * Length(v));
-    }
-
-    public double Prod(object a) {
-        return 0;
     }
 
     public override void Forward() {

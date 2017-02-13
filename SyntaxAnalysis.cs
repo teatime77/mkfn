@@ -477,8 +477,8 @@ namespace MkFn {
             }
             else {
 
-                fnc.Statement = new BlockStatement(ReadBlockStatement());
-                fnc.Statement.ParentStmt = fnc;
+                fnc.BodyStatement = new BlockStatement(ReadBlockStatement());
+                fnc.BodyStatement.ParentStmt = fnc;
             }
 
             return fnc;
@@ -575,6 +575,16 @@ namespace MkFn {
         public void Main() {
             HomeDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName( Assembly.GetExecutingAssembly().Location ) ) );
             ParseSourceFile(HomeDir + @"\NeuralNetwork.cs");
+
+
+            Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
+
+            RangeFnc = (from f in layer.Functions where f.Name == "Range" select f).First();
+
+            σ_prime = (from fnc in layer.Functions where fnc.Name == "σ_prime" select fnc).First();
+            tanh_prime = (from fnc in layer.Functions where fnc.Name == "tanh_prime" select fnc).First();
+
+            Layers = (from cls in AppClasses where cls.IsSubClass(layer) select cls).ToArray();
 
             // 名前解決
             ResolveName();

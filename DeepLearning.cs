@@ -39,44 +39,36 @@ namespace MkFn {
 
     //------------------------------------------------------------ TProject
     public partial class MkFn {
-        Class[] Layers;
-        Number Zero() { return new Number(0); }
-        Number One() { return new Number(1) ; }
+        public Class[] Layers;
+        public Number Zero() { return new Number(0); }
+        public Number One() { return new Number(1) ; }
         public Variable AddFnc = new Variable("+", null, null);
         public Variable MulFnc = new Variable("*", null, null);
-        Variable DivFnc = new Variable("/", null, null);
-        Variable SumFnc = new Variable("Sum", null, null);
-        Variable ProdFnc = new Variable("Prod", null, null);
-        Variable MaxFnc = new Variable("Max", null, null);
-        Variable MaxPoolFnc = new Variable("MaxPool", null, null);
-        Variable MaxPoolPrimeFnc = new Variable("MaxPoolPrime", null, null);
-        Variable maxFnc = new Variable("max", null, null);
-        Variable minFnc = new Variable("min", null, null);
-        Variable NewFnc = new Variable("new", null, null);
-        Variable DomainFnc = new Variable("Domain", null, null);
-        Variable RangeFnc;
+        public Variable DivFnc = new Variable("/", null, null);
+        public Variable SumFnc = new Variable("Sum", null, null);
+        public Variable ProdFnc = new Variable("Prod", null, null);
+        public Variable MaxFnc = new Variable("Max", null, null);
+        public Variable MaxPoolFnc = new Variable("MaxPool", null, null);
+        public Variable MaxPoolPrimeFnc = new Variable("MaxPoolPrime", null, null);
+        public Variable maxFnc = new Variable("max", null, null);
+        public Variable minFnc = new Variable("min", null, null);
+        public Variable NewFnc = new Variable("new", null, null);
+        public Variable DomainFnc = new Variable("Domain", null, null);
+        public Variable RangeFnc;
         public Variable DiffFnc = new Variable("Diff", null, null);
         public Variable EFnc = new Variable("E", null, null);
-        Variable σ_prime;
-        Variable tanh_prime;
+        public Variable σ_prime;
+        public Variable tanh_prime;
         bool MathJaxDelta = false;
 
         public void DeepLearning() {
             Debug.WriteLine("深層学習");
 
-            Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
-
-            RangeFnc = (from f in layer.Functions where f.Name == "Range" select f).First();
-
-            Layers = (from cls in AppClasses where cls.IsSubClass(layer) select cls).ToArray();
-
-            StringWriter sw = new StringWriter();
-
-            σ_prime = (from fnc in layer.Functions where fnc.Name == "σ_prime" select fnc).First();
-            tanh_prime = (from fnc in layer.Functions where fnc.Name == "tanh_prime" select fnc).First();
-
             // アプリのクラスの親クラスに対し
             foreach (Class cls in Layers) {
+
+                StringWriter sw = new StringWriter();
+
                 //if (cls.Name != "ConvolutionalLayer" && cls.Name != "MaxPoolingLayer") continue;//????????????????????????
 
                 Debug.WriteLine("layer : {0}", cls.Name, "");
@@ -92,8 +84,8 @@ namespace MkFn {
                 Debug.Assert(x_var.TypeVar is ArrayType && y_var.TypeVar is ArrayType);
 
                 // 順伝播の関数定義の直下のforeach
-                Debug.Assert(fnc.Statement.Statements.Count == 1 && fnc.Statement.Statements[0] is ForEach);
-                ForEach top_for = (ForEach)fnc.Statement.Statements[0];
+                Debug.Assert(fnc.BodyStatement.Statements.Count == 1 && fnc.BodyStatement.Statements[0] is ForEach);
+                ForEach top_for = (ForEach)fnc.BodyStatement.Statements[0];
 
                 // 時刻tの変数
                 Variable t_var = null;
@@ -241,6 +233,14 @@ namespace MkFn {
 
                     Term result = SimplifyExpression(Add((from pr in prs select pr.RightDiffSimple.Clone()).ToArray()));
 
+                    Function field_calc = new Function(fld.Name, fld.TypeVar);
+                    Return rtn_stmt = new Return(result);
+
+                    field_calc.BodyStatement = new BlockStatement(new List<Statement>() { rtn_stmt });
+                    cls.Functions.Add(field_calc);
+                    field_calc.ParentVar = cls;
+
+
                     sw.WriteLine("<pre><b>");
                     sw.WriteLine("double δ_" + norm_ref.Name + "(" + string.Join(", ", from i in norm_ref.Indexes select "int " + i.ToString()) + "){");
                     sw.WriteLine("\treturn " + result.ToString() + ";");
@@ -249,7 +249,8 @@ namespace MkFn {
                 }
 
                 WriteMathJax(sw, cls.Name);
-                sw = new StringWriter();
+
+                WriteClassCode(cls);
             }
         }
 
@@ -579,6 +580,23 @@ namespace MkFn {
                 Directory.CreateDirectory(html_dir);
             }
             File.WriteAllText(html_dir + "\\" + file_name + ".html", head + sw.ToString() + "\r\n</body></html>", Encoding.UTF8);
+        }
+
+        void WriteClassCode(Class cls) {
+            MakeCode mc = new MakeCode(this);
+            string header, body;
+
+            mc.ClassCode(cls, out header, out body);
+
+            string html_dir = HomeDir + "\\src\\C";
+            if (!Directory.Exists(html_dir)) {
+
+                Directory.CreateDirectory(html_dir);
+            }
+
+            File.WriteAllText(html_dir + "\\" + cls.Name + ".h"  , header, Encoding.UTF8);
+            File.WriteAllText(html_dir + "\\" + cls.Name + ".cpp", body, Encoding.UTF8);
+
         }
 
         /*
@@ -1391,12 +1409,24 @@ namespace MkFn {
                 Variable v = obj as Variable;
 
                 Navi(v.Domain, before, after);
+
+                if(obj is Function) {
+                    Function fnc = obj as Function;
+                    foreach(Variable p in fnc.Params) {
+                        Navi(p, before, after);
+                    }
+                    Navi(fnc.BodyStatement, before, after);
+                }
             }
             else if (obj is Statement) {
                 if (obj is Assignment) {
                     Assignment asn = obj as Assignment;
                     Navi(asn.Left, before, after);
                     Navi(asn.Right, before, after);
+                }
+                else if(obj is Return) {
+                    Return ret = obj as Return;
+                    Navi(ret.Value, before, after);
                 }
                 else if (obj is ForEach) {
                     ForEach for1 = obj as ForEach;
@@ -1413,6 +1443,15 @@ namespace MkFn {
                 }
                 else {
                     Debug.Assert(false);
+                }
+            }
+            else if (obj is Class) {
+                Class cls = obj as Class;
+                foreach(Variable fld in cls.Fields) {
+                    Navi(fld, before, after);
+                }
+                foreach (Function fnc in cls.Functions) {
+                    Navi(fnc, before, after);
                 }
             }
             else {
@@ -1491,6 +1530,17 @@ namespace MkFn {
                 if(v.Domain != null) {
                     v.Domain.Parent = obj;
                 }
+
+                if (obj is Function) {
+                    Function fnc = obj as Function;
+                    fnc.Params = (from p in fnc.Params select NaviRep(p, before, after) as Variable).ToList();
+                    fnc.BodyStatement = NaviRep(fnc.BodyStatement, before, after) as BlockStatement;
+
+                    foreach (Variable p in fnc.Params) {
+                        p.ParentVar = fnc;
+                    }
+                    fnc.BodyStatement.ParentStmt = fnc;
+                }
             }
             else if (obj is Statement) {
                 if (obj is Assignment) {
@@ -1500,6 +1550,15 @@ namespace MkFn {
 
                     asn.Left.Parent = obj;
                     asn.Right.Parent = obj;
+                }
+                else if (obj is Return) {
+                    Return ret_stmt = obj as Return;
+                    ret_stmt.Value = NaviRep(ret_stmt.Value, before, after) as Term;
+
+                    if(ret_stmt.Value != null) {
+
+                        ret_stmt.Value.Parent = obj;
+                    }
                 }
                 else if (obj is ForEach) {
                     ForEach for1 = obj as ForEach;
@@ -1520,6 +1579,18 @@ namespace MkFn {
                 }
                 else {
                     Debug.Assert(false);
+                }
+            }
+            else if (obj is Class) {
+                Class cls = obj as Class;
+                cls.Fields = (from fld in cls.Fields select NaviRep(fld, before, after) as Variable).ToList();
+                cls.Functions = (from fnc in cls.Functions select NaviRep(fnc, before, after) as Function).ToList();
+
+                foreach (Variable fld in cls.Fields) {
+                    fld.ParentVar = cls;
+                }
+                foreach (Function fnc in cls.Functions) {
+                    fnc.ParentVar = cls;
                 }
             }
             else {
