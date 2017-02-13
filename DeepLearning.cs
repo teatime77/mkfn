@@ -40,26 +40,69 @@ namespace MkFn {
     //------------------------------------------------------------ TProject
     public partial class MkFn {
         public Class[] Layers;
+        public Class IntClass = new Class("int");
+        public Class FloatClass = new Class("float");
+        public Class DoubleClass = new Class("double");
+        public Class ArgClass = new Class("arg type");
         public Number Zero() { return new Number(0); }
         public Number One() { return new Number(1) ; }
-        public Variable AddFnc = new Variable("+", null, null);
-        public Variable MulFnc = new Variable("*", null, null);
-        public Variable DivFnc = new Variable("/", null, null);
-        public Variable SumFnc = new Variable("Sum", null, null);
-        public Variable ProdFnc = new Variable("Prod", null, null);
-        public Variable MaxFnc = new Variable("Max", null, null);
-        public Variable MaxPoolFnc = new Variable("MaxPool", null, null);
-        public Variable MaxPoolPrimeFnc = new Variable("MaxPoolPrime", null, null);
-        public Variable maxFnc = new Variable("max", null, null);
-        public Variable minFnc = new Variable("min", null, null);
-        public Variable NewFnc = new Variable("new", null, null);
-        public Variable DomainFnc = new Variable("Domain", null, null);
+
+        public Variable AddFnc;
+        public Variable MulFnc;
+        public Variable DivFnc;
+        public Variable SumFnc;
+        public Variable ProdFnc;
+        public Variable MaxFnc;
+        public Variable MaxPoolFnc;
+        public Variable MaxPoolPrimeFnc;
+        public Variable maxFnc;
+        public Variable minFnc;
+        public Variable DomainFnc;
+        public Variable DiffFnc;
+        public Variable EFnc;
+
         public Variable RangeFnc;
-        public Variable DiffFnc = new Variable("Diff", null, null);
-        public Variable EFnc = new Variable("E", null, null);
         public Variable σ_prime;
         public Variable tanh_prime;
         bool MathJaxDelta = false;
+
+        public MkFn() {
+            AddFnc = new Variable("+", ArgClass, null);
+            MulFnc = new Variable("*", ArgClass, null);
+            DivFnc = new Variable("/", ArgClass, null);
+            SumFnc = new Variable("Sum", ArgClass, null);
+            ProdFnc = new Variable("Prod", ArgClass, null);
+            MaxFnc = new Variable("Max", ArgClass, null);
+            MaxPoolFnc = new Variable("MaxPool", ArgClass, null);
+            MaxPoolPrimeFnc = new Variable("MaxPoolPrime", ArgClass, null);
+
+            maxFnc = new Variable("max", ArgClass, null);
+            minFnc = new Variable("min", ArgClass, null);
+
+            DomainFnc = new Variable("Domain", null, null);
+            DiffFnc = new Variable("Diff", ArgClass, null);
+
+            SimpleTypes.Add(IntClass);
+            SimpleTypes.Add(FloatClass);
+            SimpleTypes.Add(DoubleClass);
+        }
+
+        public int NumberTypeOrder(Class tp1) {
+            Class tp2 = (tp1 is ArrayType ? (tp1 as ArrayType).ElementType : tp1);
+
+            if(tp2 == IntClass) {
+                return 1;
+            }
+            else if (tp2 == FloatClass) {
+                return 2;
+            }
+            else if (tp2 == DoubleClass) {
+                return 3;
+            }
+            else {
+                throw new Exception();
+            }
+        }
 
         public void DeepLearning() {
             Debug.WriteLine("深層学習");
@@ -249,7 +292,12 @@ namespace MkFn {
                 }
 
                 WriteMathJax(sw, cls.Name);
+            }
 
+            // 型推論
+            TypeInference();
+
+            foreach (Class cls in Layers) {
                 WriteClassCode(cls);
             }
         }
@@ -583,6 +631,16 @@ namespace MkFn {
         }
 
         void WriteClassCode(Class cls) {
+            Navi(cls,
+                delegate (object obj) {
+                    if (obj is Reference) {
+                        Debug.Assert((obj as Reference).VarRef != null);
+                    }
+                    else if (obj is Variable) {
+                        Debug.Assert((obj as Variable).TypeVar != null);
+                    }
+                });
+
             MakeCode mc = new MakeCode(this);
             string header, body;
 
@@ -749,7 +807,7 @@ namespace MkFn {
             return new Apply(new Reference(AddFnc), v);
         }
 
-        public int[] Range(int n) {
+        public static int[] Range(int n) {
             int[] v = new int[n];
 
             for (int i = 0; i < n; i++) {

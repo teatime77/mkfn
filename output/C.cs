@@ -31,7 +31,15 @@ namespace MkFn {
         }
 
         public string TypeCode(Class cls) {
-            return "TYPE";
+            Debug.Assert(cls != null);
+
+            if(cls.DimCnt == 0) {
+                return cls.Name;
+            }
+            else {
+
+                return cls.Name + "[" +  string.Join(",", from x in MkFn.Range(cls.DimCnt - 1) select "") + "]";
+            }
         }
 
         public void ForHeadCode(Variable loop_var, StringWriter sw, int nest) {
@@ -76,7 +84,7 @@ namespace MkFn {
 
                     // 集計用の変数
                     tmp_cnt++;
-                    string tmp_name = string.Format("" ,tmp_cnt);
+                    string tmp_name = string.Format("_wk{0}" ,tmp_cnt);
                     LinqValue.Add(lnq, tmp_name);
 
                     if(lnq.Aggregate.VarRef == theMkFn.SumFnc) {
@@ -110,7 +118,7 @@ namespace MkFn {
                     }
 
                     foreach (Variable loop_var in lnq.Variables) {
-                        sw.WriteLine("}");
+                        sw.WriteLine(Nest(nest) + "}");
                     }
                 }
 
@@ -147,36 +155,85 @@ namespace MkFn {
             return sw.ToString();
         }
 
-        public string TermCode(Term t1) {
-            if (!(t1 is Number)) {
+        public string TermCode(Term trm) {
+            if (!(trm is Number)) {
 
-                if (t1.Value == 1) {
+                if (trm.Value == 1) {
 
-                    return TermCodeBody(t1);
+                    return TermCodeBody(trm);
                 }
-                else if (t1.Value == -1) {
+                else if (trm.Value == -1) {
 
-                    return "- " + TermCodeBody(t1);
+                    return "- " + TermCodeBody(trm);
                 }
                 else {
 
-                    return t1.Value.ToString() + " * " + TermCodeBody(t1);
+                    return trm.Value.ToString() + " * " + TermCodeBody(trm);
                 }
             }
             else {
 
-                return TermCodeBody(t1);
+                return TermCodeBody(trm);
             }
         }
 
-        string TermCodeBody(Term t1) {
-            if (t1 is LINQ) {
+        string TermCodeBody(Term trm) {
+            if (trm is Reference) {
+                Reference rf = trm as Reference;
+
+                if (rf.Indexes == null) {
+                    return rf.Name;
+                }
+                else {
+                    return rf.Name + "[" + string.Join(", ", from x in rf.Indexes select TermCode(x)) + "]";
+                }
+            }
+            else if (trm is Number) {
+                return trm.ToString();
+            }
+            else if (trm is Apply) {
+                Apply app = trm as Apply;
+
+                if ("+-*/%".Contains(app.Function.Name[0])) {
+                    string s;
+
+                    Debug.Assert(app.Args.Length != 1);
+
+                    if (app.IsAdd()) {
+
+                        s = string.Join(" ", from x in app.Args select (x == app.Args[0] || x.Value < 0 ? "" : "+ ") + TermCode(x));
+                    }
+                    else {
+
+                        s = string.Join(" " + app.Function.Name + " ", from x in app.Args select TermCode(x));
+                    }
+
+                    if (app.Parent is Apply && (app.Parent as Apply).Precedence() <= app.Precedence()) {
+                        return "(" + s + ")";
+                    }
+                    else {
+                        return s;
+                    }
+                }
+                else {
+
+                    if (app.Function.VarRef == MkFn.Singleton.DiffFnc && app.Args[0] is Reference && (app.Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
+
+                        return "δ_" + app.Args[1].ToString();
+                    }
+                    else {
+
+                        return app.Function.Name + "(" + string.Join(", ", from x in app.Args select TermCode(x)) + ")";
+                    }
+                }
+            }
+            else if (trm is LINQ) {
 
 
-                return LinqValue[t1 as LINQ];
+                return LinqValue[trm as LINQ];
             }
             else {
-                return t1.ToString();
+                throw new Exception();
             }
         }
 

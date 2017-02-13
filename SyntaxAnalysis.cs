@@ -22,7 +22,7 @@ namespace MkFn {
         Token NextToken;
         
         List<Token> TokenList;
-        Token EOTToken = new Token(TokenType.EOT, null, -1, -1);
+        Token EOTToken = new Token(TokenType.EOT, TokenSubType.Unknown, null, -1, -1);
 
         Token ReadNextToken() {
             Token current_token = CurrentToken;
@@ -231,7 +231,7 @@ namespace MkFn {
             else if (CurrentToken.Type == TokenType.Number) {
                 Token num = GetToken(TokenType.Number);
 
-                return new Number(num.Text);
+                return new Number(num.Text, num.SubType);
             }
             else if (CurrentToken.Text == "(") {
 
@@ -296,7 +296,10 @@ namespace MkFn {
                 List<Term> args = new List<Term>();
 
                 GetToken("new");
-                GetToken(TokenType.Identifier);
+
+                Token type_id = GetToken(TokenType.Identifier);
+                Class cls = GetSimpleType(type_id.Text);
+
                 GetToken("[");
                 while (true) {
 
@@ -308,7 +311,7 @@ namespace MkFn {
                 }
                 GetToken("]");
 
-                return new Apply(new Reference(NewFnc), args.ToArray());
+                return new Apply(new Function("new", cls), args.ToArray());
             }
             else {
                 throw new SyntaxException();
@@ -579,6 +582,8 @@ namespace MkFn {
 
             Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
 
+            EFnc = (from fld in layer.Fields where fld.Name == "E" select fld).First();
+
             RangeFnc = (from f in layer.Functions where f.Name == "Range" select f).First();
 
             σ_prime = (from fnc in layer.Functions where fnc.Name == "σ_prime" select fnc).First();
@@ -588,6 +593,9 @@ namespace MkFn {
 
             // 名前解決
             ResolveName();
+
+            // 型推論
+            TypeInference();
 
             DeepLearning();
         }

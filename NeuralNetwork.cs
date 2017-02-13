@@ -5,6 +5,7 @@ using System.Linq;
 //namespace Miyu {
 public abstract class Layer {
     public static double e_;
+    public double E;    // 損失関数
 
     public abstract void Forward();
 
@@ -299,7 +300,7 @@ public class DNC : Layer {
     public double[,] cw;    // write content weighting
     public double[,] ww;    // write weighting
     public double[,] p;     // precedence weighting
-    public double[,] E;     // matrix of ones
+    //public double[,] E;     // matrix of ones
     public double[,,] L;     // temporal link matrix
     public double[,,] f;     // forward weighting
     public double[,,] b;     // backward weighting
@@ -357,7 +358,7 @@ public class DNC : Layer {
         cw = new double[T, N];
         ww = new double[T, N];
         p = new double[T, N];
-        E = new double[N, W];
+        //E = new double[N, W];
         L = new double[T, N, N];
         f = new double[T, R, N];
         b = new double[T, R, N];

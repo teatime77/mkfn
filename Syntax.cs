@@ -15,6 +15,7 @@ namespace MkFn {
         public string Name;
         public List<Variable> Fields = new List<Variable>();
         public List<Function> Functions = new List<Function>();
+        public int DimCnt;
 
         public Class(string name) {
             Name = name;
@@ -38,7 +39,6 @@ namespace MkFn {
     */
     public class ArrayType : Class {
         public Class ElementType;
-        public int DimCnt;
 
         public ArrayType(Class element_type, int dim_cnt) : base(element_type.Name) {
             ElementType = element_type;
@@ -285,19 +285,52 @@ namespace MkFn {
         数値定数
     */
     public class Number : Term {
-        public Number(string text) {
+        public Number(string text, TokenSubType sub_type) {
+            switch (sub_type) {
+            case TokenSubType.Integer:
+                int n;
+                if (!int.TryParse(text, out n)) {
+                    throw new SyntaxException();
+                }
+                Value = n;
+                TypeTerm = MkFn.Singleton.IntClass;
+                break;
 
-            if (!double.TryParse(text, out Value)) {
-                throw new SyntaxException();
+            case TokenSubType.Float:
+                float f;
+                if (!float.TryParse(text, out f)) {
+                    throw new SyntaxException();
+                }
+                Value = f;
+                TypeTerm = MkFn.Singleton.FloatClass;
+                break;
+
+            case TokenSubType.Double:
+                if (!double.TryParse(text, out Value)) {
+                    throw new SyntaxException();
+                }
+                TypeTerm = MkFn.Singleton.DoubleClass;
+                break;
             }
         }
 
-        public Number(double d) {
+        public Number(double d, Class type = null) {
             Value = d;
+
+            if (type == null) {
+                Debug.Assert(Value == Math.Floor(Value));
+
+                TypeTerm = MkFn.Singleton.IntClass;
+            }
+            else {
+
+                TypeTerm = type;
+            }
         }
 
         public new Number Clone(Dictionary<Variable, Variable> var_tbl) {
-            return new Number(Value);
+            
+            return new Number(Value, TypeTerm);
         }
 
         public override bool EqBody(Object obj) {

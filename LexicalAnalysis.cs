@@ -42,14 +42,23 @@ namespace MkFn {
         RC,
     }
 
+    public enum TokenSubType {
+        Unknown,
+        Integer,
+        Float,
+        Double,
+    }
+
     public class Token {
         public TokenType Type;
+        public TokenSubType SubType;
         public string Text;
         public int LineIndex;
         public int CharPos;
 
-        public Token(TokenType type, string text, int line_index, int char_pos) {
+        public Token(TokenType type, TokenSubType sub_type, string text, int line_index, int char_pos) {
             Type = type;
+            SubType = sub_type;
             Text = text;
             LineIndex = line_index;
             CharPos = char_pos;
@@ -121,6 +130,7 @@ namespace MkFn {
                 }
 
                 TokenType token_type = TokenType.Unknown;
+                TokenSubType sub_type = TokenSubType.Unknown;
 
                 // 字句の開始位置
                 int start_pos = pos;
@@ -181,6 +191,20 @@ namespace MkFn {
 
                         // 10進数の終わりを探す。
                         for (; pos < text_len && char.IsDigit(text[pos]); pos++);
+
+                        if (text[pos] == 'f') {
+
+                            pos++;
+                            sub_type = TokenSubType.Float;
+                        }
+                        else {
+
+                            sub_type = TokenSubType.Double;
+                        }
+                    }
+                    else {
+
+                        sub_type = TokenSubType.Integer;
                     }
                 }
                 else if (ch1 == '/' && ch2 == '/') {
@@ -213,7 +237,7 @@ namespace MkFn {
                 string s = text.Substring(start_pos, pos - start_pos);
 
                 // トークンを作り、トークンのリストに追加する。
-                token_list.Add(new Token(token_type, s, line_idx, start_pos));
+                token_list.Add(new Token(token_type, sub_type, s, line_idx, start_pos));
             }
 
             // 各文字の字句型の配列を返す。
