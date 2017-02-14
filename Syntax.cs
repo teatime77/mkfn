@@ -239,6 +239,10 @@ namespace MkFn {
             return this is Apply && ToApply().Function.VarRef == MkFn.Singleton.MulFnc;
         }
 
+        public bool IsNew() {
+            return this is Apply && ToApply().Function.Name == "new";
+        }
+
         public static bool IsRange(Term t) {
             return t is Apply && t.ToApply().Function.VarRef == MkFn.Singleton.RangeFnc;
         }

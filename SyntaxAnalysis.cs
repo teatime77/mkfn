@@ -90,6 +90,9 @@ namespace MkFn {
                 else if (CurrentToken.Text == "override") {
                     GetToken(TokenType.Any);
                 }
+                else if (CurrentToken.Text == "const") {
+                    GetToken(TokenType.Any);
+                }
                 else {
                     break;
                 }
@@ -520,12 +523,21 @@ namespace MkFn {
 
                     Token id = GetToken(TokenType.Identifier);
 
-                    if (CurrentToken.Text == ";") {
+                    if (CurrentToken.Text == ";" || CurrentToken.Text == "=") {
                         // フィールドの場合
+
+                        Term init = null;
+
+                        if (CurrentToken.Text == "=") {
+
+                            GetToken("=");
+
+                            init = Expression();
+                        }
 
                         GetToken(";");
 
-                        Variable field = new Variable(id.Text, type, null);
+                        Variable field = new Variable(id.Text, type, init);
 
                         cls.Fields.Add(field);
                         field.ParentVar = cls;
@@ -595,7 +607,10 @@ namespace MkFn {
             ResolveName();
 
             // 型推論
-            TypeInference();
+            foreach (Class cls in Layers) {
+
+                TypeInference(cls);
+            }
 
             DeepLearning();
         }

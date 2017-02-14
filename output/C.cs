@@ -68,6 +68,9 @@ namespace MkFn {
 
             if (stmt is Assignment || stmt is Return) {
 
+                sw.WriteLine("");
+                sw.WriteLine(Nest(nest) + "// " + stmt.ToString());
+
                 // すべての代入文のリスト
                 List<LINQ> lnks = new List<LINQ>();
                 MkFn.Navi(stmt,
@@ -185,7 +188,7 @@ namespace MkFn {
                     return rf.Name;
                 }
                 else {
-                    return rf.Name + "[" + string.Join(", ", from x in rf.Indexes select TermCode(x)) + "]";
+                    return rf.Name + string.Join("", from x in rf.Indexes select "[" + TermCode(x) + "]");
                 }
             }
             else if (trm is Number) {
@@ -241,24 +244,70 @@ namespace MkFn {
             return TypeCode(v.TypeVar) + " " + v.Name;
         }
 
+        public string FunctionHeader(Function fnc, bool is_body) {
+            StringWriter sw = new StringWriter();
+
+            if (is_body) {
+
+                sw.Write("{0} {1}::{2}", TypeCode(fnc.TypeVar), (fnc.ParentVar as Class).Name, fnc.Name);
+            }
+            else {
+
+                sw.Write("{0} {1}", TypeCode(fnc.TypeVar), fnc.Name);
+            }
+            sw.Write("(" + string.Join(", ", from v in fnc.Params select VariableCode(v)) + ")");
+
+            return sw.ToString();
+        }
+
         public string FunctionCode(Function fnc) {
             StringWriter sw = new StringWriter();
 
-            sw.Write("{0} {1}", TypeCode(fnc.TypeVar), fnc.Name);
-            sw.WriteLine("(" + string.Join(", ", from v in fnc.Params select VariableCode(v)) + "){");
-            sw.Write(StatementCode(fnc.BodyStatement, 1));
+            sw.WriteLine("");
+            sw.WriteLine(FunctionHeader(fnc, true) + "{");
+            sw.Write(StatementCode(fnc.BodyStatement, 0));
             sw.WriteLine("}");
 
             return sw.ToString();
         }
 
         public string FieldCode(Variable fld) {
-            return TypeCode(fld.TypeVar) + " " + fld.Name + ";\r\n";
+            if(fld.Domain != null) {
+
+                if(fld.Domain is Number) {
+                    Number num = fld.Domain as Number;
+
+                    if(fld.TypeVar == theMkFn.IntClass && num.TypeTerm == theMkFn.IntClass) {
+
+                        return "#define " + fld.Name + " " + num.Value.ToString() + "\r\n";
+                    }
+                    else {
+                        throw new Exception();
+                    }
+                }
+                else if(fld.Domain.IsNew()){
+                    Apply app = fld.Domain as Apply;
+
+                    return fld.TypeVar.Name + " " + fld.Name + string.Join("", from x in app.Args select "[" + x.ToString() +"]") + ";\r\n";
+                }
+                else {
+                    throw new Exception();
+                }
+            }
+            else {
+
+                return TypeCode(fld.TypeVar) + " " + fld.Name + ";\r\n";
+            }
         }
 
         public void ClassCode(Class cls, out string header, out string body) {
-            header = "struct " + cls.Name + " {\r\n" + string.Join("", from fld in cls.Fields select FieldCode(fld)) + "}\r\n";
-            body = string.Join("\r\n", from fnc in cls.Functions select FunctionCode(fnc));
+            header = "struct " + cls.Name + " {\r\n" + 
+                string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld)) +
+                string.Join("", from fnc in cls.Functions select Nest(1) + FunctionHeader(fnc, false) + ";\r\n") +
+                "};\r\n";
+
+            string inc = "#include \"stdafx.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
+            body = inc + string.Join("\r\n", from fnc in cls.Functions select FunctionCode(fnc));
         }
     }
 }

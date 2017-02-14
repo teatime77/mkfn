@@ -99,15 +99,15 @@ public abstract class Layer {
 }
 
 public class FullyConnectedLayer : Layer {
-    public int X;
-    public int Y;
+    public const int X = 1;
+    public const int Y = 1;
 
-    public double[] x;
-    public double[] y;
+    public double[] x = new double[X];
+    public double[] y = new double[Y];
 
-    public double[,] w;
-    public double[] b;
-    public double[] u;
+    public double[,] w = new double[Y, X];
+    public double[] b = new double[Y];
+    public double[] u = new double[Y];
 
     public override void Forward() {
         foreach (int i in Range(Y)) {
@@ -118,17 +118,17 @@ public class FullyConnectedLayer : Layer {
 }
 
 public class ConvolutionalLayer : Layer {
-    public int M;   // 行数
-    public int N;   // 列数
-    public int K;   // フィルター数
-    public int H;
+    public const int M = 10;   // 行数
+    public const int N = 20;   // 列数
+    public const int K = 5;   // フィルター数
+    public const int H = 5;
 
-    public double[,] x;
-    public double[,,] y;
+    public double[,] x = new double[M, N];
+    public double[,,] y = new double[M, N, K];
 
-    public double[,,] u;
-    public double[,,] h;
-    public double[] b;
+    public double[,,] u = new double[M, N, K];
+    public double[,,] h = new double[H, H, K];
+    public double[] b = new double[K];
 
     public override void Forward() {
         foreach (int i in Range(M)) {

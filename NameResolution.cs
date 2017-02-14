@@ -99,83 +99,79 @@ namespace MkFn {
         /*
         型推論
         */
-        void TypeInference() {
-            // アプリのクラスに対し
-            foreach (Class cls in Layers) {
-                Debug.WriteLine("layer : {0}", cls.Name, "");
+        void TypeInference(Class cls) {
+            Debug.WriteLine("layer : {0}", cls.Name, "");
 
-                Navi(cls,
-                    null,
-                    delegate (object obj) {
-                        if(obj is Term) {
-                            Term trm = obj as Term;
-                            if (trm is Reference) {
-                                Reference rf = trm as Reference;
+            Navi(cls,
+                null,
+                delegate (object obj) {
+                    if (obj is Term) {
+                        Term trm = obj as Term;
+                        if (trm is Reference) {
+                            Reference rf = trm as Reference;
 
-                                if(rf.Indexes == null) {
+                            if (rf.Indexes == null) {
 
-                                    trm.TypeTerm = rf.VarRef.TypeVar;
-                                }
-                                else {
-
-                                    trm.TypeTerm = (rf.VarRef.TypeVar as ArrayType).ElementType;
-                                }
-                            }
-                            else if (trm is Number) {
-                            }
-                            else if (trm is Apply) {
-                                Apply app = trm as Apply;
-
-                                if (app.Function.VarRef.TypeVar == ArgClass) {
-
-                                    Class tp1 = app.Args[0].TypeTerm;
-                                    for(int i = 1; i < app.Args.Length; i++) {
-                                        Class tp2 = app.Args[i].TypeTerm;
-                                        if(MkFn.Singleton.NumberTypeOrder(tp1) < MkFn.Singleton.NumberTypeOrder(tp2)) {
-
-                                            tp1 = tp2;
-                                        }
-                                    }
-
-                                    trm.TypeTerm = tp1;
-                                }
-                                else {
-                                    trm.TypeTerm = app.Function.VarRef.TypeVar;
-                                }
-                            }
-                            else if (trm is LINQ) {
-
-                                LINQ lnq = trm as LINQ;
-
-                                Debug.Assert(lnq.Aggregate != null);
-                                trm.TypeTerm = lnq.Select.TypeTerm;
+                                trm.TypeTerm = rf.VarRef.TypeVar;
                             }
                             else {
-                                Debug.Assert(false);
-                            }
-                            Debug.Assert(trm.TypeTerm != null);
-                        }
-                        else if (obj is Variable) {
-                            Variable va = obj as Variable;
 
-                            if(va.TypeVar == null) {
-                                if(va.Domain == null) {
+                                trm.TypeTerm = (rf.VarRef.TypeVar as ArrayType).ElementType;
+                            }
+                        }
+                        else if (trm is Number) {
+                        }
+                        else if (trm is Apply) {
+                            Apply app = trm as Apply;
+
+                            if (app.Function.VarRef.TypeVar == ArgClass) {
+
+                                Class tp1 = app.Args[0].TypeTerm;
+                                for (int i = 1; i < app.Args.Length; i++) {
+                                    Class tp2 = app.Args[i].TypeTerm;
+                                    if (MkFn.Singleton.NumberTypeOrder(tp1) < MkFn.Singleton.NumberTypeOrder(tp2)) {
+
+                                        tp1 = tp2;
+                                    }
+                                }
+
+                                trm.TypeTerm = tp1;
+                            }
+                            else {
+                                trm.TypeTerm = app.Function.VarRef.TypeVar;
+                            }
+                        }
+                        else if (trm is LINQ) {
+
+                            LINQ lnq = trm as LINQ;
+
+                            Debug.Assert(lnq.Aggregate != null);
+                            trm.TypeTerm = lnq.Select.TypeTerm;
+                        }
+                        else {
+                            Debug.Assert(false);
+                        }
+                        Debug.Assert(trm.TypeTerm != null);
+                    }
+                    else if (obj is Variable) {
+                        Variable va = obj as Variable;
+
+                        if (va.TypeVar == null) {
+                            if (va.Domain == null) {
+                                throw new Exception();
+                            }
+                            else {
+
+                                if (va.Domain.TypeTerm.DimCnt != 1) {
                                     throw new Exception();
                                 }
-                                else {
 
-                                    if(va.Domain.TypeTerm.DimCnt != 1) {
-                                        throw new Exception();
-                                    }
-
-                                    va.TypeVar = (va.Domain.TypeTerm as ArrayType).ElementType;
-                                    Debug.Assert(va.TypeVar != null);
-                                }
+                                va.TypeVar = (va.Domain.TypeTerm as ArrayType).ElementType;
+                                Debug.Assert(va.TypeVar != null);
                             }
                         }
-                    });
-            }
-
+                    }
+                });
         }
     }
 }

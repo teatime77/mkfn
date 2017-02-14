@@ -25,7 +25,7 @@ namespace MkFn {
         public Term DeltaSubst;
         public Term DeltaSimple;
 
-        public Apply DiffE;
+        public Reference DiffE;
 
         public Propagation(Reference used_ref, Assignment asn) {
             UsedRef = used_ref;
@@ -40,6 +40,7 @@ namespace MkFn {
     //------------------------------------------------------------ TProject
     public partial class MkFn {
         public Class[] Layers;
+        public Class VoidClass = new Class("void");
         public Class IntClass = new Class("int");
         public Class FloatClass = new Class("float");
         public Class DoubleClass = new Class("double");
@@ -82,6 +83,7 @@ namespace MkFn {
             DomainFnc = new Variable("Domain", null, null);
             DiffFnc = new Variable("Diff", ArgClass, null);
 
+            SimpleTypes.Add(VoidClass);
             SimpleTypes.Add(IntClass);
             SimpleTypes.Add(FloatClass);
             SimpleTypes.Add(DoubleClass);
@@ -140,30 +142,32 @@ namespace MkFn {
                 List<Term> all_terms = new List<Term>();
 
                 // すべての代入文のリスト
-                List<Assignment> all_asns = new List<Assignment>();
+                List<Assignment> forward_asns = new List<Assignment>();
                 Navi(top_for, 
                     delegate (object obj) {
                         if(obj is Term) {
                             all_terms.Add(obj as Term);
                         }
                         else if (obj is Assignment) {
-                            all_asns.Add(obj as Assignment);
+                            forward_asns.Add(obj as Assignment);
                         }
                     });
 
                 // すべての変数参照のリスト
                 Reference[] all_refs = (from t in all_terms where t is Reference select t as Reference).ToArray();
 
+                List<Assignment> backward_asns = new List<Assignment>();
+
                 //------------------------------------------------------------ 順伝播
                 MathJaxDelta = false;
                 sw.WriteLine("<hr/>");
                 sw.WriteLine("<h4 style='color : red;'>{0}順伝播</h4>", cls.Name, "");
                 sw.WriteLine("$$");
-                sw.WriteLine(string.Join("\r\n \\\\ \r\n", from asn in all_asns select MathJax(asn.Left) + " = " + MathJax(asn.Right)));
+                sw.WriteLine(string.Join("\r\n \\\\ \r\n", from asn in forward_asns select MathJax(asn.Left) + " = " + MathJax(asn.Right)));
                 sw.WriteLine("$$");
 
                 // すべての代入文に対し
-                foreach (Assignment asn in all_asns) {
+                foreach (Assignment asn in forward_asns) {
                     //Debug.WriteLine(asn.ToString());
                     Debug.Assert(asn.Left is Reference);
 
@@ -193,10 +197,12 @@ namespace MkFn {
                 }
 
                 Apply t_sub_1 = null;
-                if(t_var != null) {
+                if (t_var != null) {
 
                     t_sub_1 = Add(new Term[] { new Reference(t_var), new Number(-1) });
                 }
+
+                Dictionary<Variable, Variable> to_delta_fld = cls.Fields.ToDictionary(fld => fld, fld => new Variable("δ" + fld.Name, fld.TypeVar, (fld.Domain == null ? null : fld.Domain.Clone())));
 
                 // すべてのフィールドに対し
                 foreach (Variable fld in cls.Fields) {
@@ -215,7 +221,7 @@ namespace MkFn {
 
                     // フィールドの値を使用する変数参照に対し伝播を作る。
                     foreach (Reference used_ref in used_refs) {
-                        Propagation pr = MakePropagation(t_var, t_sub_1, fld, used_ref);
+                        Propagation pr = MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref);
                         Props.Add(pr);
                     }
 
@@ -276,32 +282,109 @@ namespace MkFn {
 
                     Term result = SimplifyExpression(Add((from pr in prs select pr.RightDiffSimple.Clone()).ToArray()));
 
-                    Function field_calc = new Function(fld.Name, fld.TypeVar);
-                    Return rtn_stmt = new Return(result);
-
-                    field_calc.BodyStatement = new BlockStatement(new List<Statement>() { rtn_stmt });
-                    cls.Functions.Add(field_calc);
-                    field_calc.ParentVar = cls;
-
-
-                    sw.WriteLine("<pre><b>");
-                    sw.WriteLine("double δ_" + norm_ref.Name + "(" + string.Join(", ", from i in norm_ref.Indexes select "int " + i.ToString()) + "){");
-                    sw.WriteLine("\treturn " + result.ToString() + ";");
-                    sw.WriteLine("}");
-                    sw.WriteLine("</b></pre>");
+                    Variable delta_fld = to_delta_fld[fld];
+                    Reference left_delta = new Reference(delta_fld.Name, delta_fld, (from i in norm_ref.Indexes select i.Clone()).ToArray());
+                    backward_asns.Add( new Assignment(left_delta, result) );
                 }
 
+                Dictionary<Assignment, List<Assignment>> dct = AssignmentDependency(t_var, forward_asns);
+                Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
+                List<Assignment> sorted_backward_asns = SortAssignment(backward_asns, backward_dct);
+
+
+
+                Function backward_fnc = new Function("Backward", VoidClass);
+
+                backward_fnc.BodyStatement = new BlockStatement((from x in sorted_backward_asns select x as Statement).ToList());
+                cls.Functions.Add(backward_fnc);
+                backward_fnc.ParentVar = cls;
+
+                sw.WriteLine("<hr/>");
+                sw.WriteLine("<h4 style='color : red;'>逆伝播</h4>");
+                sw.WriteLine("$$");
+                sw.WriteLine(string.Join("\r\n \\\\", from asn in sorted_backward_asns select MathJax(asn.Left) + " = " + MathJax(asn.Right) ));
+                sw.WriteLine("$$");
+
                 WriteMathJax(sw, cls.Name);
-            }
 
-            // 型推論
-            TypeInference();
+                // 型推論
+                TypeInference(cls);
 
-            foreach (Class cls in Layers) {
+                List<Variable> sv_flds = new List<Variable>(cls.Fields);
+                cls.Fields.AddRange(to_delta_fld.Values);
+
                 WriteClassCode(cls);
+                cls.Fields = sv_flds;
             }
         }
 
+        List<Assignment> SortAssignment(List<Assignment> asns, Dictionary<Assignment, List<Assignment>> dct) {
+            List<Assignment> pending = new List<Assignment>(asns);
+            List<Assignment> processed = new List<Assignment>();
+
+            while (pending.Any()) {
+                foreach(Assignment asn in pending) {
+                    List<Assignment> depend;
+
+                    if(! dct.TryGetValue(asn, out depend) || depend.All(x => processed.Contains(x))) {
+                        // 依存する代入文がないか、依存する代入文がすべて処理済みの場合
+
+                        pending.Remove(asn);
+                        processed.Add(asn);
+                        goto L1;
+                    }
+                }
+
+                Debug.WriteLine("相互依存の代入文");
+                foreach (Assignment asn in pending) {
+                    Debug.WriteLine(asn.ToString());
+                }
+                break;
+
+                L1:;
+            }
+
+            return processed;
+        }
+
+        /*
+        変数の依存関係
+        */
+        Dictionary<Assignment, List<Assignment>> AssignmentDependency(Variable t_var, List<Assignment> asns) {
+            Dictionary<Assignment, List<Assignment>> dct = new Dictionary<Assignment, List<Assignment>>();
+
+            Dictionary<Variable, Assignment> var_to_asn = asns.ToDictionary(x => x.Left.VarRef, x => x);
+
+            foreach (Assignment asn in asns) {
+                Reference[] refs = EnumReference(asn.Right);
+
+                if (dct.ContainsKey(asn)) {
+                    throw new Exception();
+                }
+                List<Variable> depend;
+
+                if (t_var == null) {
+                    depend = (from r in refs select r.VarRef).Distinct().ToList();
+                }
+                else {
+
+                    depend = (from r in refs where r.Indexes == null || ! r.Indexes.Where(i => i.IsAdd() && (i as Apply).Args[0] is Reference && ((i as Apply).Args[0] as Reference).VarRef == t_var).Any() select r.VarRef).Distinct().ToList();
+                }
+
+                if (depend.Contains(asn.Left.VarRef)) {
+
+                    Debug.WriteLine("依存エラー : " + asn.ToString());
+                    //throw new Exception();
+                }
+                else {
+
+                    dct.Add(asn, (from v in depend where var_to_asn.ContainsKey(v) select var_to_asn[v]).ToList());
+                }
+
+            }
+
+            return dct;
+        }
 
         Term MakeLinqMulDiff(Propagation pr, List<Variable> lnq_vars, Term t) {
             if (lnq_vars.Any()) {
@@ -319,7 +402,7 @@ namespace MkFn {
         /*
             伝播の情報を作る。
         */
-        Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Reference used_ref) {
+        Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Dictionary<Variable, Variable> to_delta_fld, Reference used_ref) {
             int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
 
             // 変数を使用している変数参照の親の文
@@ -576,7 +659,8 @@ namespace MkFn {
             right_simple = SimplifyExpression(u_right.Clone());
 
             // δE/δu
-            pr.DiffE = Diff(new Reference(EFnc), norm_left.Clone());
+            Variable delta_fld = to_delta_fld[asn.Left.VarRef];
+            pr.DiffE = new Reference(delta_fld.Name, delta_fld, (from i in norm_left.Indexes select i.Clone()).ToArray());
 
             // δE/δu * δu/δx
             pr.Delta = MakeLinqMulDiff(pr, lnq_vars, Diff(norm_left.Clone(), pr.NormRef.Clone()));
@@ -1338,12 +1422,12 @@ namespace MkFn {
             return null;
         }
 
-        Term[] AllTerms(object root) {
-            List<Term> v = new List<Term>();
+        Reference[] EnumReference(object root) {
+            List<Reference> v = new List<Reference>();
             Navi(root,
                 delegate (object obj) {
-                    if (obj is Term) {
-                        v.Add(obj as Term);
+                    if (obj is Reference) {
+                        v.Add(obj as Reference);
                     }
                 });
             return v.ToArray();
