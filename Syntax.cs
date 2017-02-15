@@ -93,7 +93,11 @@ namespace MkFn {
         /*
             コピーを返す。
         */
-        public Variable Clone(Dictionary<Variable, Variable> var_tbl) {
+        public Variable Clone(Dictionary<Variable, Variable> var_tbl = null) {
+            if(var_tbl == null) {
+                var_tbl = new Dictionary<Variable, Variable>();
+            }
+
             Term domain = (Domain == null ? null : Domain.Clone(var_tbl));
             Variable v1 = new Variable(Name, TypeVar, domain);
             var_tbl.Add(this, v1);

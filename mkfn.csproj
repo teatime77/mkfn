@@ -44,12 +44,15 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DeepLearning.cs" />
+    <Compile Include="Helper.cs" />
     <Compile Include="LexicalAnalysis.cs" />
     <Compile Include="NameResolution.cs" />
     <Compile Include="NeuralNetwork.cs" />
     <Compile Include="output\C.cs" />
+    <Compile Include="output\MathJax.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SymbolicComputation.cs" />
     <Compile Include="Syntax.cs" />
     <Compile Include="SyntaxAnalysis.cs" />
   </ItemGroup>
