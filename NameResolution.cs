@@ -16,10 +16,11 @@ namespace MkFn {
             foreach (Class cls in Layers) {
                 Debug.WriteLine("layer : {0}", cls.Name, "");
 
-                Navi(cls,
+                Traverse(cls,
                     null,
                     delegate (object obj) {
                         if (obj is Reference) {
+                            // 変数参照の場合
 
                             Reference ref1 = obj as Reference;
 
@@ -46,16 +47,21 @@ namespace MkFn {
 
                 object parent = null;
                 if (obj is Term) {
+                    // 項の場合
 
                     if (obj is LINQ) {
+                        // LINQの場合
+
                         vars.AddRange((obj as LINQ).Variables);
                     }
 
                     parent = (obj as Term).Parent;
                 }
                 else if (obj is Statement) {
+                    // 文の場合
 
                     if (obj is ForEach) {
+                        // foreachの場合
 
                         vars.Add((obj as ForEach).LoopVariable);
                     }
@@ -63,8 +69,10 @@ namespace MkFn {
                     parent = (obj as Statement).ParentStmt;
                 }
                 else if (obj is Variable) {
+                    // 変数の場合
 
                     if (obj is Function) {
+                        // 関数の場合
 
                         vars.AddRange((obj as Function).Params);
                     }
@@ -72,6 +80,7 @@ namespace MkFn {
                     parent = (obj as Variable).ParentVar;
                 }
                 else if (obj is Class) {
+                    // クラスの場合
 
                     Class cls = (obj as Class);
 
@@ -102,12 +111,16 @@ namespace MkFn {
         void TypeInference(Class cls) {
             Debug.WriteLine("layer : {0}", cls.Name, "");
 
-            Navi(cls,
+            Traverse(cls,
                 null,
                 delegate (object obj) {
                     if (obj is Term) {
+                        // 項の場合
+
                         Term trm = obj as Term;
                         if (trm is Reference) {
+                            // 変数参照の場合
+
                             Reference rf = trm as Reference;
 
                             if (rf.Indexes == null) {
@@ -120,8 +133,12 @@ namespace MkFn {
                             }
                         }
                         else if (trm is Number) {
+                            // 数値定数の場合
+
                         }
                         else if (trm is Apply) {
+                            // 関数適用の場合
+
                             Apply app = trm as Apply;
 
                             if (app.Function.VarRef.TypeVar == ArgClass) {
@@ -142,6 +159,7 @@ namespace MkFn {
                             }
                         }
                         else if (trm is LINQ) {
+                            // LINQの場合
 
                             LINQ lnq = trm as LINQ;
 
@@ -154,6 +172,8 @@ namespace MkFn {
                         Debug.Assert(trm.TypeTerm != null);
                     }
                     else if (obj is Variable) {
+                        // 変数の場合
+
                         Variable va = obj as Variable;
 
                         if (va.TypeVar == null) {

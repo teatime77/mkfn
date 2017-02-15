@@ -67,15 +67,18 @@ namespace MkFn {
             StringWriter sw = new StringWriter();
 
             if (stmt is Assignment || stmt is Return) {
+                // 代入文かreturnの場合
 
                 sw.WriteLine("");
                 sw.WriteLine(Nest(nest) + "// " + stmt.ToString());
 
                 // すべての代入文のリスト
                 List<LINQ> lnks = new List<LINQ>();
-                MkFn.Navi(stmt,
+                MkFn.Traverse(stmt,
                     delegate (object obj) {
                         if (obj is LINQ) {
+                            // LINQの場合
+
                             lnks.Add(obj as LINQ);
                         }
                     });
@@ -135,6 +138,8 @@ namespace MkFn {
                 }
             }
             else if(stmt is ForEach) {
+                // foreachの場合
+
                 ForEach fe = stmt as ForEach;
 
                 ForHeadCode(fe.LoopVariable, sw, nest);
@@ -146,8 +151,9 @@ namespace MkFn {
                 sw.WriteLine(Nest(nest) + "}");
             }
             else if (stmt is BlockStatement) {
+                // ブロック文の場合
 
-                foreach(Statement stmt2 in (stmt as BlockStatement).Statements) {
+                foreach (Statement stmt2 in (stmt as BlockStatement).Statements) {
                     sw.Write(StatementCode(stmt2, nest + 1));
                 }
             }
@@ -160,6 +166,7 @@ namespace MkFn {
 
         public string TermCode(Term trm) {
             if (!(trm is Number)) {
+                // 数値定数でない場合
 
                 if (trm.Value == 1) {
 
@@ -182,6 +189,8 @@ namespace MkFn {
 
         string TermCodeBody(Term trm) {
             if (trm is Reference) {
+                // 変数参照の場合
+
                 Reference rf = trm as Reference;
 
                 if (rf.Indexes == null) {
@@ -192,9 +201,13 @@ namespace MkFn {
                 }
             }
             else if (trm is Number) {
+                // 数値定数の場合
+
                 return trm.ToString();
             }
             else if (trm is Apply) {
+                // 関数適用の場合
+
                 Apply app = trm as Apply;
 
                 if ("+-*/%".Contains(app.Function.Name[0])) {
@@ -231,7 +244,7 @@ namespace MkFn {
                 }
             }
             else if (trm is LINQ) {
-
+                // LINQの場合
 
                 return LinqValue[trm as LINQ];
             }
@@ -275,6 +288,8 @@ namespace MkFn {
             if(fld.Domain != null) {
 
                 if(fld.Domain is Number) {
+                    // 定義域が数値定数の場合
+
                     Number num = fld.Domain as Number;
 
                     if(fld.TypeVar == theMkFn.IntClass && num.TypeTerm == theMkFn.IntClass) {

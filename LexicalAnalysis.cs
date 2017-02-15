@@ -29,17 +29,6 @@ namespace MkFn {
 
         // 指定なし
         Any,
-
-        Add,
-        Sub,
-        Mul,
-        Div,
-        LP,
-        RP,
-        LB,
-        RB,
-        LC,
-        RC,
     }
 
     public enum TokenSubType {
@@ -246,4 +235,3 @@ namespace MkFn {
 
     }
 }
-

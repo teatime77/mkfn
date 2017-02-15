@@ -11,10 +11,19 @@ namespace MkFn {
         クラス
     */
     public class Class {
+        // 親
         public Class Parent;
+
+        // クラス名
         public string Name;
+
+        // フィールドのリスト
         public List<Variable> Fields = new List<Variable>();
+
+        // 関数のリスト
         public List<Function> Functions = new List<Function>();
+
+        // 次元 (スカラーは0,  1次元配列は1,  2次元配列は2, ... )
         public int DimCnt;
 
         public Class(string name) {
@@ -38,6 +47,7 @@ namespace MkFn {
         配列の型
     */
     public class ArrayType : Class {
+        // 要素の型
         public Class ElementType;
 
         public ArrayType(Class element_type, int dim_cnt) : base(element_type.Name) {
@@ -58,9 +68,16 @@ namespace MkFn {
         変数
     */
     public class Variable {
+        // 親
         public object ParentVar;
+
+        // 変数名
         public string Name;
+
+        // 変数の型
         public Class TypeVar;
+
+        // 定義域
         public Term Domain;
 
         public Variable(string name, Class type, Term domain) {
@@ -73,6 +90,9 @@ namespace MkFn {
             }
         }
 
+        /*
+            コピーを返す。
+        */
         public Variable Clone(Dictionary<Variable, Variable> var_tbl) {
             Term domain = (Domain == null ? null : Domain.Clone(var_tbl));
             Variable v1 = new Variable(Name, TypeVar, domain);
@@ -93,9 +113,12 @@ namespace MkFn {
         関数
     */
     public class Function : Variable {
+        // 仮引数
         public List<Variable> Params = new List<Variable>();
 
+        // 関数の本体
         public BlockStatement BodyStatement;
+
         public Function(string name, Class type) : base(name, type, null) {
         }
     }
@@ -104,6 +127,7 @@ namespace MkFn {
         文
     */
     public class Statement {
+        // 親
         public object ParentStmt;
     }
 
@@ -111,7 +135,10 @@ namespace MkFn {
         代入文
     */
     public class Assignment : Statement {
+        // 左辺
         public Reference Left;
+
+        // 右辺
         public Term Right;
 
         public Assignment(Reference left, Term right) {
@@ -131,6 +158,7 @@ namespace MkFn {
         return文
     */
     public class Return : Statement {
+        // 戻り値
         public Term Value;
 
         public Return(Term value) {
@@ -142,6 +170,7 @@ namespace MkFn {
         ブロック文
     */
     public class BlockStatement : Statement {
+        // 文のリスト
         public List<Statement> Statements;
 
         public BlockStatement(List<Statement> statements) {
@@ -157,6 +186,7 @@ namespace MkFn {
         foreach文
     */
     public class ForEach : BlockStatement {
+        // ループ変数
         public Variable LoopVariable;
 
         public ForEach(Variable variable, List<Statement> statements) : base(statements) {
@@ -173,38 +203,56 @@ namespace MkFn {
         項
     */
     public abstract class Term {
-        public static int TermCnt;
-        public int TermIdx;
+        // 親
         public object Parent;
+
+        // 係数
         public double Value = 1;
+
+        // 項の型
         public Class TypeTerm;
 
         public Term() {
-            TermCnt++;
-            TermIdx = TermCnt;
         }
 
+        /*
+            係数を除く本体が同じならtrueを返す。
+        */
         public abstract bool EqBody(Object obj);
 
+        /*
+            係数と本体が同じならtrueを返す。
+        */
         public virtual bool Eq(Object obj) {
             return obj is Term && Value == (obj as Term).Value && EqBody(obj);
         }
 
+        /*
+            コピーを返す。
+        */
         public Term Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (var_tbl == null) {
                 var_tbl = new Dictionary<Variable, Variable>();
             }
 
             if (this is Reference) {
+                // 変数参照の場合
+
                 return (this as Reference).Clone(var_tbl);
             }
             else if (this is Number) {
+                // 数値定数の場合
+
                 return (this as Number).Clone(var_tbl);
             }
             else if (this is Apply) {
-                return ToApply().Clone(var_tbl);
+                // 関数適用の場合
+
+                return AsApply().Clone(var_tbl);
             }
             else if (this is LINQ) {
+                // LINQの場合
+
                 return (this as LINQ).Clone(var_tbl);
             }
             else {
@@ -219,36 +267,51 @@ namespace MkFn {
             return this;
         }
 
-        public Number ToNumber() {
-            return this as Number;
-        }
-
-        public Apply ToApply() {
+        /*
+            Applyにキャストする。
+        */
+        public Apply AsApply() {
             return this as Apply;
         }
 
+        /*
+            Referenceにキャストする。
+        */
         public Reference AsReference() {
             return this as Reference;
         }
 
+        /*
+            加算ならtrueを返す。
+        */
         public bool IsAdd() {
-            return this is Apply && ToApply().Function.VarRef == MkFn.Singleton.AddFnc;
+            return this is Apply && AsApply().Function.VarRef == MkFn.Singleton.AddFnc;
         }
 
+        /*
+            乗算ならtrueを返す。
+        */
         public bool IsMul() {
-            return this is Apply && ToApply().Function.VarRef == MkFn.Singleton.MulFnc;
+            return this is Apply && AsApply().Function.VarRef == MkFn.Singleton.MulFnc;
         }
 
+        /*
+            newならtrueを返す。
+        */
         public bool IsNew() {
-            return this is Apply && ToApply().Function.Name == "new";
+            return this is Apply && AsApply().Function.Name == "new";
         }
 
+        /*
+            Rangeならtrueを返す。
+        */
         public static bool IsRange(Term t) {
-            return t is Apply && t.ToApply().Function.VarRef == MkFn.Singleton.RangeFnc;
+            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.RangeFnc;
         }
 
         public override string ToString() {
             if (!(this is Number)) {
+                // 数値定数でない場合
 
                 if (Value == 1) {
 
@@ -274,9 +337,11 @@ namespace MkFn {
         public List<Reference> AllRefs() {
             List<Reference> all_refs = new List<Reference>();
 
-            MkFn.Navi(this,
+            MkFn.Traverse(this,
                 delegate (object obj) {
                     if (obj is Reference) {
+                        // 変数参照の場合
+
                         all_refs.Add(obj as Reference);
                     }
                 });
@@ -332,11 +397,17 @@ namespace MkFn {
             }
         }
 
+        /*
+            コピーを返す。
+        */
         public new Number Clone(Dictionary<Variable, Variable> var_tbl) {
             
             return new Number(Value, TypeTerm);
         }
 
+        /*
+            係数を除く本体が同じならtrueを返す。
+        */
         public override bool EqBody(Object obj) {
             return obj is Number;
         }
@@ -350,8 +421,13 @@ namespace MkFn {
         変数参照
     */
     public class Reference : Term {
+        // 変数名
         public string Name;
+
+        // 参照している変数
         public Variable VarRef;
+
+        // 配列の添え字
         public Term[] Indexes;
 
         public Reference(string name, Variable ref_var, Term[] idx, double val = 1) {
@@ -373,6 +449,9 @@ namespace MkFn {
             Indexes = null;
         }
 
+        /*
+            コピーを返す。
+        */
         public new Reference Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (var_tbl == null) {
                 var_tbl = new Dictionary<Variable, Variable>();
@@ -391,8 +470,13 @@ namespace MkFn {
             return new Reference(Name, v1, idx, Value);
         }
 
+        /*
+            係数を除く本体が同じならtrueを返す。
+        */
         public override bool EqBody(Object obj) {
             if (!(obj is Reference)) {
+                // 変数参照でない場合
+
                 return false;
             }
             Reference r = obj as Reference;
@@ -416,10 +500,16 @@ namespace MkFn {
             }
         }
 
+        /*
+            値の定義ならtrueを返す。
+        */
         public bool Defined() {
             return Parent is Assignment && (Parent as Assignment).Left == this;
         }
 
+        /*
+            値の使用ならtrueを返す。
+        */
         public bool Used() {
             return !Defined();
         }
@@ -438,7 +528,10 @@ namespace MkFn {
         関数適用
     */
     public class Apply : Term {
+        // 関数
         public Reference Function;
+
+        // 引数
         public Term[] Args;
 
         public Apply(Reference function, Term[] args) {
@@ -454,6 +547,9 @@ namespace MkFn {
         public Apply(Variable function, params Term[] args) : this(new Reference(function), args) {
         }
 
+        /*
+            コピーを返す。
+        */
         public new Apply Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Term[] args = (from t in Args select t.Clone(var_tbl)).ToArray();
             Apply app = new Apply(Function.Clone(var_tbl), args);
@@ -498,28 +594,44 @@ namespace MkFn {
             }
         }
 
+        /*
+            係数を除く本体が同じならtrueを返す。
+        */
         public override bool EqBody(Object obj) {
             if (!(obj is Apply)) {
+                // 関数適用でない場合
+
                 return false;
             }
 
             Apply app = obj as Apply;
 
             if ( ! Function.Eq(app.Function) ) {
+                // 関数が違う場合
+
                 return false;
             }
+
             if (Args.Length != app.Args.Length) {
+                // 引数の数が違う場合
+
                 return false;
             }
 
             for (int i = 0; i < Args.Length; i++) {
                 if (!Args[i].Eq(app.Args[i])) {
+                    // 引数が違う場合
+
                     return false;
                 }
             }
+
             return true;
         }
 
+        /*
+            演算子の優先順位を返す。
+        */
         public int Precedence() {
             if (Char.IsLetter(Function.Name[0])) {
                 return 20;
@@ -541,8 +653,13 @@ namespace MkFn {
         LINQ
     */
     public class LINQ : Term {
+        // ループ変数
         public Variable[] Variables;
+
+        // select句
         public Term Select;
+
+        // 集計関数
         public Reference Aggregate;
 
         public LINQ(Variable[] variables, Term select, Reference aggregate, double val = 1) {
@@ -561,10 +678,16 @@ namespace MkFn {
             }
         }
 
+        /*
+            係数を除く本体が同じならtrueを返す。
+        */
         public override bool EqBody(Object obj) {
             return this == obj;
         }
 
+        /*
+            コピーを返す。
+        */
         public new LINQ Clone(Dictionary<Variable, Variable> var_tbl) {
             Variable[] vars = (from v in Variables select v.Clone(var_tbl)).ToArray();
             return new LINQ(vars, Select.Clone(var_tbl), (Aggregate == null ? null : Aggregate.Clone(var_tbl)), Value);

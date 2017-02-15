@@ -217,6 +217,7 @@ namespace MkFn {
                 if(r.Name == "Prod") {
 
                     if(args.Count == 1 && args[0] is LINQ) {
+                        // 引数がLINQの場合
 
                         LINQ lnq = args[0] as LINQ;
                         lnq.Aggregate = new Reference(ProdFnc);
@@ -245,6 +246,7 @@ namespace MkFn {
                 if(CurrentToken.Text == ".") {
 
                     if (!(term is LINQ)) {
+                        // LINQでない場合
 
                         throw new SyntaxException();
                     }

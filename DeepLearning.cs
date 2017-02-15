@@ -13,12 +13,16 @@ namespace MkFn {
         PlusLinq
     }
 
+    /*
+        伝播先の情報
+    */
     public class Propagation {
+        // 伝播先の代入文
         public Assignment Asn;
-        public Reference UsedRef;
+
         public IndexType[] IndexTypes;
 
-        public Reference NormRef;
+        public Reference UsedRefNorm;
         public Term RightDiff;
         public Term RightDiffSimple;
         public Term Delta;
@@ -28,7 +32,6 @@ namespace MkFn {
         public Reference DiffE;
 
         public Propagation(Reference used_ref, Assignment asn) {
-            UsedRef = used_ref;
             IndexTypes = new IndexType[used_ref.Indexes.Length];
             Asn = asn;
         }
@@ -143,9 +146,11 @@ namespace MkFn {
 
                 // すべての代入文のリスト
                 List<Assignment> forward_asns = new List<Assignment>();
-                Navi(top_for, 
+                Traverse(top_for, 
                     delegate (object obj) {
                         if(obj is Term) {
+                            // 項の場合
+
                             all_terms.Add(obj as Term);
                         }
                         else if (obj is Assignment) {
@@ -207,9 +212,6 @@ namespace MkFn {
                 // すべてのフィールドに対し
                 foreach (Variable fld in cls.Fields) {
 
-                    // 左辺の変数参照の補正値と伝播の辞書
-                    List<Propagation> Props = new List<Propagation>();
-
                     // フィールドの値を使用する変数参照のリスト
                     Reference[] used_refs = (from r in all_refs where r.VarRef == fld && r.Indexes != null && r.Used() select r).ToArray();
 
@@ -219,14 +221,10 @@ namespace MkFn {
                         continue;
                     }
 
-                    // フィールドの値を使用する変数参照に対し伝播を作る。
-                    foreach (Reference used_ref in used_refs) {
-                        Propagation pr = MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref);
-                        Props.Add(pr);
-                    }
+                    // フィールドの値を使用する変数参照に対し、伝播の情報を作る。
+                    List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref)).ToList();
 
-                    List<Propagation> prs = Props;
-                    Reference norm_ref = prs.First().NormRef;
+                    Reference norm_ref = prs.First().UsedRefNorm;
 
                     sw.WriteLine("<hr/>");
                     sw.WriteLine("<div style='font-size:120%; color:red;'>");
@@ -295,6 +293,11 @@ namespace MkFn {
 
                 Function backward_fnc = new Function("Backward", VoidClass);
 
+                List<ForEach> fors = (from x in sorted_backward_asns from r in EnumReference(x) where r.VarRef.ParentVar is ForEach select r.VarRef.ParentVar as ForEach).Distinct().ToList();
+                if (fors.Any()) {
+                    Debug.Write("");
+                }
+
                 backward_fnc.BodyStatement = new BlockStatement((from x in sorted_backward_asns select x as Statement).ToList());
                 cls.Functions.Add(backward_fnc);
                 backward_fnc.ParentVar = cls;
@@ -305,15 +308,22 @@ namespace MkFn {
                 sw.WriteLine(string.Join("\r\n \\\\", from asn in sorted_backward_asns select MathJax(asn.Left) + " = " + MathJax(asn.Right) ));
                 sw.WriteLine("$$");
 
+                //  MathJaxを含むHTMLファイルを書く。
                 WriteMathJax(sw, cls.Name);
 
                 // 型推論
                 TypeInference(cls);
 
+                // フィールドのリストを保存する。
                 List<Variable> sv_flds = new List<Variable>(cls.Fields);
+
+                // フィールドのリストにデルタ変数を追加する。
                 cls.Fields.AddRange(to_delta_fld.Values);
 
+                // クラスのソースコードをファイルに書く。
                 WriteClassCode(cls);
+
+                // フィールドのリストを復元する。
                 cls.Fields = sv_flds;
             }
         }
@@ -412,22 +422,22 @@ namespace MkFn {
             Assignment asn = stmt as Assignment;
             Propagation pr = new Propagation(used_ref, asn);
 
-            Term[] x_idxes = new Term[dim_cnt];
-            List<int> plus_linq_dim = new List<int>();
-
+            Term[] used_ref_idxes = new Term[dim_cnt];
 
             List<Term> lnq_idxes = new List<Term>();
-            Term[] u_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
+
+            // 左辺の変数の添え字
+            Term[] left_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
             Dictionary<Reference, Term> subst_tbl = new Dictionary<Reference, Term>();
             Dictionary<Variable, Variable> var_tbl = new Dictionary<Variable, Variable>();
 
             LINQ lnq0 = null;
 
             // 変数参照の添え字から参照されている変数のリスト
-            var all_vars = (from r in used_ref.AllRefs() where r != used_ref select r.VarRef);
+            var used_ref_idx_vars = (from r in used_ref.AllRefs() where r != used_ref select r.VarRef);
 
             // 左辺の添え字が参照している変数の中で、used_refの添え字で参照されていない変数のリスト
-            List<Variable> lnq_vars = (from idx in asn.Left.Indexes where idx is Reference && !all_vars.Contains(idx.AsReference().VarRef) select idx.AsReference().VarRef).ToList();
+            List<Variable> lnq_vars = (from idx in asn.Left.Indexes where idx is Reference && !used_ref_idx_vars.Contains(idx.AsReference().VarRef) select idx.AsReference().VarRef).ToList();
 
             // すべての添え字に対し
             for (int dim = 0; dim < dim_cnt; dim++) {
@@ -435,21 +445,21 @@ namespace MkFn {
                 if (used_ref.Indexes[dim] is Reference) {
                     // 添え字が変数参照の場合
 
-                    Reference idx_ref = used_ref.Indexes[dim] as Reference;
-                    x_idxes[dim] = idx_ref.Clone();
+                    Reference used_ref_idx = used_ref.Indexes[dim] as Reference;
+                    used_ref_idxes[dim] = used_ref_idx.Clone();
 
-                    if (idx_ref.VarRef.ParentVar is ForEach) {
+                    if (used_ref_idx.VarRef.ParentVar is ForEach) {
                         // foreachのループ変数を参照する添え字の場合
 
                         pr.IndexTypes[dim] = IndexType.Simple;
                     }
-                    else if (idx_ref.VarRef.ParentVar is LINQ) {
+                    else if (used_ref_idx.VarRef.ParentVar is LINQ) {
                         // LINQのループ変数を参照する添え字の場合
 
                         pr.IndexTypes[dim] = IndexType.Linq;
 
                         // 変数参照の添え字がループ変数のLINQ
-                        lnq0 = idx_ref.VarRef.ParentVar as LINQ;
+                        lnq0 = used_ref_idx.VarRef.ParentVar as LINQ;
                         Debug.Assert(lnq0.Aggregate != null);
 
                         if (lnq0.Aggregate.Name == "Sum") {
@@ -465,21 +475,21 @@ namespace MkFn {
                             Debug.Assert(false);
                         }
 
-                        var v = from a in lnq_idxes where a.Eq(idx_ref) select a;
+                        var v = from a in lnq_idxes where a.Eq(used_ref_idx) select a;
                         if (!v.Any()) {
                             // 未処理の場合
 
-                            lnq_idxes.Add(idx_ref);
+                            lnq_idxes.Add(used_ref_idx);
                         }
                     }
                     else {
 
-                        if (idx_ref.ToString() == "φ[t, n]" || idx_ref.ToString() == "φ[t, i]" || stmt.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
+                        if (used_ref_idx.ToString() == "φ[t, n]" || used_ref_idx.ToString() == "φ[t, i]" || stmt.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
 
                         }
                         else {
 
-                            Debug.WriteLine(idx_ref.ToString());
+                            Debug.WriteLine(used_ref_idx.ToString());
                             throw new Exception();
                         }
                     }
@@ -488,7 +498,13 @@ namespace MkFn {
                     // 添え字がt - 1の場合
 
                     pr.IndexTypes[dim] = IndexType.PrevT;
-                    x_idxes[dim] = new Reference(t_var);
+                    used_ref_idxes[dim] = new Reference(t_var);
+
+                    // 右辺の t に t+1 を代入する。
+                    subst_tbl.Add(left_idxes[dim] as Reference, Add(t_var, One()));
+
+                    left_idxes[dim] = Add(t_var, One());
+
                 }
                 else if (used_ref.Indexes[dim].IsAdd()) {
                     // 添え字が加算の場合
@@ -519,8 +535,6 @@ namespace MkFn {
                                 Debug.Assert(false);
                             }
 
-                            plus_linq_dim.Add(dim);
-
                             var v = from a in lnq_idxes where a.Eq(app) select a;
                             if (!v.Any()) {
                                 // 同じ形の添え字が処理済みでない場合
@@ -541,7 +555,7 @@ namespace MkFn {
                                 // ip
                                 Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
 
-                                x_idxes[dim] = new Reference(for_var2);
+                                used_ref_idxes[dim] = new Reference(for_var2);
 
                                 Apply start = Add(Add(for_var2, MaxRange(for_var1.Domain).Minus()), One());
                                 Reference end = new Reference(for_var2);
@@ -553,20 +567,20 @@ namespace MkFn {
 
                                 lnq_vars.Add(linq_var2);
 
-                                Debug.Assert(u_idxes[dim] is Reference);
+                                Debug.Assert(left_idxes[dim] is Reference);
 
                                 // ip - p
                                 Apply sub2 = Sub(for_var2, linq_var2);
 
                                 // 右辺の dim に ip - p を代入する。
-                                subst_tbl.Add(u_idxes[dim] as Reference, sub2);
+                                subst_tbl.Add(left_idxes[dim] as Reference, sub2);
 
-                                u_idxes[dim] = sub2;
+                                left_idxes[dim] = sub2;
                             }
                             else {
                                 // 同じ形の添え字が処理済みの場合
 
-                                x_idxes[dim] = used_ref.Indexes[dim].Clone();
+                                used_ref_idxes[dim] = used_ref.Indexes[dim].Clone();
                             }
                         }
                         else {
@@ -583,19 +597,19 @@ namespace MkFn {
                     throw new Exception();
                 }
 
-                Debug.Assert(x_idxes[dim] != null);
+                Debug.Assert(used_ref_idxes[dim] != null);
             }
 
             Term u_right;
             Term right_simple;
             Reference norm_left;
 
-            pr.NormRef = new Reference(fld.Name, fld, x_idxes);
+            pr.UsedRefNorm = new Reference(fld.Name, fld, used_ref_idxes);
 
             if (lnq0 != null) {
                 // LINQ の添え字がある場合
 
-                asn.Right = NaviRep(asn.Right,
+                asn.Right = TraverseRep(asn.Right,
                     delegate (object obj, out object ret) {
                         ret = obj;
 
@@ -621,39 +635,21 @@ namespace MkFn {
 
                         return false;
                     }) as Term;
+            }
 
-                if (subst_tbl.Keys.Any()) {
-                    // 変数の置換がある場合
+            if (subst_tbl.Keys.Any()) {
+                // 変数の置換がある場合
 
-                    // 右辺の i に ip - p を代入する。
-                    u_right = Subst(asn.Right.Clone(), subst_tbl);
-                }
-                else {
-                    // 変数の置換がない場合
-
-                    u_right = asn.Right.Clone();
-                }
+                // 右辺の i に ip - p を代入する。
+                u_right = Subst(asn.Right.Clone(), subst_tbl);
             }
             else {
-                // LINQ の添え字がない場合
+                // 変数の置換がない場合
 
                 u_right = asn.Right.Clone();
             }
 
-            if ((from e in pr.IndexTypes where e == IndexType.PrevT select e).Any()) {
-                // t - 1の添え字がある場合
-
-                // 左辺の t に t+1を代入する。
-                norm_left = Tplus1(asn.Left, t_var, null) as Reference;
-
-                // 右辺の t に t+1を代入する。
-                u_right = Tplus1(u_right, t_var, null);
-            }
-            else {
-                // t - 1の添え字がない場合
-
-                norm_left = new Reference(asn.Left.Name, asn.Left.VarRef, u_idxes);
-            }
+            norm_left = new Reference(asn.Left.Name, asn.Left.VarRef, left_idxes);
 
             // 右辺の簡約化
             right_simple = SimplifyExpression(u_right.Clone());
@@ -663,15 +659,15 @@ namespace MkFn {
             pr.DiffE = new Reference(delta_fld.Name, delta_fld, (from i in norm_left.Indexes select i.Clone()).ToArray());
 
             // δE/δu * δu/δx
-            pr.Delta = MakeLinqMulDiff(pr, lnq_vars, Diff(norm_left.Clone(), pr.NormRef.Clone()));
+            pr.Delta = MakeLinqMulDiff(pr, lnq_vars, Diff(norm_left.Clone(), pr.UsedRefNorm.Clone()));
 
             // Σ δE/δu * δ(置換右辺)/δx
-            pr.DeltaSubst = MakeLinqMulDiff(pr, lnq_vars, Diff(u_right.Clone(), pr.NormRef.Clone()));
+            pr.DeltaSubst = MakeLinqMulDiff(pr, lnq_vars, Diff(u_right.Clone(), pr.UsedRefNorm.Clone()));
 
             // Σ δE/δu * δ(簡約置換右辺)/δx
-            pr.DeltaSimple = MakeLinqMulDiff(pr, lnq_vars, Diff(right_simple.Clone(), pr.NormRef.Clone()));
+            pr.DeltaSimple = MakeLinqMulDiff(pr, lnq_vars, Diff(right_simple.Clone(), pr.UsedRefNorm.Clone()));
 
-            Term diff = SetParent(Differential(right_simple, pr.NormRef, null));
+            Term diff = SetParent(Differential(right_simple, pr.UsedRefNorm, null));
 
             // Σ δE/δu * 微分簡約置換右辺
             pr.RightDiff = MakeLinqMulDiff(pr, lnq_vars, diff);
@@ -683,11 +679,10 @@ namespace MkFn {
             return pr;
         }
 
+        /*
+            MathJaxを含むHTMLファイルを書く。
+        */
         void WriteMathJax(StringWriter sw, string file_name) {
-/*
-
-*/
-
             string head = @"<!DOCTYPE html>
 
 <html lang=""en"" xmlns=""http://www.w3.org/1999/xhtml"">
@@ -714,17 +709,25 @@ namespace MkFn {
             File.WriteAllText(html_dir + "\\" + file_name + ".html", head + sw.ToString() + "\r\n</body></html>", Encoding.UTF8);
         }
 
+        /*
+            クラスのソースコードをファイルに書く。
+        */
         void WriteClassCode(Class cls) {
-            Navi(cls,
+            Traverse(cls,
                 delegate (object obj) {
                     if (obj is Reference) {
+                        // 変数参照の場合
+
                         Debug.Assert((obj as Reference).VarRef != null);
                     }
                     else if (obj is Variable) {
+                        // 変数の場合
+
                         Debug.Assert((obj as Variable).TypeVar != null);
                     }
                 });
 
+            // Cのソースを作る。
             MakeCode mc = new MakeCode(this);
             string header, body;
 
@@ -736,66 +739,9 @@ namespace MkFn {
                 Directory.CreateDirectory(html_dir);
             }
 
+            // 宣言と実装をファイルに書く。
             File.WriteAllText(html_dir + "\\" + cls.Name + ".h"  , header, Encoding.UTF8);
             File.WriteAllText(html_dir + "\\" + cls.Name + ".cpp", body, Encoding.UTF8);
-
-        }
-
-        /*
-            t - 1 => t
-            t => t + 1
-        */
-        Term Tplus1(Term t1, Variable t_var, Dictionary<Variable, Variable> var_tbl) {
-            if (var_tbl == null) {
-                var_tbl = new Dictionary<Variable, Variable>();
-            }
-
-            if (t1 is Reference) {
-                Reference r1 = t1 as Reference;
-                if(r1.VarRef == t_var) {
-
-                    Debug.Assert(r1.Indexes == null);
-
-                    return new Apply(new Reference(AddFnc), new Term[] { r1.Clone(var_tbl), new Number(1) });
-                }
-                if (r1.Indexes == null) {
-                    return r1.Clone(var_tbl);
-                }
-                Term[] idx = (from t in r1.Indexes select Tplus1(t, t_var, var_tbl)).ToArray();
-
-                Variable v1;
-                if (!var_tbl.TryGetValue(r1.VarRef, out v1)) {
-                    v1 = r1.VarRef;
-                }
-
-                return new Reference(r1.Name, v1, idx);
-            }
-            else if (t1 is Number) {
-                return t1.Clone(var_tbl);
-            }
-            else if (t1 is Apply) {
-                Apply app = t1 as Apply;
-                Term[] args = (from t in app.Args select Tplus1(t, t_var, var_tbl)).ToArray();
-                return new Apply(Tplus1(app.Function, t_var, var_tbl) as Reference, args);
-            }
-            else if (t1 is LINQ) {
-                LINQ lnq = t1 as LINQ;
-                Variable[] vars = (from v in lnq.Variables select Tplus1Var(v, t_var, var_tbl)).ToArray();
-                return new LINQ(vars, Tplus1(lnq.Select, t_var, var_tbl), (lnq.Aggregate == null ? null : Tplus1(lnq.Aggregate, t_var, var_tbl) as Reference));
-            }
-            else {
-                Debug.Assert(false);
-            }
-
-            return null;
-        }
-
-        Variable Tplus1Var(Variable v, Variable t_var, Dictionary<Variable, Variable> var_tbl) {
-            Term domain = (v.Domain == null ? null : Tplus1(v.Domain, t_var, var_tbl));
-            Variable v1 = new Variable(v.Name, v.TypeVar, domain);
-            var_tbl.Add(v, v1);
-
-            return v1;
         }
 
         // u[iu, ju, k] = (from p in Range(H) from q in Range(H) select x[iu + p, ju + q] * h[p, q, k]).Sum() + b[k];
@@ -811,6 +757,7 @@ namespace MkFn {
 
         Apply Intersect(Term t1, Term t2) {
             if(t1 is Apply && t2 is Apply) {
+                // 関数適用の場合
 
                 Apply app1 = t1 as Apply;
                 Apply app2 = t2 as Apply;
@@ -828,6 +775,8 @@ namespace MkFn {
 
         Term MinRange(Term rng) {
             if (rng is Apply) {
+                // 関数適用の場合
+
                 Apply app = rng as Apply;
 
                 if (app.Function.VarRef == RangeFnc) {
@@ -848,6 +797,8 @@ namespace MkFn {
 
         Term MaxRange(Term rng) {
             if(rng is Apply) {
+                // 関数適用の場合
+
                 Apply app = rng as Apply;
 
                 if(app.Function.VarRef == RangeFnc) {
@@ -902,16 +853,18 @@ namespace MkFn {
         }
 
         /*
-            微分
+            LINQの微分
         */
         Term DifferentialLINQ(LINQ lnq, Reference r1, Dictionary<Variable, Variable> var_tbl) {
             Debug.Assert(lnq.Aggregate != null);
 
             Dictionary<Reference, Dictionary<Reference, Term>> rs = new Dictionary<Reference, Dictionary<Reference, Term>>();
             bool exact = false;
-            Navi(lnq.Select,
+            Traverse(lnq.Select,
                 delegate (object obj) {
                     if (obj is Reference) {
+                        // 変数参照の場合
+
                         Reference r2 = obj as Reference;
 
                         if (!(from r in rs.Keys where r.Eq(r2) select r).Any()) {
@@ -1048,7 +1001,7 @@ namespace MkFn {
                 }
             }
             else if (t1 is Number) {
-                // 数値の場合
+                // 数値定数の場合
 
                 return Zero();
             }
@@ -1098,6 +1051,8 @@ namespace MkFn {
                 }
             }
             else if (t1 is LINQ) {
+                // LINQの場合
+
                 return DifferentialLINQ(t1 as LINQ, r1, var_tbl);
             }
             else {
@@ -1109,19 +1064,16 @@ namespace MkFn {
         }
 
         Term Subst(Term t1, Dictionary<Reference, Term> subst_tbl, Dictionary<Variable, Variable> var_tbl = null) {
-            return NaviRep(t1,
+            return TraverseRep(t1,
                 delegate (object obj, out object ret) {
                     ret = obj;
                     if (obj is Reference) {
-                        Reference r2 = obj as Reference;
+                        // 変数参照の場合
 
-                        Term t2;
-                        var vref = from r in subst_tbl.Keys where r.Eq(r2) select r;
+                        var vref = from r in subst_tbl.Keys where r.Eq(obj) select r;
                         if (vref.Any()) {
-                            t2 = subst_tbl[vref.First()];
-                            Term t3 = t2.Clone(var_tbl);
-                            t3.Parent = r2.Parent;
-                            ret = t3;
+
+                            ret = subst_tbl[vref.First()].Clone(var_tbl);
                             return true;
                         }
                     }
@@ -1131,7 +1083,7 @@ namespace MkFn {
         }
 
         Term SetParent(Term t1) {
-            return NaviRep(t1,
+            return TraverseRep(t1,
                 delegate (object obj, out object ret) {
                     ret = obj;
 
@@ -1144,7 +1096,7 @@ namespace MkFn {
             数式の簡約化
         */
         Term SimplifyExpression(Term t1) {
-            return NaviRep(t1,
+            return TraverseRep(t1,
                 delegate (object obj, out object ret) {
                     ret = obj;
 
@@ -1165,7 +1117,7 @@ namespace MkFn {
                                 if (t2 is Apply && (t2 as Apply).Function.VarRef == app.Function.VarRef) {
                                     // 引数が同じ演算の場合
 
-                                    args2.AddRange(t2.ToApply().Args);
+                                    args2.AddRange(t2.AsApply().Args);
                                 }
                                 else {
                                     // 引数が加算や減算でない場合
@@ -1276,14 +1228,11 @@ namespace MkFn {
         }
 
         /*
-            誤差逆伝播法
+            係数を含んだMathJaxのテキストを返す。
         */
-        Term Backpropagation(Term t1, Variable v) {
-            return null;
-        }
-
         string MathJax(Term t1) {
             if (!(t1 is Number)) {
+                // 数値定数でない場合
 
                 if (t1.Value == 1) {
 
@@ -1304,8 +1253,13 @@ namespace MkFn {
             }
         }
 
+        /*
+            係数を含まない本体のMathJaxのテキストを返す。
+        */
         string MathJaxBody(Term t1) {
             if (t1 is Reference) {
+                // 変数参照の場合
+
                 Reference r1 = t1 as Reference;
                 if(r1.Indexes == null) {
                     return r1.Name;
@@ -1324,14 +1278,20 @@ namespace MkFn {
                 }
             }
             else if (t1 is Number) {
+                // 数値定数の場合
+
                 Number n = t1 as Number;
 
                 return n.Value.ToString();
             }
             else if (t1 is Apply) {
+                // 関数適用の場合
+
                 Apply app = t1 as Apply;
 
                 if ("+-*/%".Contains(app.Function.Name[0])) {
+                    // 演算子の場合
+
                     string s;
 
                     Debug.Assert(app.Args.Length != 1);
@@ -1356,6 +1316,8 @@ namespace MkFn {
                     }
                 }
                 else {
+                    // 演算子でない場合
+
                     string name = app.Function.Name;
 
                     if(app.Function.VarRef == DiffFnc) {
@@ -1381,13 +1343,14 @@ namespace MkFn {
                 }
             }
             else if (t1 is LINQ) {
-                
+                // LINQの場合
+
                 LINQ lnq = t1 as LINQ;
 
                 string s = "";
 
-                var vv = from v in lnq.Variables where v.Domain is Apply && (v.Domain as Apply).Function.Name == "Range" select (v.Domain as Apply).Args[0];
-                Debug.Assert(vv.Count() == lnq.Variables.Count());
+                Debug.Assert(lnq.Variables.All(v => Term.IsRange(v.Domain)));
+
                 Dictionary<Variable, Term> doms = lnq.Variables.ToDictionary(v => v, v => (v.Domain as Apply).Args[0]);
 
                 if (lnq.Aggregate.Name == "Sum") {
@@ -1422,39 +1385,42 @@ namespace MkFn {
             return null;
         }
 
+        /*
+            内部の変数参照のリストを返す。
+        */
         Reference[] EnumReference(object root) {
             List<Reference> v = new List<Reference>();
-            Navi(root,
+            Traverse(root,
                 delegate (object obj) {
                     if (obj is Reference) {
+                        // 変数参照の場合
+
                         v.Add(obj as Reference);
                     }
                 });
             return v.ToArray();
         }
 
-        Reference[] Refs(object root) {
-            List<Reference> v = new List<Reference>();
-            Navi(root,
-                delegate (object obj) {
-                    if (obj is Reference) {
-                        v.Add(obj as Reference);
-                    }
-                });
-            return v.ToArray();
-        }
-
+        /*
+            項を含む文を返す。
+        */
         Statement ParentStatement(Term t1) {
             for (Object obj = t1.Parent; ; ) {
                 Debug.Assert(obj != null);
 
                 if (obj is Statement) {
+                    // 文の場合
+
                     return obj as Statement;
                 }
                 else if (obj is Term) {
+                    // 項の場合
+
                     obj = (obj as Term).Parent;
                 }
                 else if (obj is Variable) {
+                    // 変数の場合
+
                     obj = (obj as Variable).ParentVar;
                 }
                 else {
@@ -1463,17 +1429,10 @@ namespace MkFn {
             }
         }
 
-        ForEach[] AncestorForEach(Object o) {
-            Statement stmt;
-
-            if(o is Statement) {
-                stmt = o as Statement;
-            }
-            else {
-                Debug.Assert(o is Term);
-                stmt = ParentStatement(o as Term);
-            }
-
+        /*
+            文の祖先のForEachのリストを返す。
+        */
+        ForEach[] AncestorForEach(Statement stmt) {
             List<ForEach> vfor = new List<ForEach>();
             Debug.Assert(stmt.ParentStmt is ForEach);
 
@@ -1485,28 +1444,16 @@ namespace MkFn {
             }
             Debug.Assert(for1.ParentStmt is BlockStatement);
 
+            // 1番外側のForEachがリストの最初になるように順序を反転させる。
             vfor.Reverse();
+
             return vfor.ToArray();
         }
 
-        List<object> Ancestors(List<Term> terms) {
-            HashSet<Term> pending = new HashSet<Term>(terms);
-            HashSet<object> processed = new HashSet<object>();
-
-            while (pending.Any()) {
-                HashSet<object> tmp = new HashSet<object>(from x in pending where x.Parent != null select x.Parent);
-
-                foreach(object t in pending) {
-                    processed.Add(t);
-                }
-
-                pending = new HashSet<Term>(from t in tmp where t is Term && ! processed.Contains(t) select (Term)t);
-            }
-
-            return new List<object>(processed);
-        }
-
-        public static void Navi(object obj, NaviAction before, NaviAction after = null) {
+        /*
+            木構造を走査する。
+        */
+        public static void Traverse(object obj, NaviAction before, NaviAction after = null) {
             if (obj == null) {
                 return;
             }
@@ -1516,71 +1463,92 @@ namespace MkFn {
             }
 
             if (obj is Term) {
+                // 項の場合
 
                 if (obj is Reference) {
+                    // 変数参照の場合
+
                     Reference r1 = obj as Reference;
 
                     if(r1.Indexes != null) {
                         foreach(Term t in r1.Indexes) {
-                            Navi(t, before, after);
+                            Traverse(t, before, after);
                         }
                     }
                 }
                 else if (obj is Number) {
+                    // 数値定数の場合
+
                 }
                 else if (obj is Apply) {
+                    // 関数適用の場合
+
                     Apply app = obj as Apply;
-                    Navi(app.Function, before, after);
+                    Traverse(app.Function, before, after);
                     foreach (Term t in app.Args) {
-                        Navi(t, before, after);
+                        Traverse(t, before, after);
                     }
                 }
                 else if (obj is LINQ) {
+                    // LINQの場合
+
                     LINQ lnq = obj as LINQ;
                     foreach (Variable v in lnq.Variables) {
-                        Navi(v, before, after);
+                        Traverse(v, before, after);
                     }
-                    Navi(lnq.Select, before, after);
-                    Navi(lnq.Aggregate, before, after);
+                    Traverse(lnq.Select, before, after);
+                    Traverse(lnq.Aggregate, before, after);
                 }
                 else {
                     Debug.Assert(false);
                 }
             }
             else if (obj is Variable) {
+                // 変数の場合
+
                 Variable v = obj as Variable;
 
-                Navi(v.Domain, before, after);
+                Traverse(v.Domain, before, after);
 
                 if(obj is Function) {
+                    // 関数の場合
+
                     Function fnc = obj as Function;
                     foreach(Variable p in fnc.Params) {
-                        Navi(p, before, after);
+                        Traverse(p, before, after);
                     }
-                    Navi(fnc.BodyStatement, before, after);
+                    Traverse(fnc.BodyStatement, before, after);
                 }
             }
             else if (obj is Statement) {
+                // 文の場合
+
                 if (obj is Assignment) {
                     Assignment asn = obj as Assignment;
-                    Navi(asn.Left, before, after);
-                    Navi(asn.Right, before, after);
+                    Traverse(asn.Left, before, after);
+                    Traverse(asn.Right, before, after);
                 }
                 else if(obj is Return) {
+                    // returnの場合
+
                     Return ret = obj as Return;
-                    Navi(ret.Value, before, after);
+                    Traverse(ret.Value, before, after);
                 }
                 else if (obj is ForEach) {
+                    // foreachの場合
+
                     ForEach for1 = obj as ForEach;
-                    Navi(for1.LoopVariable, before, after);
+                    Traverse(for1.LoopVariable, before, after);
                     foreach (Statement s in for1.Statements) {
-                        Navi(s, before, after);
+                        Traverse(s, before, after);
                     }
                 }
                 else if (obj is BlockStatement) {
+                    // ブロック文の場合
+
                     BlockStatement blc1 = obj as BlockStatement;
                     foreach (Statement s in blc1.Statements) {
-                        Navi(s, before, after);
+                        Traverse(s, before, after);
                     }
                 }
                 else {
@@ -1588,12 +1556,14 @@ namespace MkFn {
                 }
             }
             else if (obj is Class) {
+                // クラスの場合
+
                 Class cls = obj as Class;
                 foreach(Variable fld in cls.Fields) {
-                    Navi(fld, before, after);
+                    Traverse(fld, before, after);
                 }
                 foreach (Function fnc in cls.Functions) {
-                    Navi(fnc, before, after);
+                    Traverse(fnc, before, after);
                 }
             }
             else {
@@ -1606,7 +1576,10 @@ namespace MkFn {
             }
         }
 
-        object NaviRep(object obj, NaviFnc before, NaviFnc after = null) {
+        /*
+            木構造を走査してノードを置換する。
+        */
+        object TraverseRep(object obj, NaviFnc before, NaviFnc after = null) {
             if (obj == null) {
                 return null;
             }
@@ -1623,12 +1596,15 @@ namespace MkFn {
             }
 
             if (obj is Term) {
+                // 項の場合
 
                 if (obj is Reference) {
+                    // 変数参照の場合
+
                     Reference r1 = obj as Reference;
 
                     if (r1.Indexes != null) {
-                        r1.Indexes = (from t in r1.Indexes select NaviRep(t, before, after) as Term).ToArray();
+                        r1.Indexes = (from t in r1.Indexes select TraverseRep(t, before, after) as Term).ToArray();
                         
                         foreach(Term t in r1.Indexes) {
                             t.Parent = obj;
@@ -1636,11 +1612,15 @@ namespace MkFn {
                     }
                 }
                 else if (obj is Number) {
+                    // 数値定数の場合
+
                 }
                 else if (obj is Apply) {
+                    // 関数適用の場合
+
                     Apply app = obj as Apply;
-                    app.Function = NaviRep(app.Function, before, after) as Reference;
-                    app.Args = (from t in app.Args select NaviRep(t, before, after) as Term).ToArray();
+                    app.Function = TraverseRep(app.Function, before, after) as Reference;
+                    app.Args = (from t in app.Args select TraverseRep(t, before, after) as Term).ToArray();
 
                     app.Function.Parent = app;
                     foreach (Term t in app.Args) {
@@ -1648,10 +1628,12 @@ namespace MkFn {
                     }
                 }
                 else if (obj is LINQ) {
+                    // LINQの場合
+
                     LINQ lnq = obj as LINQ;
-                    lnq.Variables = (from v in lnq.Variables select NaviRep(v, before, after) as Variable).ToArray();
-                    lnq.Select = NaviRep(lnq.Select, before, after) as Term;
-                    lnq.Aggregate = NaviRep(lnq.Aggregate, before, after) as Reference;
+                    lnq.Variables = (from v in lnq.Variables select TraverseRep(v, before, after) as Variable).ToArray();
+                    lnq.Select = TraverseRep(lnq.Select, before, after) as Term;
+                    lnq.Aggregate = TraverseRep(lnq.Aggregate, before, after) as Reference;
 
                     foreach(Variable v in lnq.Variables) {
                         v.ParentVar = obj;
@@ -1666,17 +1648,21 @@ namespace MkFn {
                 }
             }
             else if (obj is Variable) {
+                // 変数の場合
+
                 Variable v = obj as Variable;
 
-                v.Domain = NaviRep(v.Domain, before, after) as Term;
+                v.Domain = TraverseRep(v.Domain, before, after) as Term;
                 if(v.Domain != null) {
                     v.Domain.Parent = obj;
                 }
 
                 if (obj is Function) {
+                    // 関数の場合
+
                     Function fnc = obj as Function;
-                    fnc.Params = (from p in fnc.Params select NaviRep(p, before, after) as Variable).ToList();
-                    fnc.BodyStatement = NaviRep(fnc.BodyStatement, before, after) as BlockStatement;
+                    fnc.Params = (from p in fnc.Params select TraverseRep(p, before, after) as Variable).ToList();
+                    fnc.BodyStatement = TraverseRep(fnc.BodyStatement, before, after) as BlockStatement;
 
                     foreach (Variable p in fnc.Params) {
                         p.ParentVar = fnc;
@@ -1685,17 +1671,21 @@ namespace MkFn {
                 }
             }
             else if (obj is Statement) {
+                // 文の場合
+
                 if (obj is Assignment) {
                     Assignment asn = obj as Assignment;
-                    asn.Left = NaviRep(asn.Left, before, after) as Reference;
-                    asn.Right = NaviRep(asn.Right, before, after) as Term;
+                    asn.Left = TraverseRep(asn.Left, before, after) as Reference;
+                    asn.Right = TraverseRep(asn.Right, before, after) as Term;
 
                     asn.Left.Parent = obj;
                     asn.Right.Parent = obj;
                 }
                 else if (obj is Return) {
+                    // returnの場合
+
                     Return ret_stmt = obj as Return;
-                    ret_stmt.Value = NaviRep(ret_stmt.Value, before, after) as Term;
+                    ret_stmt.Value = TraverseRep(ret_stmt.Value, before, after) as Term;
 
                     if(ret_stmt.Value != null) {
 
@@ -1703,9 +1693,11 @@ namespace MkFn {
                     }
                 }
                 else if (obj is ForEach) {
+                    // foreachの場合
+
                     ForEach for1 = obj as ForEach;
-                    for1.LoopVariable = NaviRep(for1.LoopVariable, before, after) as Variable;
-                    for1.Statements = (from s in for1.Statements select NaviRep(s, before, after) as Statement).ToList();
+                    for1.LoopVariable = TraverseRep(for1.LoopVariable, before, after) as Variable;
+                    for1.Statements = (from s in for1.Statements select TraverseRep(s, before, after) as Statement).ToList();
 
                     for1.LoopVariable.ParentVar = obj;
                     foreach(Statement stmt in for1.Statements) {
@@ -1713,8 +1705,10 @@ namespace MkFn {
                     }
                 }
                 else if (obj is BlockStatement) {
+                    // ブロック文の場合
+
                     BlockStatement blc1 = obj as BlockStatement;
-                    blc1.Statements = (from s in blc1.Statements select NaviRep(s, before, after) as Statement).ToList();
+                    blc1.Statements = (from s in blc1.Statements select TraverseRep(s, before, after) as Statement).ToList();
                     foreach (Statement stmt in blc1.Statements) {
                         stmt.ParentStmt = obj;
                     }
@@ -1724,9 +1718,11 @@ namespace MkFn {
                 }
             }
             else if (obj is Class) {
+                // クラスの場合
+
                 Class cls = obj as Class;
-                cls.Fields = (from fld in cls.Fields select NaviRep(fld, before, after) as Variable).ToList();
-                cls.Functions = (from fnc in cls.Functions select NaviRep(fnc, before, after) as Function).ToList();
+                cls.Fields = (from fld in cls.Fields select TraverseRep(fld, before, after) as Variable).ToList();
+                cls.Functions = (from fnc in cls.Functions select TraverseRep(fnc, before, after) as Function).ToList();
 
                 foreach (Variable fld in cls.Fields) {
                     fld.ParentVar = cls;
@@ -1747,15 +1743,4 @@ namespace MkFn {
             return ret;
         }      
     }
-
-    public class SubstPair {
-        public Variable VarPair;
-        public Term TermPair;
-
-        public SubstPair(Variable var, Term term) {
-            VarPair = var;
-            TermPair = term;
-        }
-    }
-
 }
