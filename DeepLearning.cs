@@ -37,6 +37,17 @@ namespace MkFn {
         }
     }
 
+    public class ForEachNode {
+        public Term DomainForEach;
+        public List<ForEachNode> Children = new List<ForEachNode>();
+
+        public ForEachNode(Term domain) {
+            DomainForEach = domain;
+        }
+    }
+
+
+
     public delegate void NaviAction(object self);
     public delegate bool NaviFnc(object self, out object ret);
 
@@ -69,6 +80,7 @@ namespace MkFn {
         public Variable σ_prime;
         public Variable tanh_prime;
         bool MathJaxDelta = false;
+        object FreeVariable = new object();
 
         public MkFn() {
             AddFnc = new Variable("+", ArgClass, null);
@@ -261,6 +273,14 @@ namespace MkFn {
                             Debug.Assert(false);
                         }
 
+                        //if (! var_tbl.ContainsKey(used_ref_idx.VarRef)) {
+                        //    // LINQのループ変数が変換辞書に未登録の場合
+
+                        //    // LINQのループ変数を自由変数にする。
+                        //    Variable free_var = used_ref_idx.VarRef.Clone(var_tbl);
+                        //    free_var.ParentVar = FreeVariable;
+                        //}
+
                         var v = from a in lnq_idxes where a.Eq(used_ref_idx) select a;
                         if (!v.Any()) {
                             // 未処理の場合
@@ -412,6 +432,9 @@ namespace MkFn {
 
                                 throw new Exception();
                             }
+                            foreach(Variable va in lnq0.Variables) {
+                                //va.ParentVar = FreeVariable;
+                            }
                             return true;
                         }
 
@@ -504,6 +527,67 @@ namespace MkFn {
         //   ju = jx - q  : 0 <= jx - q <= JU - 1    jx - JU + 1 <= q <= jx  max(0, jx - JU + 1) <= q <= min(H - 1, jx)
         // H
 
+        void ForEachSkeleton(Function fnc) {
+            Traverse(fnc,
+                delegate (object obj) {
+                    if (obj is BlockStatement) {
+                        // ブロック文の場合
+
+                        BlockStatement block = obj as BlockStatement;
+
+                        block.Statements = (from x in block.Statements where x is ForEach select x).ToList();
+                    }
+                });
+        }
+
+        ForEach FindForEach(BlockStatement blc, List<Variable> domains) {
+            List<ForEach> for_list = (from x in blc.Statements where x is ForEach select x as ForEach).ToList();
+
+            foreach(Variable va in domains) {
+                var v = from f in for_list where f.LoopVariable.Domain.Eq(va.Domain) select f;
+                if (v.Any()) {
+                    domains.Remove(va);
+                    if(domains.Count == 0) {
+                        return v.First();
+                    }
+
+                    return FindForEach(v.First(), domains);
+                }
+            }
+
+            BlockStatement current_blc = blc;
+            while (domains.Any()) {
+                Variable va = domains[0];
+                domains.Remove(va);
+
+                ForEach for1 = new ForEach(va, new List<Statement>());
+
+                current_blc.AddStatement(for1);
+
+                current_blc = for1;
+            }
+
+            return current_blc as ForEach;
+        }
+
+        Function MakeBackward(Variable x_var, Variable y_var, Function forward, List<Assignment> sorted_backward_asns) {
+            Function backward_fnc = forward.Clone() as Function;
+
+            ForEachSkeleton(backward_fnc);
+
+            ForEachNode root = new ForEachNode(null);
+
+            
+            foreach (Assignment asn in sorted_backward_asns) {
+                List<Variable> domains = (from r in EnumReference(asn) where r.VarRef.ParentVar == FreeVariable || r.VarRef.ParentVar is ForEach select r.VarRef).Distinct().ToList();
+                if (domains.Any()) {
+
+                    //ForEach for1 = FindForEach(backward_fnc.BodyStatement, domains);
+                }
+            }
+
+            return backward_fnc;
+        }
 
         public void DeepLearning() {
             Debug.WriteLine("深層学習");
@@ -518,18 +602,19 @@ namespace MkFn {
                 Debug.WriteLine("layer : {0}", cls.Name, "");
 
                 // 順伝播の関数
-                Function fnc = (from f in cls.Functions where f.Name == "Forward" select f).First();
+                Function forward = (from f in cls.Functions where f.Name == "Forward" select f).First();
 
                 // 入力変数
                 Variable x_var = (from f in cls.Fields where f.Name == "x" select f).First();
+                Debug.Assert(Term.IsNew(x_var.Domain));
 
                 // 出力変数
                 Variable y_var = (from f in cls.Fields where f.Name == "y" select f).First();
-                Debug.Assert(x_var.TypeVar is ArrayType && y_var.TypeVar is ArrayType);
+                Debug.Assert(x_var.TypeVar is ArrayType && y_var.TypeVar is ArrayType && Term.IsNew(y_var.Domain));
 
                 // 順伝播の関数定義の直下のforeach
-                Debug.Assert(fnc.BodyStatement.Statements.Count == 1 && fnc.BodyStatement.Statements[0] is ForEach);
-                ForEach top_for = (ForEach)fnc.BodyStatement.Statements[0];
+                Debug.Assert(forward.BodyStatement.Statements.Count == 1 && forward.BodyStatement.Statements[0] is ForEach);
+                ForEach top_for = (ForEach)forward.BodyStatement.Statements[0];
 
                 // 時刻tの変数
                 Variable t_var = null;
@@ -685,14 +770,11 @@ namespace MkFn {
                 Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
                 List<Assignment> sorted_backward_asns = SortAssignment(backward_asns, backward_dct);
 
-                Function backward_fnc = new Function("Backward", VoidClass);
+                Function backward_fnc;// = MakeBackward(x_var, y_var, forward, sorted_backward_asns);
 
-                List<ForEach> fors = (from x in sorted_backward_asns from r in EnumReference(x) where r.VarRef.ParentVar is ForEach select r.VarRef.ParentVar as ForEach).Distinct().ToList();
-                if (fors.Any()) {
-                    Debug.Write("");
-                }
-
+                backward_fnc = new Function("Backward", VoidClass);
                 backward_fnc.BodyStatement = new BlockStatement((from x in sorted_backward_asns select x as Statement).ToList());
+
                 cls.Functions.Add(backward_fnc);
                 backward_fnc.ParentVar = cls;
 

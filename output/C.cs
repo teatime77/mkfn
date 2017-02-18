@@ -300,7 +300,7 @@ namespace MkFn {
                         throw new Exception();
                     }
                 }
-                else if(fld.Domain.IsNew()){
+                else if(Term.IsNew(fld.Domain)){
                     Apply app = fld.Domain as Apply;
 
                     return fld.TypeVar.Name + " " + fld.Name + string.Join("", from x in app.Args select "[" + x.ToString() +"]") + ";\r\n";

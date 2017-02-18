@@ -143,13 +143,13 @@ public class ConvolutionalLayer : Layer {
 }
 
 public class MaxPoolingLayer : Layer {
-    public double[,,] x;
-    public double[,,] y;
+    public static int M;   // 行数
+    public static int N;   // 列数
+    public static int K;   // フィルター数
+    public static int H;
 
-    public int M;   // 行数
-    public int N;   // 列数
-    public int K;   // フィルター数
-    public int H;
+    public double[,,] x = new double[M, N, K];
+    public double[,,] y = new double[M, N, K];
 
     public override void Forward() {
         foreach (int i in Range(M)) {
@@ -163,12 +163,12 @@ public class MaxPoolingLayer : Layer {
 }
 
 public class RecurrentLayer : Layer {
-    public int T;
-    public int Y;
-    public int X;
+    public static int T;
+    public static int Y;
+    public static int X;
 
-    public double[,] x;
-    public double[,] y;
+    public double[,] x = new double[T, X];
+    public double[,] y = new double[T, Y];
 
     public double[,] win;
     public double[,] w;
@@ -189,15 +189,15 @@ public class RecurrentLayer : Layer {
 }
 
 public class LSTMLayer : Layer {
-    public int T;
-    public int X;
-    public int Y;
+    public static int T;
+    public static int X;
+    public static int Y;
 
     //public double[,] z;
     public double[,] wZ;
 
-    public double[,] x;
-    public double[,] y;
+    public double[,] x = new double[T, X];
+    public double[,] y = new double[T, Y];
 
     public double[,] wIin;
     public double[,] wFin;
@@ -244,14 +244,14 @@ public class LSTMLayer : Layer {
 }
 
 public class DNC : Layer {
-    public int T;
-    public int N;           // number of memory locations
-    public int W;           // memory word size
-    public int R;           // number of read heads
-    public int X;           // xの長さ
-    public int Y;           // yの長さ
-    public int χl;          // χの長さ
-    public int χ2hl;        // χ+h+hの長さ
+     public static int T;
+     public static int N;           // number of memory locations
+     public static int W;           // memory word size
+     public static int R;           // number of read heads
+     public static int X;           // xの長さ
+     public static int Y;           // yの長さ
+     public static int χl;          // χの長さ
+     public static int χ2hl;        // χ+h+hの長さ
 
     // LSTM
     public double[,] χ;     // input vector
@@ -273,8 +273,8 @@ public class DNC : Layer {
     public double[] bo;     // bias : output gate
 
 
-    public double[,] x;     // input vector RX
-    public double[,] y;     // output vector RX
+    public double[,] x = new double[T, X];     // input vector RX
+    public double[,] y = new double[T, Y];     // output vector RX
     public double[,] v;     // output vector RX
     public double[,] z;     // target vector
     public double[,,] M;    // memory matrix
@@ -333,8 +333,6 @@ public class DNC : Layer {
         bs = new double[Y];
         bo = new double[Y];
 
-        x = new double[T, X];
-        y = new double[T, Y];
         v = new double[T, Y];
         z = new double[T, Y];
         M = new double[T, N, W];
