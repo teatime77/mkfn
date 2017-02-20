@@ -213,7 +213,7 @@ namespace MkFn {
         /*
             コピーを返す。
         */
-        public new Assignment Clone(Dictionary<Variable, Variable> var_tbl) {
+        public new Assignment Clone(Dictionary<Variable, Variable> var_tbl = null) {
             return new Assignment(Left.Clone(var_tbl), Right.Clone(var_tbl));
         }
     }
@@ -297,6 +297,9 @@ namespace MkFn {
         項
     */
     public abstract class Term {
+        public static int TermCnt;
+        public int TermIdx;
+
         // 親
         public object Parent;
 
@@ -307,6 +310,8 @@ namespace MkFn {
         public Class TypeTerm;
 
         public Term() {
+            TermCnt++;
+            TermIdx = TermCnt;
         }
 
         /*
@@ -555,7 +560,13 @@ namespace MkFn {
 
             Term[] idx = (from t in Indexes select t.Clone(var_tbl)).ToArray();
 
-            return new Reference(Name, v1, idx, Value);
+            Reference clone_ref = new Reference(Name, v1, idx, Value);
+            if(MkFn.Singleton.CloneTable != null && MkFn.Singleton.CloneTable.ContainsKey(this)) {
+
+                MkFn.Singleton.CloneTable[this] = clone_ref;
+            }
+
+            return clone_ref;
         }
 
         /*

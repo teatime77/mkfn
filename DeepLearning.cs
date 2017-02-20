@@ -4,24 +4,15 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace MkFn {
-    public enum IndexType {
-        Simple,
-        PrevT,
-        Linq,
-        PlusLinq
-    }
-
     /*
         伝播先の情報
     */
     public class Propagation {
         // 伝播先の代入文
         public Assignment Asn;
-
-        public IndexType[] IndexTypes;
-
         public Reference UsedRefNorm;
         public Term RightDiff;
         public Term RightDiffSimple;
@@ -32,7 +23,6 @@ namespace MkFn {
         public Reference DiffE;
 
         public Propagation(Reference used_ref, Assignment asn) {
-            IndexTypes = new IndexType[used_ref.Indexes.Length];
             Asn = asn;
         }
     }
@@ -81,6 +71,9 @@ namespace MkFn {
         public Variable tanh_prime;
         bool MathJaxDelta = false;
         object FreeVariable = new object();
+
+        [ThreadStatic]
+        public Dictionary<object, object> CloneTable;
 
         public MkFn() {
             AddFnc = new Variable("+", ArgClass, null);
@@ -216,6 +209,14 @@ namespace MkFn {
             Debug.Assert(stmt is Assignment);
 
             Assignment asn = stmt as Assignment;
+
+            CloneTable = new Dictionary<object, object>();
+            CloneTable.Add(used_ref, null);
+
+            asn = asn.Clone();
+            used_ref = CloneTable[used_ref] as Reference;
+            CloneTable = null;
+
             Propagation pr = new Propagation(used_ref, asn);
 
             Term[] used_ref_idxes = new Term[dim_cnt];
@@ -248,13 +249,9 @@ namespace MkFn {
 
                     if (used_ref_idx.VarRef.ParentVar is ForEach) {
                         // foreachのループ変数を参照する添え字の場合
-
-                        pr.IndexTypes[dim] = IndexType.Simple;
                     }
                     else if (used_ref_idx.VarRef.ParentVar is LINQ) {
                         // LINQのループ変数を参照する添え字の場合
-
-                        pr.IndexTypes[dim] = IndexType.Linq;
 
                         // 変数参照の添え字がループ変数のLINQ
                         lnq0 = used_ref_idx.VarRef.ParentVar as LINQ;
@@ -290,7 +287,7 @@ namespace MkFn {
                     }
                     else {
 
-                        if (used_ref_idx.ToString() == "φ[t, n]" || used_ref_idx.ToString() == "φ[t, i]" || stmt.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
+                        if (used_ref_idx.ToString() == "φ[t, n]" || used_ref_idx.ToString() == "φ[t, i]" || asn.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
 
                         }
                         else {
@@ -303,7 +300,6 @@ namespace MkFn {
                 else if (used_ref.Indexes[dim].Eq(t_sub_1)) {
                     // 添え字がt - 1の場合
 
-                    pr.IndexTypes[dim] = IndexType.PrevT;
                     used_ref_idxes[dim] = new Reference(t_var);
 
                     // 右辺の t に t+1 を代入する。
@@ -325,8 +321,6 @@ namespace MkFn {
 
                         if (ref1.VarRef.ParentVar is ForEach && ref2.VarRef.ParentVar is LINQ) {
                             // 最初がforeachのループ変数の参照で、2番目がLINQのループ変数の参照の場合
-
-                            pr.IndexTypes[dim] = IndexType.PlusLinq;
 
                             // 2番目の引数のLINQ
                             LINQ lnq = ref2.VarRef.ParentVar as LINQ;
@@ -433,7 +427,7 @@ namespace MkFn {
                                 throw new Exception();
                             }
                             foreach(Variable va in lnq0.Variables) {
-                                //va.ParentVar = FreeVariable;
+                                va.ParentVar = FreeVariable;
                             }
                             return true;
                         }
@@ -572,6 +566,7 @@ namespace MkFn {
 
         Function MakeBackward(Variable x_var, Variable y_var, Function forward, List<Assignment> sorted_backward_asns) {
             Function backward_fnc = forward.Clone() as Function;
+            backward_fnc.Name = "Backward";
 
             ForEachSkeleton(backward_fnc);
 
@@ -582,7 +577,8 @@ namespace MkFn {
                 List<Variable> domains = (from r in EnumReference(asn) where r.VarRef.ParentVar == FreeVariable || r.VarRef.ParentVar is ForEach select r.VarRef).Distinct().ToList();
                 if (domains.Any()) {
 
-                    //ForEach for1 = FindForEach(backward_fnc.BodyStatement, domains);
+                    ForEach for1 = FindForEach(backward_fnc.BodyStatement, domains);
+                    for1.AddStatement(asn);
                 }
             }
 
@@ -770,10 +766,10 @@ namespace MkFn {
                 Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
                 List<Assignment> sorted_backward_asns = SortAssignment(backward_asns, backward_dct);
 
-                Function backward_fnc;// = MakeBackward(x_var, y_var, forward, sorted_backward_asns);
+                Function backward_fnc = MakeBackward(x_var, y_var, forward, sorted_backward_asns);
 
-                backward_fnc = new Function("Backward", VoidClass);
-                backward_fnc.BodyStatement = new BlockStatement((from x in sorted_backward_asns select x as Statement).ToList());
+                //backward_fnc = new Function("Backward", VoidClass);
+                //backward_fnc.BodyStatement = new BlockStatement((from x in sorted_backward_asns select x as Statement).ToList());
 
                 cls.Functions.Add(backward_fnc);
                 backward_fnc.ParentVar = cls;

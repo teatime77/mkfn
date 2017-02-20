@@ -85,15 +85,18 @@ namespace MkFn {
 
                 int tmp_cnt = 0;
 
+                foreach (LINQ lnq in lnks) {
+                    // 集計用の変数
+                    tmp_cnt++;
+                    string tmp_name = string.Format("_wk{0}", tmp_cnt);
+                    LinqValue.Add(lnq, tmp_name);
+                }
 
                 foreach (LINQ lnq in lnks) {
 
-                    // 集計用の変数
-                    tmp_cnt++;
-                    string tmp_name = string.Format("_wk{0}" ,tmp_cnt);
-                    LinqValue.Add(lnq, tmp_name);
+                    string tmp_name = LinqValue[lnq];
 
-                    if(lnq.Aggregate.VarRef == theMkFn.SumFnc) {
+                    if (lnq.Aggregate.VarRef == theMkFn.SumFnc) {
 
                         sw.WriteLine("{0}{1} {2} = 0;", Nest(nest), TypeCode(lnq.TypeTerm), tmp_name);
                     }
@@ -321,7 +324,7 @@ namespace MkFn {
                 string.Join("", from fnc in cls.Functions select Nest(1) + FunctionHeader(fnc, false) + ";\r\n") +
                 "};\r\n";
 
-            string inc = "#include \"stdafx.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
+            string inc = "#include \"stdafx.h\"\r\n#include \"MkFn.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
             body = inc + string.Join("\r\n", from fnc in cls.Functions select FunctionCode(fnc));
         }
     }
