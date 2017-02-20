@@ -123,6 +123,10 @@ namespace MkFn {
 
                             Reference rf = trm as Reference;
 
+                            if(rf.VarRef == NewFnc) {
+                                return;
+                            }
+
                             if (rf.Indexes == null) {
 
                                 trm.TypeTerm = rf.VarRef.TypeVar;
@@ -141,7 +145,12 @@ namespace MkFn {
 
                             Apply app = trm as Apply;
 
-                            if (app.Function.VarRef.TypeVar == ArgClass) {
+                            if (Term.IsNew(app)) {
+
+
+                                trm.TypeTerm = new ArrayType(app.NewClass, app.Args.Length);
+                            }
+                            else if (app.Function.VarRef.TypeVar == ArgClass) {
 
                                 Class tp1 = app.Args[0].TypeTerm;
                                 for (int i = 1; i < app.Args.Length; i++) {

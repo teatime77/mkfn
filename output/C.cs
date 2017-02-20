@@ -10,6 +10,7 @@ namespace MkFn {
         public MkFn theMkFn;
         public const string NL = "\r\n";
         Dictionary<LINQ, string> LinqValue = new Dictionary<LINQ, string>();
+        int TmpCnt;
 
         public MakeCode(MkFn mkfn) {
             theMkFn = mkfn;
@@ -34,11 +35,19 @@ namespace MkFn {
             Debug.Assert(cls != null);
 
             if(cls.DimCnt == 0) {
+                // スカラーの場合
+
                 return cls.Name;
             }
-            else {
+            else if (cls.DimCnt == 1) {
+                // 1次元配列の場合
 
-                return cls.Name + "[" +  string.Join(",", from x in MkFn.Range(cls.DimCnt - 1) select "") + "]";
+                return cls.Name + "*";
+            }
+            else {
+                // 多次元配列の場合
+
+                return string.Format("boost::multi_array<{0}, {1}>", cls.Name, cls.DimCnt);
             }
         }
 
@@ -83,12 +92,10 @@ namespace MkFn {
                         }
                     });
 
-                int tmp_cnt = 0;
-
                 foreach (LINQ lnq in lnks) {
                     // 集計用の変数
-                    tmp_cnt++;
-                    string tmp_name = string.Format("_wk{0}", tmp_cnt);
+                    TmpCnt++;
+                    string tmp_name = string.Format("_wk{0}", TmpCnt);
                     LinqValue.Add(lnq, tmp_name);
                 }
 
@@ -234,11 +241,31 @@ namespace MkFn {
                         return s;
                     }
                 }
+
                 else {
 
                     if (app.Function.VarRef == MkFn.Singleton.DiffFnc && app.Args[0] is Reference && (app.Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
 
                         return "δ_" + app.Args[1].ToString();
+                    }
+                    else if (Term.IsNew(app)) {
+
+                        if (app.Args.Length == 0) {
+                            // スカラーの場合
+
+                            throw new Exception();
+                        }
+                        else if (app.Args.Length == 1) {
+                            // 1次元配列の場合
+
+                            return app.Function.Name + " " + app.NewClass.Name + string.Join("", from x in app.Args select "[" + x.ToString() + "]");
+                        }
+                        else {
+                            // 多次元配列の場合
+
+                            return string.Format("boost::multi_array<{0}, {1}>(boost::extents{2});", app.NewClass.Name, app.Args.Length, string.Join("", from x in app.Args select "[" + x.ToString() + "]"));
+                        }
+
                     }
                     else {
 
@@ -260,27 +287,43 @@ namespace MkFn {
             return TypeCode(v.TypeVar) + " " + v.Name;
         }
 
-        public string FunctionHeader(Function fnc, bool is_body) {
+        public string FunctionHeader(Class cls, Function fnc, bool is_body) {
             StringWriter sw = new StringWriter();
+            bool is_constructor = (fnc.Name == MkFn.ConstructorName(cls));
 
             if (is_body) {
 
-                sw.Write("{0} {1}::{2}", TypeCode(fnc.TypeVar), (fnc.ParentVar as Class).Name, fnc.Name);
+                if (is_constructor) {
+
+                    sw.Write("{0}::{1}", (fnc.ParentVar as Class).Name, fnc.Name);
+                }
+                else {
+
+                    sw.Write("{0} {1}::{2}", TypeCode(fnc.TypeVar), (fnc.ParentVar as Class).Name, fnc.Name);
+                }
             }
             else {
 
-                sw.Write("{0} {1}", TypeCode(fnc.TypeVar), fnc.Name);
+                if (is_constructor) {
+
+                    sw.Write("{0}", fnc.Name);
+                }
+                else {
+
+                    sw.Write("{0} {1}", TypeCode(fnc.TypeVar), fnc.Name);
+                }
             }
             sw.Write("(" + string.Join(", ", from v in fnc.Params select VariableCode(v)) + ")");
 
             return sw.ToString();
         }
 
-        public string FunctionCode(Function fnc) {
+        public string FunctionCode(Class cls, Function fnc) {
             StringWriter sw = new StringWriter();
+            TmpCnt = 0;
 
             sw.WriteLine("");
-            sw.WriteLine(FunctionHeader(fnc, true) + "{");
+            sw.WriteLine(FunctionHeader(cls, fnc, true) + "{");
             sw.Write(StatementCode(fnc.BodyStatement, 0));
             sw.WriteLine("}");
 
@@ -288,44 +331,17 @@ namespace MkFn {
         }
 
         public string FieldCode(Variable fld) {
-            if(fld.Domain != null) {
-
-                if(fld.Domain is Number) {
-                    // 定義域が数値定数の場合
-
-                    Number num = fld.Domain as Number;
-
-                    if(fld.TypeVar == theMkFn.IntClass && num.TypeTerm == theMkFn.IntClass) {
-
-                        return "#define " + fld.Name + " " + num.Value.ToString() + "\r\n";
-                    }
-                    else {
-                        throw new Exception();
-                    }
-                }
-                else if(Term.IsNew(fld.Domain)){
-                    Apply app = fld.Domain as Apply;
-
-                    return fld.TypeVar.Name + " " + fld.Name + string.Join("", from x in app.Args select "[" + x.ToString() +"]") + ";\r\n";
-                }
-                else {
-                    throw new Exception();
-                }
-            }
-            else {
-
-                return TypeCode(fld.TypeVar) + " " + fld.Name + ";\r\n";
-            }
+            return TypeCode(fld.TypeVar) + " " + fld.Name + ";\r\n";
         }
 
         public void ClassCode(Class cls, out string header, out string body) {
             header = "struct " + cls.Name + " {\r\n" + 
                 string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld)) +
-                string.Join("", from fnc in cls.Functions select Nest(1) + FunctionHeader(fnc, false) + ";\r\n") +
+                string.Join("", from fnc in cls.Functions select Nest(1) + FunctionHeader(cls, fnc, false) + ";\r\n") +
                 "};\r\n";
 
-            string inc = "#include \"stdafx.h\"\r\n#include \"MkFn.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
-            body = inc + string.Join("\r\n", from fnc in cls.Functions select FunctionCode(fnc));
+            string inc = "#include \"stdafx.h\"\r\n#include \"boost/multi_array.hpp\"\r\n#include \"MkFn.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
+            body = inc + string.Join("\r\n", from fnc in cls.Functions select FunctionCode(cls, fnc));
         }
     }
 }

@@ -316,7 +316,7 @@ namespace MkFn {
                 }
                 GetToken("]");
 
-                return new Apply(new Function("new", cls), args.ToArray());
+                return new Apply(MkFn.Singleton.NewFnc, cls, args.ToArray());
             }
             else {
                 throw new SyntaxException();
@@ -516,7 +516,7 @@ namespace MkFn {
                 if (CurrentToken.Text == "(") {
                     // コンストラクターの場合
 
-                    Function fnc = ReadFunction("new", type);
+                    Function fnc = ReadFunction(MkFn.ConstructorName(cls), type);
                     cls.Functions.Add(fnc);
                     fnc.ParentVar = cls;
                 }

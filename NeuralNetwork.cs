@@ -99,17 +99,29 @@ public abstract class Layer {
 }
 
 public class FullyConnectedLayer : Layer {
-    public const int X = 1;
-    public const int Y = 1;
+    public int X;
+    public int Y;
 
-    public double[] x = new double[X];
-    public double[] y = new double[Y];
+    public double[] x;
+    public double[] y;
 
-    public double[,] w = new double[Y, X];
-    public double[] b = new double[Y];
-    public double[] u = new double[Y];
+    public double[,] w;
+    public double[] b;
+    public double[] u;
 
-    public override void Forward() {
+    public FullyConnectedLayer(int x_sz, int y_sz) {
+        X = x_sz;
+        Y = y_sz;
+
+        x = new double[X];
+        y = new double[Y];
+
+        w = new double[Y, X];
+        b = new double[Y];
+        u = new double[Y];
+    }
+
+public override void Forward() {
         foreach (int i in Range(Y)) {
             u[i] = (from j in Range(X) select x[j] * w[i, j]).Sum() + b[i];
             y[i] = σ(u[i]);
@@ -118,19 +130,28 @@ public class FullyConnectedLayer : Layer {
 }
 
 public class ConvolutionalLayer : Layer {
-    public const int M = 10;   // 行数
-    public const int N = 20;   // 列数
-    public const int K = 5;   // フィルター数
-    public const int H = 5;
+    public int M;   // 行数
+    public int N;   // 列数
+    public int K;   // フィルター数
+    public int H;
 
-    public double[,] x = new double[M, N];
-    public double[,,] y = new double[M, N, K];
+    public double[,] x;
+    public double[,,] y;
 
-    public double[,,] u = new double[M, N, K];
-    public double[,,] h = new double[H, H, K];
-    public double[] b = new double[K];
+    public double[,,] u;
+    public double[,,] h;
+    public double[] b;
 
-    public override void Forward() {
+    public ConvolutionalLayer() {
+        x = new double[M, N];
+        y = new double[M, N, K];
+
+        u = new double[M, N, K];
+        h = new double[H, H, K];
+        b = new double[K];
+    }
+
+public override void Forward() {
         foreach (int i in Range(M)) {
             foreach (int j in Range(N)) {
                 foreach (int k in Range(K)) {
@@ -143,13 +164,18 @@ public class ConvolutionalLayer : Layer {
 }
 
 public class MaxPoolingLayer : Layer {
-    public static int M;   // 行数
-    public static int N;   // 列数
-    public static int K;   // フィルター数
-    public static int H;
+    public int M;   // 行数
+    public int N;   // 列数
+    public int K;   // フィルター数
+    public int H;
 
-    public double[,,] x = new double[M, N, K];
-    public double[,,] y = new double[M, N, K];
+    public double[,,] x;
+    public double[,,] y;
+
+    public MaxPoolingLayer() {
+        x = new double[M, N, K];
+        y = new double[M, N, K];
+    }
 
     public override void Forward() {
         foreach (int i in Range(M)) {
@@ -163,12 +189,12 @@ public class MaxPoolingLayer : Layer {
 }
 
 public class RecurrentLayer : Layer {
-    public static int T;
-    public static int Y;
-    public static int X;
+    public int T;
+    public int Y;
+    public int X;
 
-    public double[,] x = new double[T, X];
-    public double[,] y = new double[T, Y];
+    public double[,] x;
+    public double[,] y;
 
     public double[,] win;
     public double[,] w;
@@ -176,6 +202,15 @@ public class RecurrentLayer : Layer {
     public double[] b;
 
     public double[,] u;
+
+    public RecurrentLayer() {
+        x = new double[T, X];
+        y = new double[T, Y];
+        win = new double[Y, X];
+        w = new double[Y, X];
+        b = new double[Y];
+        u = new double[T, Y];
+    }
 
     public override void Forward() {
         foreach (int t in Range(T)) {
@@ -189,15 +224,15 @@ public class RecurrentLayer : Layer {
 }
 
 public class LSTMLayer : Layer {
-    public static int T;
-    public static int X;
-    public static int Y;
+    public int T;
+    public int X;
+    public int Y;
 
     //public double[,] z;
     public double[,] wZ;
 
-    public double[,] x = new double[T, X];
-    public double[,] y = new double[T, Y];
+    public double[,] x;
+    public double[,] y;
 
     public double[,] wIin;
     public double[,] wFin;
@@ -212,7 +247,6 @@ public class LSTMLayer : Layer {
     public double[] wI;
     public double[] wF;
     public double[] wO;
-    public double[] w;
 
     public double[] bO;
     public double[] bF;
@@ -225,6 +259,38 @@ public class LSTMLayer : Layer {
     public double[,] uI;
     public double[,] uF;
     public double[,] uO;
+
+    public LSTMLayer(int t_sz, int x_sz, int y_sz) {
+        T = t_sz;
+        X = x_sz;
+        Y = y_sz;
+        x = new double[T, X];
+        y = new double[T, Y];
+
+        wIin = new double[Y, X];
+        wFin = new double[Y, X];
+        wOin = new double[Y, X];
+        win = new double[Y, X];
+
+        wIr = new double[Y, Y];
+        wFr = new double[Y, Y];
+        wOr = new double[Y, Y];
+        wr = new double[Y, Y];
+
+        wI = new double[Y];
+        wF = new double[Y];
+        wO = new double[Y];
+        bO = new double[Y];
+        bF = new double[Y];
+        bI = new double[Y];
+        b = new double[Y];
+
+        u = new double[T, Y];
+        s = new double[T, Y];
+        uI = new double[T, Y];
+        uF = new double[T, Y];
+        uO = new double[T, Y];
+    }
 
     public override void Forward() {
         foreach (int t in Range(T)) {

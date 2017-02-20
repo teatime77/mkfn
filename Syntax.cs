@@ -312,6 +312,9 @@ namespace MkFn {
         public Term() {
             TermCnt++;
             TermIdx = TermCnt;
+            //if(TermIdx == 1328) {
+            //    Debug.Write("");
+            //}
         }
 
         /*
@@ -394,7 +397,7 @@ namespace MkFn {
             newならtrueを返す。
         */
         public static bool IsNew(Term t) {
-            return t is Apply && t.AsApply().Function.Name == "new";
+            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.NewFnc;
         }
 
         /*
@@ -630,6 +633,8 @@ namespace MkFn {
         // 関数
         public Reference Function;
 
+        public Class NewClass;
+
         // 引数
         public Term[] Args;
 
@@ -646,12 +651,18 @@ namespace MkFn {
         public Apply(Variable function, params Term[] args) : this(new Reference(function), args) {
         }
 
+        public Apply(Variable function, Class new_class, params Term[] args) : this(new Reference(function), args) {
+            Debug.Assert(new_class != null);
+            NewClass = new_class;
+        }
+
         /*
             コピーを返す。
         */
         public new Apply Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Term[] args = (from t in Args select t.Clone(var_tbl)).ToArray();
             Apply app = new Apply(Function.Clone(var_tbl), args);
+            app.NewClass = NewClass;
             app.Value = Value;
 
             return app;
@@ -685,6 +696,10 @@ namespace MkFn {
                 if (Function.VarRef == MkFn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
 
                     return "δ_" + Args[1].ToString();
+                }
+                else if (IsNew(this)) {
+
+                    return Function.Name + " " + NewClass.Name + "[" + string.Join(", ", from x in Args select x.ToString()) + "]";
                 }
                 else {
 

@@ -12,7 +12,6 @@ namespace MkFn {
     */
     public class Propagation {
         // 伝播先の代入文
-        public Assignment Asn;
         public Reference UsedRefNorm;
         public Term RightDiff;
         public Term RightDiffSimple;
@@ -21,28 +20,14 @@ namespace MkFn {
         public Term DeltaSimple;
 
         public Reference DiffE;
-
-        public Propagation(Reference used_ref, Assignment asn) {
-            Asn = asn;
-        }
     }
-
-    public class ForEachNode {
-        public Term DomainForEach;
-        public List<ForEachNode> Children = new List<ForEachNode>();
-
-        public ForEachNode(Term domain) {
-            DomainForEach = domain;
-        }
-    }
-
-
 
     public delegate void NaviAction(object self);
     public delegate bool NaviFnc(object self, out object ret);
 
     //------------------------------------------------------------ TProject
     public partial class MkFn {
+        public const string NewName = "new";
         public Class[] Layers;
         public Class VoidClass = new Class("void");
         public Class IntClass = new Class("int");
@@ -62,6 +47,8 @@ namespace MkFn {
         public Variable MaxPoolPrimeFnc;
         public Variable maxFnc;
         public Variable minFnc;
+
+        public Variable NewFnc;
         public Variable DomainFnc;
         public Variable DiffFnc;
         public Variable EFnc;
@@ -88,6 +75,7 @@ namespace MkFn {
             maxFnc = new Variable("max", ArgClass, null);
             minFnc = new Variable("min", ArgClass, null);
 
+            NewFnc = new Variable("new", null, null);
             DomainFnc = new Variable("Domain", null, null);
             DiffFnc = new Variable("Diff", ArgClass, null);
 
@@ -95,6 +83,10 @@ namespace MkFn {
             SimpleTypes.Add(IntClass);
             SimpleTypes.Add(FloatClass);
             SimpleTypes.Add(DoubleClass);
+        }
+
+        public static string ConstructorName(Class cls) {
+            return cls.Name;
         }
 
         public int NumberTypeOrder(Class tp1) {
@@ -217,7 +209,7 @@ namespace MkFn {
             used_ref = CloneTable[used_ref] as Reference;
             CloneTable = null;
 
-            Propagation pr = new Propagation(used_ref, asn);
+            Propagation pr = new Propagation();
 
             Term[] used_ref_idxes = new Term[dim_cnt];
 
@@ -521,6 +513,9 @@ namespace MkFn {
         //   ju = jx - q  : 0 <= jx - q <= JU - 1    jx - JU + 1 <= q <= jx  max(0, jx - JU + 1) <= q <= min(H - 1, jx)
         // H
 
+        /*
+            foreach以外の文を削除する。
+        */
         void ForEachSkeleton(Function fnc) {
             Traverse(fnc,
                 delegate (object obj) {
@@ -529,32 +524,40 @@ namespace MkFn {
 
                         BlockStatement block = obj as BlockStatement;
 
+                        // foreach以外の文を削除する。
                         block.Statements = (from x in block.Statements where x is ForEach select x).ToList();
                     }
                 });
         }
 
-        ForEach FindForEach(BlockStatement blc, List<Variable> domains) {
+        ForEach FindForEach(BlockStatement blc, List<Variable> loop_vars, Dictionary<Variable, Variable> loop_var_tbl) {
             List<ForEach> for_list = (from x in blc.Statements where x is ForEach select x as ForEach).ToList();
 
-            foreach(Variable va in domains) {
+            foreach(Variable va in loop_vars) {
                 var v = from f in for_list where f.LoopVariable.Domain.Eq(va.Domain) select f;
                 if (v.Any()) {
-                    domains.Remove(va);
-                    if(domains.Count == 0) {
-                        return v.First();
+                    ForEach for1 = v.First();
+                    loop_vars.Remove(va);
+
+                    loop_var_tbl.Add(va, for1.LoopVariable);
+
+                    if (loop_vars.Count == 0) {
+                        return for1;
                     }
 
-                    return FindForEach(v.First(), domains);
+                    return FindForEach(for1, loop_vars, loop_var_tbl);
                 }
             }
 
             BlockStatement current_blc = blc;
-            while (domains.Any()) {
-                Variable va = domains[0];
-                domains.Remove(va);
+            while (loop_vars.Any()) {
+                Variable va = loop_vars[0];
+                loop_vars.Remove(va);
 
-                ForEach for1 = new ForEach(va, new List<Statement>());
+                Variable va2 = va.Clone();
+                ForEach for1 = new ForEach(va2, new List<Statement>());
+
+                loop_var_tbl.Add(va, for1.LoopVariable);
 
                 current_blc.AddStatement(for1);
 
@@ -564,25 +567,56 @@ namespace MkFn {
             return current_blc as ForEach;
         }
 
+        /*
+            逆伝播の関数を作る。
+        */
         Function MakeBackward(Variable x_var, Variable y_var, Function forward, List<Assignment> sorted_backward_asns) {
+            // 順伝播の関数をコピーする。
             Function backward_fnc = forward.Clone() as Function;
+
+            // 関数名をBackwardに変える。
             backward_fnc.Name = "Backward";
 
+            // foreach以外の文を削除する。
             ForEachSkeleton(backward_fnc);
 
-            ForEachNode root = new ForEachNode(null);
-
-            
+            // 逆伝播のすべての代入文に対し
             foreach (Assignment asn in sorted_backward_asns) {
-                List<Variable> domains = (from r in EnumReference(asn) where r.VarRef.ParentVar == FreeVariable || r.VarRef.ParentVar is ForEach select r.VarRef).Distinct().ToList();
-                if (domains.Any()) {
 
-                    ForEach for1 = FindForEach(backward_fnc.BodyStatement, domains);
-                    for1.AddStatement(asn);
+                List<Variable> loop_vars = (from r in EnumReference(asn) where r.VarRef.ParentVar == FreeVariable || r.VarRef.ParentVar is ForEach select r.VarRef).Distinct().ToList();
+                if (loop_vars.Any()) {
+
+                    Dictionary<Variable, Variable> loop_var_tbl = new Dictionary<Variable, Variable>();
+                    ForEach for1 = FindForEach(backward_fnc.BodyStatement, loop_vars, loop_var_tbl);
+                    for1.AddStatement(asn.Clone(loop_var_tbl));
                 }
             }
 
             return backward_fnc;
+        }
+
+        /*
+            コンストラクターから定義域を得る。
+        */
+        void SetDomainFromConstructor(Class cls) {
+            // コンストラクター
+            Function constructor = (from f in cls.Functions where f.Name == MkFn.ConstructorName(cls) select f).First();
+
+            Traverse(constructor.BodyStatement,
+                delegate (object obj) {
+                    if (obj is Assignment) {
+                        // 代入文の場合
+
+                        Assignment asn = obj as Assignment;
+
+                        if(asn.Left.VarRef.TypeVar is ArrayType) {
+
+                            asn.Left.VarRef.Domain = asn.Right.Clone();
+                            asn.Left.VarRef.Domain.Parent = asn.Left.VarRef;
+                        }
+                    }
+                });
+
         }
 
         public void DeepLearning() {
@@ -596,6 +630,8 @@ namespace MkFn {
                 //if (cls.Name != "ConvolutionalLayer" && cls.Name != "MaxPoolingLayer") continue;//????????????????????????
 
                 Debug.WriteLine("layer : {0}", cls.Name, "");
+
+                SetDomainFromConstructor(cls);
 
                 // 順伝播の関数
                 Function forward = (from f in cls.Functions where f.Name == "Forward" select f).First();
@@ -697,6 +733,35 @@ namespace MkFn {
 
                         continue;
                     }
+
+                    if(! Term.IsNew(fld.Domain)) {
+                        // フィールドの定義域がnewでない場合
+
+                        throw new Exception();
+                    }
+
+                    //??? used_refsの中に、同じ代入文で同じ変数参照がある場合 ???
+
+                    // δfld の定義式の左辺の添え字
+                    Term[] left_idxes;
+
+                    // fldへの代入文のリストを得る。
+                    var def_asns = from x in forward_asns where x.Left.VarRef == fld select x;
+                    if (def_asns.Any()) {
+                        // fldへの代入文がある場合
+
+                        // fldへの代入文の左辺の添え字のコピー
+                        left_idxes = (from i in def_asns.First().Left.Indexes select i.Clone()).ToArray();
+                    }
+                    else {
+                        // fldへの代入文がない場合
+                        //          →fld の定義式の左辺の添え字と同じ
+
+                        Apply init = fld.Domain as Apply;
+
+                        left_idxes = (from i in Range(init.Args.Length) select new Reference(new Variable("_" + i.ToString(), IntClass, new Apply(RangeFnc, init.Args[i].Clone())))).ToArray();
+                    }
+
 
                     // フィールドの値を使用する変数参照に対し、伝播の情報を作る。
                     List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref)).ToList();
