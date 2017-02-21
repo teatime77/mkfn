@@ -193,7 +193,9 @@ namespace MkFn {
         /*
             伝播の情報を作る。
         */
-        Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Dictionary<Variable, Variable> to_delta_fld, Reference used_ref) {
+        Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Dictionary<Variable, Variable> to_delta_fld, Reference used_ref, Reference[] def_idxes) {
+            Apply fld_domain = fld.Domain as Apply;
+
             int dim_cnt = (fld.TypeVar as ArrayType).DimCnt;
 
             // 変数を使用している変数参照の親の文
@@ -211,9 +213,9 @@ namespace MkFn {
 
             Propagation pr = new Propagation();
 
-            Term[] used_ref_idxes = new Term[dim_cnt];
+            Reference[] used_ref_idxes = new Reference[dim_cnt];
 
-            List<Term> lnq_idxes = new List<Term>();
+            Dictionary<Term, Reference> lnq_idxes = new Dictionary<Term, Reference>();
 
             // 左辺の変数の添え字
             Term[] left_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
@@ -241,6 +243,7 @@ namespace MkFn {
 
                     if (used_ref_idx.VarRef.ParentVar is ForEach) {
                         // foreachのループ変数を参照する添え字の場合
+
                     }
                     else if (used_ref_idx.VarRef.ParentVar is LINQ) {
                         // LINQのループ変数を参照する添え字の場合
@@ -269,24 +272,10 @@ namespace MkFn {
                         //    Variable free_var = used_ref_idx.VarRef.Clone(var_tbl);
                         //    free_var.ParentVar = FreeVariable;
                         //}
-
-                        var v = from a in lnq_idxes where a.Eq(used_ref_idx) select a;
-                        if (!v.Any()) {
-                            // 未処理の場合
-
-                            lnq_idxes.Add(used_ref_idx);
-                        }
                     }
                     else {
 
-                        if (used_ref_idx.ToString() == "φ[t, n]" || used_ref_idx.ToString() == "φ[t, i]" || asn.ToString() == "a[t, φ[t, n]] = (1 - u[t, φ[t, n]]) * (from dim in Range(N) select u[t, φ[t, i]]).Prod()") {
-
-                        }
-                        else {
-
-                            Debug.WriteLine(used_ref_idx.ToString());
-                            throw new Exception();
-                        }
+                        throw new Exception();
                     }
                 }
                 else if (used_ref.Indexes[dim].Eq(t_sub_1)) {
@@ -333,16 +322,19 @@ namespace MkFn {
                             // p
                             Variable linq_var1 = (ref2).VarRef;
 
-                            var v = from a in lnq_idxes where a.Eq(app) select a;
-                            if (!v.Any()) {
-                                // 同じ形の添え字が処理済みでない場合
+                            var v = from a in lnq_idxes.Keys where a.Eq(app) select a;
+                            if (v.Any()) {
+                                // 同じ形の添え字が処理済みの場合
 
-                                lnq_idxes.Add(app);
+                                used_ref_idxes[dim] = lnq_idxes[v.First()].Clone();
+                            }
+                            else {
+                                // 同じ形の添え字が処理済みでない場合
 
                                 lnq0 = linq_var1.ParentVar as LINQ;
 
                                 string name = for_var1.Name + "" + linq_var1.Name;
-                                Apply for_var2_domain = new Apply(new Reference(DomainFnc), new Term[] { new Reference(used_ref.VarRef), new Number(dim) });
+                                Apply for_var2_domain = new Apply(RangeFnc, fld_domain.Args[dim]);
 
                                 // ip
                                 Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
@@ -368,11 +360,8 @@ namespace MkFn {
                                 subst_tbl.Add(left_idxes[dim] as Reference, sub2);
 
                                 left_idxes[dim] = sub2;
-                            }
-                            else {
-                                // 同じ形の添え字が処理済みの場合
 
-                                used_ref_idxes[dim] = used_ref.Indexes[dim].Clone();
+                                lnq_idxes.Add(app, used_ref_idxes[dim]);
                             }
                         }
                         else {
@@ -390,6 +379,11 @@ namespace MkFn {
                 }
 
                 Debug.Assert(used_ref_idxes[dim] != null);
+                if (!used_ref_idxes[dim].VarRef.Domain.Eq(def_idxes[dim].VarRef.Domain)) {
+                    // 定義域が違う場合
+
+                    throw new Exception();
+                }
             }
 
             pr.UsedRefNorm = new Reference(fld.Name, fld, used_ref_idxes);
@@ -743,15 +737,24 @@ namespace MkFn {
                     //??? used_refsの中に、同じ代入文で同じ変数参照がある場合 ???
 
                     // δfld の定義式の左辺の添え字
-                    Term[] left_idxes;
+                    Reference[] def_idxes;
 
                     // fldへの代入文のリストを得る。
                     var def_asns = from x in forward_asns where x.Left.VarRef == fld select x;
                     if (def_asns.Any()) {
                         // fldへの代入文がある場合
 
+                        // fldへの代入文の左辺
+                        Reference def_asn_left = def_asns.First().Left;
+
+                        if(def_asn_left.Indexes.Where(t => !(t is Reference)).Any()) {
+                            // 変数参照でない添え字がある場合
+
+                            throw new Exception();
+                        }
+
                         // fldへの代入文の左辺の添え字のコピー
-                        left_idxes = (from i in def_asns.First().Left.Indexes select i.Clone()).ToArray();
+                        def_idxes = (from i in def_asn_left.Indexes select i.Clone() as Reference).ToArray();
                     }
                     else {
                         // fldへの代入文がない場合
@@ -759,12 +762,51 @@ namespace MkFn {
 
                         Apply init = fld.Domain as Apply;
 
-                        left_idxes = (from i in Range(init.Args.Length) select new Reference(new Variable("_" + i.ToString(), IntClass, new Apply(RangeFnc, init.Args[i].Clone())))).ToArray();
+                        // 添え字の配列
+                        def_idxes = new Reference[init.Args.Length];
+
+                        // すべての次元に対し
+                        for(int dim = 0; dim < init.Args.Length; dim++) {
+
+                            // 変数参照の添え字のリスト
+                            var ref_idxes = from r in used_refs where r.Indexes[dim] is Reference select r.Indexes[dim] as Reference;
+                            if (ref_idxes.Any()) {
+                                // 変数参照の添え字がある場合
+
+                                // ForEachの変数参照の添え字のリスト
+                                var for_idxes = ref_idxes.Where(r => r.VarRef.ParentVar is ForEach);
+                                if (for_idxes.Any()) {
+                                    // ForEachの変数参照の添え字がある場合
+
+                                    def_idxes[dim] = for_idxes.First().Clone();
+                                }
+                                else {
+                                    // ForEachの変数参照の添え字がない場合
+
+                                    Reference ref_idx = ref_idxes.First();
+                                    if(ref_idx.VarRef.ParentVar is LINQ) {
+                                        // LINQの変数参照の添え字の場合
+
+                                        def_idxes[dim] = new Reference(new Variable("_" + ref_idx.Name, IntClass, new Apply(RangeFnc, init.Args[dim].Clone())));
+                                    }
+                                    else {
+                                        // LINQの変数参照の添え字でない場合
+
+                                        throw new Exception();
+                                    }
+                                }
+                            }
+                            else {
+                                // 変数参照の添え字がない場合
+
+                                def_idxes[dim] = new Reference(new Variable("_" + dim.ToString(), IntClass, new Apply(RangeFnc, init.Args[dim].Clone())));
+                            }
+                        }
                     }
 
 
                     // フィールドの値を使用する変数参照に対し、伝播の情報を作る。
-                    List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref)).ToList();
+                    List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref, def_idxes)).ToList();
 
                     Reference norm_ref = prs.First().UsedRefNorm;
 

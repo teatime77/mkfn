@@ -207,7 +207,7 @@ public class RecurrentLayer : Layer {
         x = new double[T, X];
         y = new double[T, Y];
         win = new double[Y, X];
-        w = new double[Y, X];
+        w = new double[Y, Y];
         b = new double[Y];
         u = new double[T, Y];
     }
