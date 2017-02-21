@@ -113,7 +113,23 @@ namespace MkFn {
                     }
                     else if (lnq.Aggregate.VarRef == theMkFn.MaxFnc) {
 
-                        sw.WriteLine("{0}{1} {2} = ;", Nest(nest), TypeCode(lnq.TypeTerm), tmp_name);
+                        string min_const = "";
+                        if(lnq.TypeTerm == theMkFn.DoubleClass) {
+
+                            min_const = "-DBL_MAX";
+                        }
+                        else if (lnq.TypeTerm == theMkFn.FloatClass) {
+
+                            min_const = "-FLT_MAX";
+                        }
+                        else if (lnq.TypeTerm == theMkFn.IntClass) {
+
+                            min_const = "INT_MIN";
+                        }
+                        else {
+                            throw new Exception();
+                        }
+                        sw.WriteLine("{0}{1} {2} = {3};", Nest(nest), TypeCode(lnq.TypeTerm), tmp_name, min_const);
                     }
 
                     foreach (Variable loop_var in lnq.Variables) {
@@ -130,7 +146,7 @@ namespace MkFn {
                     }
                     else if (lnq.Aggregate.VarRef == theMkFn.MaxFnc) {
 
-                        sw.WriteLine("{0}{1} {2} = ;", Nest(nest+1), tmp_name, TermCode(lnq.Select));
+                        sw.WriteLine("{0}{1} = std::max({1}, {2});", Nest(nest+1), tmp_name, TermCode(lnq.Select));
                     }
 
                     foreach (Variable loop_var in lnq.Variables) {

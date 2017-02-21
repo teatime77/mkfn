@@ -72,8 +72,8 @@ namespace MkFn {
             MaxPoolFnc = new Variable("MaxPool", ArgClass, null);
             MaxPoolPrimeFnc = new Variable("MaxPoolPrime", ArgClass, null);
 
-            maxFnc = new Variable("max", ArgClass, null);
-            minFnc = new Variable("min", ArgClass, null);
+            maxFnc = new Variable("std::max", ArgClass, null);
+            minFnc = new Variable("std::min", ArgClass, null);
 
             NewFnc = new Variable("new", null, null);
             DomainFnc = new Variable("Domain", null, null);
@@ -213,9 +213,7 @@ namespace MkFn {
 
             Propagation pr = new Propagation();
 
-            Reference[] used_ref_idxes = new Reference[dim_cnt];
-
-            Dictionary<Term, Reference> lnq_idxes = new Dictionary<Term, Reference>();
+            List<Term> lnq_idxes = new List<Term>();
 
             // 左辺の変数の添え字
             Term[] left_idxes = (from t in asn.Left.Indexes select t.Clone()).ToArray();
@@ -239,7 +237,6 @@ namespace MkFn {
                     // 添え字が変数参照の場合
 
                     Reference used_ref_idx = used_ref.Indexes[dim] as Reference;
-                    used_ref_idxes[dim] = used_ref_idx.Clone();
 
                     if (used_ref_idx.VarRef.ParentVar is ForEach) {
                         // foreachのループ変数を参照する添え字の場合
@@ -264,24 +261,23 @@ namespace MkFn {
                         else {
                             Debug.Assert(false);
                         }
-
-                        //if (! var_tbl.ContainsKey(used_ref_idx.VarRef)) {
-                        //    // LINQのループ変数が変換辞書に未登録の場合
-
-                        //    // LINQのループ変数を自由変数にする。
-                        //    Variable free_var = used_ref_idx.VarRef.Clone(var_tbl);
-                        //    free_var.ParentVar = FreeVariable;
-                        //}
                     }
                     else {
 
                         throw new Exception();
                     }
+
+                    if (used_ref_idx.VarRef != def_idxes[dim].VarRef) {
+
+                        subst_tbl.Add(used_ref_idx, def_idxes[dim]);
+                    }
                 }
                 else if (used_ref.Indexes[dim].Eq(t_sub_1)) {
                     // 添え字がt - 1の場合
 
-                    used_ref_idxes[dim] = new Reference(t_var);
+                    if (def_idxes[dim].VarRef != t_var || (left_idxes[dim] as Reference).VarRef != t_var) {
+                        throw new Exception();
+                    }
 
                     // 右辺の t に t+1 を代入する。
                     subst_tbl.Add(left_idxes[dim] as Reference, Add(t_var, One()));
@@ -322,24 +318,18 @@ namespace MkFn {
                             // p
                             Variable linq_var1 = (ref2).VarRef;
 
-                            var v = from a in lnq_idxes.Keys where a.Eq(app) select a;
+                            var v = from a in lnq_idxes where a.Eq(app) select a;
                             if (v.Any()) {
                                 // 同じ形の添え字が処理済みの場合
 
-                                used_ref_idxes[dim] = lnq_idxes[v.First()].Clone();
                             }
                             else {
                                 // 同じ形の添え字が処理済みでない場合
 
                                 lnq0 = linq_var1.ParentVar as LINQ;
 
-                                string name = for_var1.Name + "" + linq_var1.Name;
-                                Apply for_var2_domain = new Apply(RangeFnc, fld_domain.Args[dim]);
-
                                 // ip
-                                Variable for_var2 = new Variable(name, for_var1.TypeVar, for_var2_domain);
-
-                                used_ref_idxes[dim] = new Reference(for_var2);
+                                Variable for_var2 = def_idxes[dim].VarRef;
 
                                 Apply start = Add(Add(for_var2, MaxRange(for_var1.Domain).Minus()), One());
                                 Reference end = new Reference(for_var2);
@@ -361,7 +351,7 @@ namespace MkFn {
 
                                 left_idxes[dim] = sub2;
 
-                                lnq_idxes.Add(app, used_ref_idxes[dim]);
+                                lnq_idxes.Add(app);
                             }
                         }
                         else {
@@ -377,16 +367,9 @@ namespace MkFn {
 
                     throw new Exception();
                 }
-
-                Debug.Assert(used_ref_idxes[dim] != null);
-                if (!used_ref_idxes[dim].VarRef.Domain.Eq(def_idxes[dim].VarRef.Domain)) {
-                    // 定義域が違う場合
-
-                    throw new Exception();
-                }
             }
 
-            pr.UsedRefNorm = new Reference(fld.Name, fld, used_ref_idxes);
+            pr.UsedRefNorm = new Reference(fld.Name, fld, def_idxes);
 
             if (lnq0 != null) {
                 // LINQ の添え字がある場合
@@ -787,7 +770,9 @@ namespace MkFn {
                                     if(ref_idx.VarRef.ParentVar is LINQ) {
                                         // LINQの変数参照の添え字の場合
 
-                                        def_idxes[dim] = new Reference(new Variable("_" + ref_idx.Name, IntClass, new Apply(RangeFnc, init.Args[dim].Clone())));
+                                        Variable free_var = new Variable("i_" + ref_idx.Name, IntClass, new Apply(RangeFnc, init.Args[dim].Clone()));
+                                        free_var.ParentVar = FreeVariable;
+                                        def_idxes[dim] = new Reference(free_var);
                                     }
                                     else {
                                         // LINQの変数参照の添え字でない場合
@@ -799,7 +784,9 @@ namespace MkFn {
                             else {
                                 // 変数参照の添え字がない場合
 
-                                def_idxes[dim] = new Reference(new Variable("_" + dim.ToString(), IntClass, new Apply(RangeFnc, init.Args[dim].Clone())));
+                                Variable free_var = new Variable("i_" + dim.ToString(), IntClass, new Apply(RangeFnc, init.Args[dim].Clone()));
+                                free_var.ParentVar = FreeVariable;
+                                def_idxes[dim] = new Reference(free_var);
                             }
                         }
                     }
@@ -873,10 +860,8 @@ namespace MkFn {
                 Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
                 List<Assignment> sorted_backward_asns = SortAssignment(backward_asns, backward_dct);
 
+                // 逆伝播の関数を作る。
                 Function backward_fnc = MakeBackward(x_var, y_var, forward, sorted_backward_asns);
-
-                //backward_fnc = new Function("Backward", VoidClass);
-                //backward_fnc.BodyStatement = new BlockStatement((from x in sorted_backward_asns select x as Statement).ToList());
 
                 cls.Functions.Add(backward_fnc);
                 backward_fnc.ParentVar = cls;
