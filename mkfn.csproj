@@ -48,6 +48,7 @@
     <Compile Include="LexicalAnalysis.cs" />
     <Compile Include="NameResolution.cs" />
     <Compile Include="NeuralNetwork.cs" />
+    <Compile Include="SourceCodeGeneration.cs" />
     <Compile Include="output\C.cs" />
     <Compile Include="output\MathJax.cs" />
     <Compile Include="Program.cs" />

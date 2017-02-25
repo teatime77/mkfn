@@ -474,5 +474,51 @@ namespace MkFn {
 
             return ret;
         }
+
+        /*
+            木構造に含まれる変数参照のリストを返す。
+        */
+        public static List<Reference> AllRefs(object root) {
+            List<Reference> all_refs = new List<Reference>();
+
+            MkFn.Traverse(root,
+                delegate (object obj) {
+                    if (obj is Reference) {
+                        // 変数参照の場合
+
+                        all_refs.Add(obj as Reference);
+                    }
+                });
+
+            return all_refs;
+        }
+
+        /*
+            木構造に含まれる変数参照のリストを返す。
+        */
+        public static List<object> All(object root, Type tp) {
+            List<object> alls = new List<object>();
+
+            MkFn.Traverse(root,
+                delegate (object obj) {
+                    if (tp.IsInstanceOfType(obj)) {
+                        // 変数参照の場合
+
+                        alls.Add(obj);
+                    }
+                });
+
+            return alls;
+        }
+    }
+
+    public class TermEqualityComparer : IEqualityComparer<Term> {
+        bool IEqualityComparer<Term>.Equals(Term x, Term y) {
+            return x.Eq(y);
+        }
+
+        int IEqualityComparer<Term>.GetHashCode(Term obj) {
+            return obj.HashCode();            
+        }
     }
 }

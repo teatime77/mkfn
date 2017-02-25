@@ -431,20 +431,8 @@ namespace MkFn {
         }
 
         public abstract string ToStringBody();
-
-        public List<Reference> AllRefs() {
-            List<Reference> all_refs = new List<Reference>();
-
-            MkFn.Traverse(this,
-                delegate (object obj) {
-                    if (obj is Reference) {
-                        // 変数参照の場合
-
-                        all_refs.Add(obj as Reference);
-                    }
-                });
-
-            return all_refs;
+        public virtual int HashCode() {
+            return GetHashCode();
         }
     }
 
@@ -512,6 +500,10 @@ namespace MkFn {
 
         public override string ToStringBody() {
             return Value.ToString();
+        }
+
+        public override int HashCode() {
+            return GetType().GetHashCode() + (int)Value;
         }
     }
 
@@ -623,6 +615,16 @@ namespace MkFn {
             else {
                 return Name + "[" + string.Join(", ", from x in Indexes select x.ToString()) + "]";
             }
+        }
+
+        public override int HashCode() {
+            int n = GetType().GetHashCode() + ((int)Value) + Name.GetHashCode();
+            
+            if(Indexes != null) {
+                n += Indexes.Sum(x => x.HashCode());
+            }
+
+            return n;
         }
     }
 
@@ -760,6 +762,14 @@ namespace MkFn {
             }
 
             return 10;
+        }
+
+        public override int HashCode() {
+            int n = GetType().GetHashCode() + ((int)Value) + Function.HashCode();
+
+            n += (int)Args.Sum(x => (double)x.HashCode());
+
+            return n;
         }
     }
 

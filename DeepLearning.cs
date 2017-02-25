@@ -136,39 +136,51 @@ namespace MkFn {
         }
 
         /*
-        変数の依存関係
+            代入文の依存関係を返す。
         */
         Dictionary<Assignment, List<Assignment>> AssignmentDependency(Variable t_var, List<Assignment> asns) {
+            // 代入文の依存関係の辞書
             Dictionary<Assignment, List<Assignment>> dct = new Dictionary<Assignment, List<Assignment>>();
 
+            // 代入文の左辺の代入先の変数→代入文 の辞書
             Dictionary<Variable, Assignment> var_to_asn = asns.ToDictionary(x => x.Left.VarRef, x => x);
 
+            // すべての代入文に対し
             foreach (Assignment asn in asns) {
+                // 代入文に右辺に含まれる変数参照のリスト
                 Reference[] refs = EnumReference(asn.Right);
 
                 if (dct.ContainsKey(asn)) {
+                    // 代入文の依存関係の辞書に含まれる場合
+
                     throw new Exception();
                 }
+
+                // 依存先の変数のリスト
                 List<Variable> depend;
 
                 if (t_var == null) {
+                    // 時刻tの変数がある場合
+
+                    // 代入文に右辺に含まれる変数のリスト
                     depend = (from r in refs select r.VarRef).Distinct().ToList();
                 }
                 else {
+                    // 時刻tの変数がない場合
 
+                    // 代入文に右辺に含まれる変数のリスト ( 添え字にt±aを含む変数参照を除く )
                     depend = (from r in refs where r.Indexes == null || ! r.Indexes.Where(i => i.IsAdd() && (i as Apply).Args[0] is Reference && ((i as Apply).Args[0] as Reference).VarRef == t_var).Any() select r.VarRef).Distinct().ToList();
                 }
 
                 if (depend.Contains(asn.Left.VarRef)) {
+                    // 左辺の変数が依存先の変数のリストに含まれる場合
 
-                    Debug.WriteLine("依存エラー : " + asn.ToString());
-                    //throw new Exception();
+                    throw new Exception();
                 }
                 else {
 
                     dct.Add(asn, (from v in depend where var_to_asn.ContainsKey(v) select var_to_asn[v]).ToList());
                 }
-
             }
 
             return dct;
@@ -225,7 +237,7 @@ namespace MkFn {
             LINQ lnq0 = null;
 
             // 変数参照の添え字から参照されている変数のリスト
-            var used_ref_idx_vars = (from r in used_ref.AllRefs() where r != used_ref select r.VarRef);
+            var used_ref_idx_vars = (from r in AllRefs(used_ref) where r != used_ref select r.VarRef);
 
             // 左辺の添え字が参照している変数の中で、used_refの添え字で参照されていない変数のリスト
             List<Variable> lnq_vars = (from idx in asn.Left.Indexes where idx is Reference && !used_ref_idx_vars.Contains(idx.AsReference().VarRef) select idx.AsReference().VarRef).Distinct().ToList();
@@ -507,47 +519,86 @@ namespace MkFn {
                 });
         }
 
+        /*
+            ループ変数に対応するfor文を探し、なければfor文を作る。
+        */
         ForEach FindForEach(BlockStatement blc, List<Variable> loop_vars, Dictionary<Variable, Variable> loop_var_tbl) {
+            // 現在にブロック文に含まれるfor文のリスト
             List<ForEach> for_list = (from x in blc.Statements where x is ForEach select x as ForEach).ToList();
 
+            // 未処理のループ変数に対し
             foreach(Variable va in loop_vars) {
+                // ループ変数の定義域と同じfor文のリスト
                 var v = from f in for_list where f.LoopVariable.Domain.Eq(va.Domain) select f;
                 if (v.Any()) {
+                    // ループ変数の定義域と同じfor文がある場合
+
+                    // ループ変数の定義域と同じfor文
                     ForEach for1 = v.First();
+
+                    // 未処理のループ変数のリストから取り除く。
                     loop_vars.Remove(va);
 
+                    // 辞書( ループ変数→for文のループ変数 ) に追加する。
                     loop_var_tbl.Add(va, for1.LoopVariable);
 
                     if (loop_vars.Count == 0) {
+                        // 未処理のループ変数がない場合
+
+                        // 現在のfor文を返す。
                         return for1;
                     }
+                    else {
+                        // 未処理のループ変数がある場合
 
-                    return FindForEach(for1, loop_vars, loop_var_tbl);
+                        // 再帰呼び出しをする。
+                        return FindForEach(for1, loop_vars, loop_var_tbl);
+                    }
                 }
             }
 
+            // 現在のブロック文
             BlockStatement current_blc = blc;
+
+            // 未処理のループ変数がある間
             while (loop_vars.Any()) {
+
                 Variable va = loop_vars[0];
+
+                // 未処理のループ変数のリストから取り除く。
                 loop_vars.Remove(va);
 
+                // ループ変数をコピーする。
                 Variable va2 = va.Clone();
+
+                // for文を作る。
                 ForEach for1 = new ForEach(va2, new List<Statement>());
 
+                // 辞書( ループ変数→for文のループ変数 ) に追加する。
                 loop_var_tbl.Add(va, for1.LoopVariable);
 
+                // 現在のブロック文にfor文を追加する。
                 current_blc.AddStatement(for1);
 
+                // for文を現在のブロック文にする。
                 current_blc = for1;
             }
 
+            // 現在のブロック文(for文)を返す。
             return current_blc as ForEach;
         }
 
         /*
             逆伝播の関数を作る。
         */
-        Function MakeBackward(Variable x_var, Variable y_var, Function forward, List<Assignment> sorted_backward_asns) {
+        Function MakeBackward(Variable x_var, Variable y_var, Variable t_var, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+            // 代入文の依存関係
+            //Dictionary<Assignment, List<Assignment>> dct = AssignmentDependency(t_var, forward_asns);
+            Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
+
+
+            sorted_backward_asns = SortAssignment(backward_asns, backward_dct);
+
             // 順伝播の関数をコピーする。
             Function backward_fnc = forward.Clone() as Function;
 
@@ -557,16 +608,37 @@ namespace MkFn {
             // foreach以外の文を削除する。
             ForEachSkeleton(backward_fnc);
 
+            // for文のリスト
+            List<ForEach> for_list = new List<ForEach>();
+
             // 逆伝播のすべての代入文に対し
             foreach (Assignment asn in sorted_backward_asns) {
 
+                // 代入文の中で参照されているループ変数のリスト
                 List<Variable> loop_vars = (from r in EnumReference(asn) where r.VarRef.ParentVar == FreeVariable || r.VarRef.ParentVar is ForEach select r.VarRef).Distinct().ToList();
                 if (loop_vars.Any()) {
+                    // ループ変数がある場合
 
                     Dictionary<Variable, Variable> loop_var_tbl = new Dictionary<Variable, Variable>();
+
+                    // ループ変数に対応するfor文を探し、なければfor文を作る。
                     ForEach for1 = FindForEach(backward_fnc.BodyStatement, loop_vars, loop_var_tbl);
+
+                    // for文に代入文を追加する。
                     for1.AddStatement(asn.Clone(loop_var_tbl));
+
+                    if (!for_list.Contains(for1)) {
+                        // for文のリストに含まれない場合
+
+                        for_list.Add(for1);
+                    }
                 }
+            }
+
+            List<ForEach> fors = All(backward_fnc, typeof(ForEach)).Select(x => x as ForEach).ToList();
+            foreach(ForEach fe in fors) {
+
+                CommonSubexpressionElimination(fe);
             }
 
             return backward_fnc;
@@ -594,6 +666,86 @@ namespace MkFn {
                     }
                 });
 
+        }
+
+        /*
+            δfld の定義式の左辺の添え字を返す。
+        */
+        Reference[] NormalIndexes(List<Assignment> forward_asns, Variable fld, Reference[] used_refs) {
+
+            // δfld の定義式の左辺の添え字
+            Reference[] def_idxes;
+
+            // fldへの代入文のリストを得る。
+            var def_asns = from x in forward_asns where x.Left.VarRef == fld select x;
+            if (def_asns.Any()) {
+                // fldへの代入文がある場合
+
+                // fldへの代入文の左辺
+                Reference def_asn_left = def_asns.First().Left;
+
+                if (def_asn_left.Indexes.Where(t => !(t is Reference)).Any()) {
+                    // 変数参照でない添え字がある場合
+
+                    throw new Exception();
+                }
+
+                // fldへの代入文の左辺の添え字のコピー
+                def_idxes = (from i in def_asn_left.Indexes select i.Clone() as Reference).ToArray();
+            }
+            else {
+                // fldへの代入文がない場合
+                //          →fld の定義式の左辺の添え字と同じ
+
+                Apply init = fld.Domain as Apply;
+
+                // 添え字の配列
+                def_idxes = new Reference[init.Args.Length];
+
+                // すべての次元に対し
+                for (int dim = 0; dim < init.Args.Length; dim++) {
+
+                    // 変数参照の添え字のリスト
+                    var ref_idxes = from r in used_refs where r.Indexes[dim] is Reference select r.Indexes[dim] as Reference;
+                    if (ref_idxes.Any()) {
+                        // 変数参照の添え字がある場合
+
+                        // ForEachの変数参照の添え字のリスト
+                        var for_idxes = ref_idxes.Where(r => r.VarRef.ParentVar is ForEach);
+                        if (for_idxes.Any()) {
+                            // ForEachの変数参照の添え字がある場合
+
+                            def_idxes[dim] = for_idxes.First().Clone();
+                        }
+                        else {
+                            // ForEachの変数参照の添え字がない場合
+
+                            Reference ref_idx = ref_idxes.First();
+                            if (ref_idx.VarRef.ParentVar is LINQ) {
+                                // LINQの変数参照の添え字の場合
+
+                                Variable free_var = new Variable("i_" + ref_idx.Name, IntClass, new Apply(RangeFnc, init.Args[dim].Clone()));
+                                free_var.ParentVar = FreeVariable;
+                                def_idxes[dim] = new Reference(free_var);
+                            }
+                            else {
+                                // LINQの変数参照の添え字でない場合
+
+                                throw new Exception();
+                            }
+                        }
+                    }
+                    else {
+                        // 変数参照の添え字がない場合
+
+                        Variable free_var = new Variable("i_" + dim.ToString(), IntClass, new Apply(RangeFnc, init.Args[dim].Clone()));
+                        free_var.ParentVar = FreeVariable;
+                        def_idxes[dim] = new Reference(free_var);
+                    }
+                }
+            }
+
+            return def_idxes;
         }
 
         public void DeepLearning() {
@@ -720,77 +872,7 @@ namespace MkFn {
                     //??? used_refsの中に、同じ代入文で同じ変数参照がある場合 ???
 
                     // δfld の定義式の左辺の添え字
-                    Reference[] def_idxes;
-
-                    // fldへの代入文のリストを得る。
-                    var def_asns = from x in forward_asns where x.Left.VarRef == fld select x;
-                    if (def_asns.Any()) {
-                        // fldへの代入文がある場合
-
-                        // fldへの代入文の左辺
-                        Reference def_asn_left = def_asns.First().Left;
-
-                        if(def_asn_left.Indexes.Where(t => !(t is Reference)).Any()) {
-                            // 変数参照でない添え字がある場合
-
-                            throw new Exception();
-                        }
-
-                        // fldへの代入文の左辺の添え字のコピー
-                        def_idxes = (from i in def_asn_left.Indexes select i.Clone() as Reference).ToArray();
-                    }
-                    else {
-                        // fldへの代入文がない場合
-                        //          →fld の定義式の左辺の添え字と同じ
-
-                        Apply init = fld.Domain as Apply;
-
-                        // 添え字の配列
-                        def_idxes = new Reference[init.Args.Length];
-
-                        // すべての次元に対し
-                        for(int dim = 0; dim < init.Args.Length; dim++) {
-
-                            // 変数参照の添え字のリスト
-                            var ref_idxes = from r in used_refs where r.Indexes[dim] is Reference select r.Indexes[dim] as Reference;
-                            if (ref_idxes.Any()) {
-                                // 変数参照の添え字がある場合
-
-                                // ForEachの変数参照の添え字のリスト
-                                var for_idxes = ref_idxes.Where(r => r.VarRef.ParentVar is ForEach);
-                                if (for_idxes.Any()) {
-                                    // ForEachの変数参照の添え字がある場合
-
-                                    def_idxes[dim] = for_idxes.First().Clone();
-                                }
-                                else {
-                                    // ForEachの変数参照の添え字がない場合
-
-                                    Reference ref_idx = ref_idxes.First();
-                                    if(ref_idx.VarRef.ParentVar is LINQ) {
-                                        // LINQの変数参照の添え字の場合
-
-                                        Variable free_var = new Variable("i_" + ref_idx.Name, IntClass, new Apply(RangeFnc, init.Args[dim].Clone()));
-                                        free_var.ParentVar = FreeVariable;
-                                        def_idxes[dim] = new Reference(free_var);
-                                    }
-                                    else {
-                                        // LINQの変数参照の添え字でない場合
-
-                                        throw new Exception();
-                                    }
-                                }
-                            }
-                            else {
-                                // 変数参照の添え字がない場合
-
-                                Variable free_var = new Variable("i_" + dim.ToString(), IntClass, new Apply(RangeFnc, init.Args[dim].Clone()));
-                                free_var.ParentVar = FreeVariable;
-                                def_idxes[dim] = new Reference(free_var);
-                            }
-                        }
-                    }
-
+                    Reference[] def_idxes = NormalIndexes(forward_asns, fld, used_refs);
 
                     // フィールドの値を使用する変数参照に対し、伝播の情報を作る。
                     List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref, def_idxes)).ToList();
@@ -856,12 +938,9 @@ namespace MkFn {
                     backward_asns.Add(new Assignment(left_delta, result));
                 }
 
-                Dictionary<Assignment, List<Assignment>> dct = AssignmentDependency(t_var, forward_asns);
-                Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
-                List<Assignment> sorted_backward_asns = SortAssignment(backward_asns, backward_dct);
-
                 // 逆伝播の関数を作る。
-                Function backward_fnc = MakeBackward(x_var, y_var, forward, sorted_backward_asns);
+                List<Assignment> sorted_backward_asns;
+                Function backward_fnc = MakeBackward(x_var, y_var, t_var, forward, forward_asns, backward_asns, out sorted_backward_asns);
 
                 cls.Functions.Add(backward_fnc);
                 backward_fnc.ParentVar = cls;
