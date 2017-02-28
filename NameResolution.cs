@@ -108,10 +108,8 @@ namespace MkFn {
         /*
         型推論
         */
-        void TypeInference(Class cls) {
-            Debug.WriteLine("layer : {0}", cls.Name, "");
-
-            Traverse(cls,
+        void TypeInference(object root) {
+            Traverse(root,
                 null,
                 delegate (object obj) {
                     if (obj is Term) {
@@ -145,7 +143,7 @@ namespace MkFn {
 
                             Apply app = trm as Apply;
 
-                            if (Term.IsNew(app)) {
+                            if (IsNew(app)) {
 
 
                                 trm.TypeTerm = new ArrayType(app.NewClass, app.Args.Length);

@@ -1,20 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 namespace MkFn {
     public partial class MkFn {
-        /*
-            同じfor文に含まれる代入文をまとめる。
-        */
 
-        
         /*
             添え字から配列の先頭からのオフセットの計算式を得る。
         */
         Apply OffsetFromIndexes(Reference rf) {
-            if (! Term.IsNew(rf.VarRef.Domain)) {
+            if (! IsNew(rf.VarRef.Domain)) {
                 // 変数の定義域がない場合
 
                 throw new Exception();

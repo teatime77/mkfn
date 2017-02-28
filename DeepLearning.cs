@@ -464,19 +464,6 @@ namespace MkFn {
             クラスのソースコードをファイルに書く。
         */
         void WriteClassCode(Class cls) {
-            Traverse(cls,
-                delegate (object obj) {
-                    if (obj is Reference) {
-                        // 変数参照の場合
-
-                        Debug.Assert((obj as Reference).VarRef != null);
-                    }
-                    else if (obj is Variable) {
-                        // 変数の場合
-
-                        Debug.Assert((obj as Variable).TypeVar != null);
-                    }
-                });
 
             // Cのソースを作る。
             MakeCode mc = new MakeCode(this);
@@ -591,7 +578,7 @@ namespace MkFn {
         /*
             逆伝播の関数を作る。
         */
-        Function MakeBackward(Variable x_var, Variable y_var, Variable t_var, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+        Function MakeBackward(Class cls, Variable x_var, Variable y_var, Variable t_var, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
             // 代入文の依存関係
             //Dictionary<Assignment, List<Assignment>> dct = AssignmentDependency(t_var, forward_asns);
             Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
@@ -641,6 +628,9 @@ namespace MkFn {
                 CommonSubexpressionElimination(fe);
             }
 
+            // CUDAのソースコードをファイルに書く。
+            WriteCUDAClassCode(cls, sorted_backward_asns, backward_dct);
+
             return backward_fnc;
         }
 
@@ -649,7 +639,7 @@ namespace MkFn {
         */
         void SetDomainFromConstructor(Class cls) {
             // コンストラクター
-            Function constructor = (from f in cls.Functions where f.Name == MkFn.ConstructorName(cls) select f).First();
+            Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();
 
             Traverse(constructor.BodyStatement,
                 delegate (object obj) {
@@ -767,11 +757,11 @@ namespace MkFn {
 
                 // 入力変数
                 Variable x_var = (from f in cls.Fields where f.Name == "x" select f).First();
-                Debug.Assert(Term.IsNew(x_var.Domain));
+                Debug.Assert(IsNew(x_var.Domain));
 
                 // 出力変数
                 Variable y_var = (from f in cls.Fields where f.Name == "y" select f).First();
-                Debug.Assert(x_var.TypeVar is ArrayType && y_var.TypeVar is ArrayType && Term.IsNew(y_var.Domain));
+                Debug.Assert(x_var.TypeVar is ArrayType && y_var.TypeVar is ArrayType && IsNew(y_var.Domain));
 
                 // 順伝播の関数定義の直下のforeach
                 Debug.Assert(forward.BodyStatement.Statements.Count == 1 && forward.BodyStatement.Statements[0] is ForEach);
@@ -863,7 +853,7 @@ namespace MkFn {
                         continue;
                     }
 
-                    if(! Term.IsNew(fld.Domain)) {
+                    if(! IsNew(fld.Domain)) {
                         // フィールドの定義域がnewでない場合
 
                         throw new Exception();
@@ -938,9 +928,16 @@ namespace MkFn {
                     backward_asns.Add(new Assignment(left_delta, result));
                 }
 
+                // 型推論
+                TypeInference(cls);
+
+                foreach(Assignment asn in backward_asns) {
+                    TypeInference(asn);
+                }
+
                 // 逆伝播の関数を作る。
                 List<Assignment> sorted_backward_asns;
-                Function backward_fnc = MakeBackward(x_var, y_var, t_var, forward, forward_asns, backward_asns, out sorted_backward_asns);
+                Function backward_fnc = MakeBackward(cls, x_var, y_var, t_var, forward, forward_asns, backward_asns, out sorted_backward_asns);
 
                 cls.Functions.Add(backward_fnc);
                 backward_fnc.ParentVar = cls;
@@ -954,14 +951,28 @@ namespace MkFn {
                 //  MathJaxを含むHTMLファイルを書く。
                 WriteMathJax(sw, cls.Name);
 
-                // 型推論
-                TypeInference(cls);
-
                 // フィールドのリストを保存する。
                 List<Variable> sv_flds = new List<Variable>(cls.Fields);
 
                 // フィールドのリストにデルタ変数を追加する。
                 cls.Fields.AddRange(to_delta_fld.Values);
+
+                Traverse(cls,
+                    delegate (object obj) {
+                        if (obj is Reference) {
+                            // 変数参照の場合
+
+                            Debug.Assert((obj as Reference).VarRef != null);
+                        }
+                        else if (obj is Variable) {
+                            // 変数の場合
+
+                            Debug.Assert((obj as Variable).TypeVar != null);
+                        }
+                    });
+
+                // 型推論
+                TypeInference(cls);
 
                 // クラスのソースコードをファイルに書く。
                 WriteClassCode(cls);

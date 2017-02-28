@@ -229,7 +229,7 @@ public class LSTMLayer : Layer {
     public int Y;
 
     //public double[,] z;
-    public double[,] wZ;
+    //public double[,] wZ;
 
     public double[,] x;
     public double[,] y;

@@ -80,6 +80,10 @@ namespace MkFn {
         // 定義域
         public Term Domain;
 
+        public bool IsField() {
+            return !(this is Function) && ParentVar is Class;
+        }
+
         public Variable(string name, Class type, Term domain) {
             Name = name;
             TypeVar = type;
@@ -107,6 +111,10 @@ namespace MkFn {
             var_tbl.Add(this, v1);
 
             return v1;
+        }
+
+        public virtual string Code() {
+            return ToString();
         }
 
         public override string ToString() {
@@ -147,6 +155,13 @@ namespace MkFn {
             fnc.BodyStatement = BodyStatement.Clone(var_tbl);
 
             return fnc;
+        }
+
+        /*
+            コンストラクターならtrueを返す。
+        */
+        public bool IsConstructor() {
+            return Name == MkFn.ConstructorName(ParentVar as Class);
         }
     }
 
@@ -312,7 +327,7 @@ namespace MkFn {
         public Term() {
             TermCnt++;
             TermIdx = TermCnt;
-            //if(TermIdx == 1328) {
+            //if (TermIdx == 1651) {
             //    Debug.Write("");
             //}
         }
@@ -394,17 +409,14 @@ namespace MkFn {
         }
 
         /*
-            newならtrueを返す。
-        */
-        public static bool IsNew(Term t) {
-            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.NewFnc;
-        }
-
-        /*
             Rangeならtrueを返す。
         */
         public static bool IsRange(Term t) {
             return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.RangeFnc;
+        }
+
+        public virtual string Code() {
+            return ToString();
         }
 
         public override string ToString() {
@@ -544,23 +556,27 @@ namespace MkFn {
         */
         public new Reference Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Variable v1;
+            Reference clone_ref;
 
             if (var_tbl == null || !var_tbl.TryGetValue(VarRef, out v1)) {
                 v1 = VarRef;
             }
 
             if (Indexes == null) {
-                return new Reference(Name, v1, null, Value);
+                clone_ref = new Reference(Name, v1, null, Value);
+            }
+            else {
+
+                Term[] idx = (from t in Indexes select t.Clone(var_tbl)).ToArray();
+
+                clone_ref = new Reference(Name, v1, idx, Value);
+                if (MkFn.Singleton.CloneTable != null && MkFn.Singleton.CloneTable.ContainsKey(this)) {
+
+                    MkFn.Singleton.CloneTable[this] = clone_ref;
+                }
             }
 
-            Term[] idx = (from t in Indexes select t.Clone(var_tbl)).ToArray();
-
-            Reference clone_ref = new Reference(Name, v1, idx, Value);
-            if(MkFn.Singleton.CloneTable != null && MkFn.Singleton.CloneTable.ContainsKey(this)) {
-
-                MkFn.Singleton.CloneTable[this] = clone_ref;
-            }
-
+            clone_ref.TypeTerm = TypeTerm;
             return clone_ref;
         }
 
@@ -666,6 +682,7 @@ namespace MkFn {
             Apply app = new Apply(Function.Clone(var_tbl), args);
             app.NewClass = NewClass;
             app.Value = Value;
+            app.TypeTerm = TypeTerm;
 
             return app;
         }
@@ -699,7 +716,7 @@ namespace MkFn {
 
                     return "δ_" + Args[1].ToString();
                 }
-                else if (IsNew(this)) {
+                else if (MkFn.IsNew(this)) {
 
                     return Function.Name + " " + NewClass.Name + "[" + string.Join(", ", from x in Args select x.ToString()) + "]";
                 }
@@ -818,7 +835,10 @@ namespace MkFn {
             }
 
             Variable[] vars = (from v in Variables select v.Clone(var_tbl)).ToArray();
-            return new LINQ(vars, Select.Clone(var_tbl), (Aggregate == null ? null : Aggregate.Clone(var_tbl)), Value);
+            LINQ lnq = new LINQ(vars, Select.Clone(var_tbl), (Aggregate == null ? null : Aggregate.Clone(var_tbl)), Value);
+            lnq.TypeTerm = TypeTerm;
+
+            return lnq;
         }
 
         public override string ToStringBody() {

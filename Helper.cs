@@ -6,6 +6,13 @@ using System.Linq;
 namespace MkFn {
     public partial class MkFn {
 
+        /*
+            newならtrueを返す。
+        */
+        public static bool IsNew(Term t) {
+            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.NewFnc;
+        }
+
         Apply Range(Term start, Term end) {
             return new Apply(RangeFnc, start, end);
         }

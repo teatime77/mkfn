@@ -9,7 +9,7 @@ namespace MkFn {
     public partial class MakeCode {
         public MkFn theMkFn;
         Dictionary<LINQ, string> LinqValue = new Dictionary<LINQ, string>();
-        int TmpCnt;
+        public int TmpCnt;
 
         /*
             コンストラクター
@@ -44,7 +44,8 @@ namespace MkFn {
             else {
                 // 多次元配列の場合
 
-                return string.Format("boost::multi_array<{0}, {1}>", cls.Name, cls.DimCnt);
+                return cls.Name + "*";
+                //return string.Format("boost::multi_array<{0}, {1}>", cls.Name, cls.DimCnt);
             }
         }
 
@@ -84,7 +85,7 @@ namespace MkFn {
                 sw.WriteLine("");
                 sw.WriteLine(Nest(nest) + "// " + stmt.ToString());
 
-                // すべての代入文のリスト
+                // すべてのLINQのリスト
                 List<LINQ> lnks = new List<LINQ>();
                 MkFn.Traverse(stmt,
                     delegate (object obj) {
@@ -309,7 +310,7 @@ namespace MkFn {
 
                         return "δ_" + app.Args[1].ToString();
                     }
-                    else if (Term.IsNew(app)) {
+                    else if (MkFn.IsNew(app)) {
                         // newの場合
 
                         if (app.Args.Length == 0) {
@@ -357,7 +358,7 @@ namespace MkFn {
         */
         public string FunctionHeader(Class cls, Function fnc, bool is_body) {
             StringWriter sw = new StringWriter();
-            bool is_constructor = (fnc.Name == MkFn.ConstructorName(cls));
+            bool is_constructor = fnc.IsConstructor();
 
             if (is_body) {
                 // 関数の本体の場合
