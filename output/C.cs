@@ -44,8 +44,14 @@ namespace MkFn {
             else {
                 // 多次元配列の場合
 
-                return cls.Name + "*";
-                //return string.Format("boost::multi_array<{0}, {1}>", cls.Name, cls.DimCnt);
+                if(MkFn.OutputLanguage == Language.CPP) {
+
+                    return string.Format("boost::multi_array<{0}, {1}>", cls.Name, cls.DimCnt);
+                }
+                else {
+
+                    return cls.Name + "*";
+                }
             }
         }
 
@@ -256,14 +262,7 @@ namespace MkFn {
             if (trm is Reference) {
                 // 変数参照の場合
 
-                Reference rf = trm as Reference;
-
-                if (rf.Indexes == null) {
-                    return rf.Name;
-                }
-                else {
-                    return rf.Name + string.Join("", from x in rf.Indexes select "[" + TermCode(x) + "]");
-                }
+                return trm.ToString();
             }
             else if (trm is Number) {
                 // 数値定数の場合
@@ -424,7 +423,7 @@ namespace MkFn {
                 string.Join("", from fnc in cls.Functions select Nest(1) + FunctionHeader(cls, fnc, false) + ";\r\n") +
                 "};\r\n";
 
-            string inc = "#include \"stdafx.h\"\r\n#include \"boost/multi_array.hpp\"\r\n#include \"MkFn.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
+            string inc = "#include \"boost/multi_array.hpp\"\r\n#include \"MkFn.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
             body = inc + string.Join("\r\n", from fnc in cls.Functions select FunctionCode(cls, fnc));
         }
     }

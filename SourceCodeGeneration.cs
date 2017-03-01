@@ -10,7 +10,7 @@ namespace MkFn {
         /*
             添え字から配列の先頭からのオフセットの計算式を得る。
         */
-        Apply OffsetFromIndexes(Reference rf) {
+        public static Term OffsetFromIndexes(Reference rf) {
             if (! IsNew(rf.VarRef.Domain)) {
                 // 変数の定義域がない場合
 
@@ -28,7 +28,7 @@ namespace MkFn {
                 t = Add(Mul(domain.Args[dim],  t), rf.Indexes[dim]);
             }
             
-            return t as Apply;
+            return t;
         }
 
         /*
@@ -41,10 +41,10 @@ namespace MkFn {
             // ブロック文の中の多次元の添え字付きの変数参照のリスト
             List<Reference> refs = AllRefs(blc).Where(r => r.Indexes != null && r.Indexes.Length != 1).ToList();
 
-            Dictionary<Apply, Variable> common_offsets = new Dictionary<Apply, Variable>(new TermEqualityComparer());
+            Dictionary<Term, Variable> common_offsets = new Dictionary<Term, Variable>(new TermEqualityComparer());
 
             foreach(Reference rf in refs) {
-                Apply offset = OffsetFromIndexes(rf);
+                Term offset = OffsetFromIndexes(rf);
 
                 Variable va;
 

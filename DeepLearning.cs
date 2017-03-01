@@ -7,6 +7,17 @@ using System.Text;
 using System.Threading;
 
 namespace MkFn {
+
+    /*
+        プログラミング言語
+    */
+    public enum Language {
+        CS,
+        CPP,
+        CUDA,
+        MathJax,
+    }
+
     /*
         伝播先の情報
     */
@@ -61,6 +72,9 @@ namespace MkFn {
 
         [ThreadStatic]
         public Dictionary<object, object> CloneTable;
+
+        [ThreadStatic]
+        public static Language OutputLanguage;
 
         public MkFn() {
             AddFnc = new Variable("+", ArgClass, null);
@@ -464,6 +478,7 @@ namespace MkFn {
             クラスのソースコードをファイルに書く。
         */
         void WriteClassCode(Class cls) {
+            OutputLanguage = Language.CPP;
 
             // Cのソースを作る。
             MakeCode mc = new MakeCode(this);
@@ -478,8 +493,8 @@ namespace MkFn {
             }
 
             // 宣言と実装をファイルに書く。
-            File.WriteAllText(html_dir + "\\" + cls.Name + ".h"  , header, Encoding.UTF8);
-            File.WriteAllText(html_dir + "\\" + cls.Name + ".cpp", body, Encoding.UTF8);
+            File.WriteAllText(html_dir + "\\" + cls.Name + ".h"  , ASCII(header), Encoding.UTF8);
+            File.WriteAllText(html_dir + "\\" + cls.Name + ".cpp", ASCII(body), Encoding.UTF8);
         }
 
         // u[iu, ju, k] = (from p in Range(H) from q in Range(H) select x[iu + p, ju + q] * h[p, q, k]).Sum() + b[k];
@@ -578,7 +593,7 @@ namespace MkFn {
         /*
             逆伝播の関数を作る。
         */
-        Function MakeBackward(Class cls, Variable x_var, Variable y_var, Variable t_var, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+        Function MakeBackward(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
             // 代入文の依存関係
             //Dictionary<Assignment, List<Assignment>> dct = AssignmentDependency(t_var, forward_asns);
             Dictionary<Assignment, List<Assignment>> backward_dct = AssignmentDependency(t_var, backward_asns);
@@ -629,7 +644,7 @@ namespace MkFn {
             }
 
             // CUDAのソースコードをファイルに書く。
-            WriteCUDAClassCode(cls, sorted_backward_asns, backward_dct);
+            WriteCUDAClassCode(cls, to_delta_fld, sorted_backward_asns, backward_dct);
 
             return backward_fnc;
         }
@@ -649,6 +664,7 @@ namespace MkFn {
                         Assignment asn = obj as Assignment;
 
                         if(asn.Left.VarRef.TypeVar is ArrayType) {
+                            // 代入先が配列の場合
 
                             asn.Left.VarRef.Domain = asn.Right.Clone();
                             asn.Left.VarRef.Domain.Parent = asn.Left.VarRef;
@@ -935,9 +951,17 @@ namespace MkFn {
                     TypeInference(asn);
                 }
 
+                // フィールドのリストを保存する。
+                List<Variable> sv_flds = new List<Variable>(cls.Fields);
+
+                // フィールドのリストにデルタ変数を追加する。
+                foreach(Variable delta_fld in to_delta_fld.Values) {
+                    cls.AddField(delta_fld);
+                }
+
                 // 逆伝播の関数を作る。
                 List<Assignment> sorted_backward_asns;
-                Function backward_fnc = MakeBackward(cls, x_var, y_var, t_var, forward, forward_asns, backward_asns, out sorted_backward_asns);
+                Function backward_fnc = MakeBackward(cls, x_var, y_var, t_var, to_delta_fld, forward, forward_asns, backward_asns, out sorted_backward_asns);
 
                 cls.Functions.Add(backward_fnc);
                 backward_fnc.ParentVar = cls;
@@ -950,12 +974,6 @@ namespace MkFn {
 
                 //  MathJaxを含むHTMLファイルを書く。
                 WriteMathJax(sw, cls.Name);
-
-                // フィールドのリストを保存する。
-                List<Variable> sv_flds = new List<Variable>(cls.Fields);
-
-                // フィールドのリストにデルタ変数を追加する。
-                cls.Fields.AddRange(to_delta_fld.Values);
 
                 Traverse(cls,
                     delegate (object obj) {

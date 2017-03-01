@@ -1,4 +1,4 @@
 #pragma once
-double É–(double);
-double É–_prime(double);
+double sigmoid(double);
+double sigmoid_prime(double);
 double MaxPoolPrime(double);

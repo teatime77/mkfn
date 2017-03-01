@@ -13,9 +13,13 @@ namespace MkFn {
         */
         void MakeKenel(StringWriter sw, Assignment asn, string kernel_name, List<Variable> flds) {
 
-            // カーネル関数のヘッダー行
-            sw.WriteLine("__global__ void {0}({1}){{", kernel_name, string.Join("", from x in flds select x.Code()));
+            // カーネル関数の引数
+            string args = string.Join(", ", from x in flds select x.Code());
 
+            // カーネル関数のヘッダー行
+            sw.WriteLine("__global__ void {0}({1}){{", kernel_name, args);
+
+            // 代入先の添え字に対し
             for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
                 string idx = "";
                 switch (asn.Left.Indexes.Length - 1 - dim1) {
@@ -33,10 +37,13 @@ namespace MkFn {
                     break;
                 }
 
+                // 代入先の添え字をthreadIdxとblockIdxから計算する。
                 sw.WriteLine("\tint {0} = {1};", asn.Left.Indexes[dim1].ToString(), idx);
             }
 
             MakeCode mc = new MakeCode(this);
+
+            // カーネル関数の本体のコードを書く。
             sw.WriteLine(mc.StatementCode(asn, 1));
 
             sw.WriteLine("}");
@@ -96,8 +103,18 @@ namespace MkFn {
             cpu_sw.WriteLine("}");
         }
 
+        /*
+            カーネル関数の名前を返す。
+        */
         string KernelName(bool is_forward, Variable va) {
             return (is_forward ? "forward_" : "backward_") + va.Name;
+        }
+
+        /*
+            ストリーム変数の名前を返す。
+        */
+        string StreamName(Variable va) {
+            return "_stream_" + va.Name;
         }
 
         /*
@@ -146,10 +163,6 @@ namespace MkFn {
             body_sw.WriteLine("}");
         }
 
-        string StreamName(Variable va) {
-            return "_stream_" + va.Name;
-        }
-
         Term SizeApply(Variable va) {
             if (!IsNew(va.Domain)) {
                 throw new Exception();
@@ -166,14 +179,18 @@ namespace MkFn {
             }
         }
 
+        /*
+            ASCII文字列に変換する。
+        */
         string ASCII(string s) {
-            return s.Replace("δ", "delta_");
+            return s.Replace("δ", "delta_").Replace("σ", "sigmoid");
         }
 
         /*
             CUDAのソースコードをファイルに書く。, Variable t_var, Variable x_var
         */
-        void WriteCUDAClassCode(Class cls, List<Assignment> sorted_asns, Dictionary<Assignment, List<Assignment>> depend) {
+        void WriteCUDAClassCode(Class cls, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> sorted_asns, Dictionary<Assignment, List<Assignment>> depend) {
+            OutputLanguage = Language.CUDA;
 
             // Cのソースを作る。
             MakeCode mc = new MakeCode(this);
@@ -197,7 +214,13 @@ namespace MkFn {
 
             header_sw.WriteLine(header);
 
+            foreach(Variable fld in cls.Fields) {
+                Variable delta_fld;
+                if (to_delta_fld.TryGetValue(fld, out delta_fld)) {
 
+                    header_sw.Write("\t" + mc.FieldCode(delta_fld));
+                }
+            }
 
             // コンストラクター
             Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();
@@ -217,7 +240,8 @@ namespace MkFn {
                 Variable fld = (stmt as Assignment).Left.VarRef;
                 if (fld.TypeVar is ArrayType) {
 
-                    body_sw.WriteLine("\t{0} = ({1}*)cudaMalloc({2}); \r\n", fld.Name, (fld.TypeVar as ArrayType).ElementType.Name, SizeApply(fld).Code());
+                    //body_sw.WriteLine("\t{0} = ({1}*)cudaMalloc({2}); \r\n", fld.Name, (fld.TypeVar as ArrayType).ElementType.Name, SizeApply(fld).Code());
+                    body_sw.WriteLine("\tcudaMalloc(&{0}, {1}); \r\n", fld.Name, SizeApply(fld).Code());
                 }
                 else {
                     body_sw.WriteLine(mc.StatementCode(stmt, 1));
@@ -243,6 +267,9 @@ namespace MkFn {
 
                 Directory.CreateDirectory(src_dir);
             }
+
+            //!!!!!!!!!! デバッグ環境用 !!!!!!!!!!
+            src_dir = @"Z:\prj\mkfn\src\CUDA";
 
             // 宣言と実装をファイルに書く。
             File.WriteAllText(src_dir + "\\" + cls.Name + ".h" , ASCII(header_sw.ToString()), Encoding.UTF8);

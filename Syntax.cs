@@ -30,6 +30,11 @@ namespace MkFn {
             Name = name;
         }
 
+        public void AddField(Variable fld) {
+            Fields.Add(fld);
+            fld.ParentVar = this;
+        }
+
         public virtual Class ValueType() {
             return this;
         }
@@ -60,7 +65,17 @@ namespace MkFn {
         }
 
         public override string ToString() {
-            return Name + "[" + new string(',', DimCnt - 1) + "]";
+            switch (MkFn.OutputLanguage) {
+            case Language.CPP:
+            case Language.CUDA:
+                return Name + "*";
+
+            case Language.CS:
+            case Language.MathJax:
+                return Name + "[" + new string(',', DimCnt - 1) + "]";
+            default:
+                throw new Exception();
+            }
         }
     }
 
@@ -629,7 +644,18 @@ namespace MkFn {
                 return Name;
             }
             else {
-                return Name + "[" + string.Join(", ", from x in Indexes select x.ToString()) + "]";
+                string idx;
+
+                if(MkFn.OutputLanguage == Language.CUDA) {
+
+                    idx = MkFn.OffsetFromIndexes(this).Code();
+                }
+                else {
+
+                    idx = string.Join(", ", from x in Indexes select x.ToString());
+                }
+
+                return Name + "[" + idx + "]";
             }
         }
 

@@ -83,16 +83,16 @@ namespace MkFn {
             return new Apply(DiffFnc, new Term[] { t, r });
         }
 
-        Term[] VariableToReference(object[] args) {
+        static Term[] VariableToReference(object[] args) {
             return (from x in args select (Term)(x is Variable ? new Reference(x as Variable) : x as Term)).ToArray();
         }
 
-        Apply Mul(params object[] args) {
-            return new Apply(new Reference(MulFnc), VariableToReference(args));
+        static Apply Mul(params object[] args) {
+            return new Apply(new Reference(Singleton.MulFnc), VariableToReference(args));
         }
 
-        Apply Add(params object[] args) {
-            return new Apply(new Reference(AddFnc), VariableToReference(args));
+        static Apply Add(params object[] args) {
+            return new Apply(new Reference(Singleton.AddFnc), VariableToReference(args));
         }
 
         Apply Sub(params object[] args) {

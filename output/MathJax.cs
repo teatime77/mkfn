@@ -42,6 +42,8 @@ namespace MkFn {
             係数を含んだMathJaxのテキストを返す。
         */
         string MathJax(Term t1) {
+            OutputLanguage = Language.MathJax;
+
             if (!(t1 is Number)) {
                 // 数値定数でない場合
 

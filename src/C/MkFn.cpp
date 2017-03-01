@@ -1,14 +1,11 @@
-#include "stdafx.h"
-
-double É–(double) {
+double sigmoid(double) {
 	return 0;
 }
 
-double É–_prime(double) {
+double sigmoid_prime(double) {
 	return 0;
 }
 
 double MaxPoolPrime(double) {
 	return 0;
 }
-

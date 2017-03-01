@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="FullyConnectedLayer.cu">
+      <Filter>src</Filter>
+    </CudaCompile>
+    <CudaCompile Include="RecurrentLayer.cu">
+      <Filter>src</Filter>
+    </CudaCompile>
+    <CudaCompile Include="MaxPoolingLayer.cu">
+      <Filter>src</Filter>
+    </CudaCompile>
+    <CudaCompile Include="LSTMLayer.cu">
+      <Filter>src</Filter>
+    </CudaCompile>
+    <CudaCompile Include="ConvolutionalLayer.cu">
+      <Filter>src</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{f7ba84e7-486a-4936-bc25-60f54e558abe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc">
+      <UniqueIdentifier>{ecbe7968-de33-4885-beef-c8476d95f30e}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="FullyConnectedLayer.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="ConvolutionalLayer.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="LSTMLayer.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPoolingLayer.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="RecurrentLayer.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

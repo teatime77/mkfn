@@ -151,7 +151,19 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="ConvolutionalLayer.cu" />
+    <CudaCompile Include="FullyConnectedLayer.cu" />
     <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="LSTMLayer.cu" />
+    <CudaCompile Include="MaxPoolingLayer.cu" />
+    <CudaCompile Include="RecurrentLayer.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ConvolutionalLayer.h" />
+    <ClInclude Include="FullyConnectedLayer.h" />
+    <ClInclude Include="LSTMLayer.h" />
+    <ClInclude Include="MaxPoolingLayer.h" />
+    <ClInclude Include="RecurrentLayer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
