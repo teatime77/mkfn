@@ -17,7 +17,7 @@ namespace MkFn {
             string args = string.Join(", ", from x in flds select x.Code());
 
             // カーネル関数のヘッダー行
-            sw.WriteLine("__global__ void {0}({1}){{", kernel_name, args);
+            sw.WriteLine("__global__ static void {0}({1}){{", kernel_name, args);
 
             // 代入先の添え字に対し
             for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
@@ -60,11 +60,6 @@ namespace MkFn {
             cpu_sw.WriteLine("\tint blocks_z = 1;");
 
             Apply domain = asn.Left.VarRef.Domain as Apply;
-
-            cpu_sw.WriteLine("\tint blocks_x = 1;");
-            cpu_sw.WriteLine("\tint blocks_y = 1;");
-            cpu_sw.WriteLine("\tint blocks_z = 1;");
-            cpu_sw.WriteLine("\tint threadsPerBlock = 1;");
 
             for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
 
@@ -183,7 +178,7 @@ namespace MkFn {
             ASCII文字列に変換する。
         */
         string ASCII(string s) {
-            return s.Replace("δ", "delta_").Replace("σ", "sigmoid");
+            return s.Replace("δ", "delta_").Replace("σ", "sigmoid").Replace("std::", "");
         }
 
         /*
@@ -200,7 +195,9 @@ namespace MkFn {
 
             string s = @"#include ""cuda_runtime.h""
 #include ""device_launch_parameters.h""
-#include <stdio.h>";
+#include <stdio.h>
+#include ""MkFn.h""";
+            //#include <algorithm>
 
             body_sw.WriteLine(s);
             body_sw.WriteLine("#include \"{0}.h\"", cls.Name);
@@ -213,14 +210,6 @@ namespace MkFn {
                 string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
 
             header_sw.WriteLine(header);
-
-            foreach(Variable fld in cls.Fields) {
-                Variable delta_fld;
-                if (to_delta_fld.TryGetValue(fld, out delta_fld)) {
-
-                    header_sw.Write("\t" + mc.FieldCode(delta_fld));
-                }
-            }
 
             // コンストラクター
             Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();
