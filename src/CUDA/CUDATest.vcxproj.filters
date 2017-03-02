@@ -42,5 +42,8 @@
     <ClInclude Include="RecurrentLayer.h">
       <Filter>inc</Filter>
     </ClInclude>
+    <ClInclude Include="MkFn.h">
+      <Filter>inc</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
