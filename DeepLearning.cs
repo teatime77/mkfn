@@ -754,6 +754,23 @@ namespace MkFn {
             return def_idxes;
         }
 
+        void SetFieldKind(Class cls, Variable x_var, List<Assignment> forward_asns) {
+            x_var.Kind = FieldKind.CalculatedField;
+            var calculated_fields = from asn in forward_asns select asn.Left.VarRef;
+            foreach (Variable fld in calculated_fields) {
+                fld.Kind = FieldKind.CalculatedField;
+            }
+
+            var domain_fields = (from fld in cls.Fields where IsNew(fld.Domain) from r in AllRefs(fld.Domain) select r.VarRef).Distinct();
+            foreach (Variable fld in domain_fields) {
+                fld.Kind = FieldKind.DomainField;
+            }
+
+            foreach (Variable fld in cls.Fields.Where(x => x.Kind == FieldKind.Unknown)) {
+                fld.Kind = FieldKind.ParameterField;
+            }
+        }
+
         public void DeepLearning() {
             Debug.WriteLine("深層学習");
 
@@ -810,6 +827,8 @@ namespace MkFn {
                 Reference[] all_refs = (from t in all_terms where t is Reference select t as Reference).ToArray();
 
                 List<Assignment> backward_asns = new List<Assignment>();
+
+                SetFieldKind(cls, x_var, forward_asns);
 
                 //------------------------------------------------------------ 順伝播
                 MathJaxDelta = false;

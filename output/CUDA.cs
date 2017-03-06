@@ -261,7 +261,7 @@ namespace MkFn {
             src_dir = @"Z:\prj\mkfn\src\CUDA";
 
             // 宣言と実装をファイルに書く。
-            File.WriteAllText(src_dir + "\\" + cls.Name + ".h" , ASCII(header_sw.ToString()), Encoding.UTF8);
+            File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_sw.ToString()), Encoding.UTF8);
             File.WriteAllText(src_dir + "\\" + cls.Name + ".cu", ASCII(body_sw.ToString()), Encoding.UTF8);
         }
     }
