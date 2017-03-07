@@ -113,11 +113,9 @@ namespace MkFn {
         }
 
         /*
-            
+            順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
         */
-        void MakeCUDA(Class cls, StringWriter header_sw, StringWriter body_sw, bool is_forward, List<Assignment> asns, Dictionary<Assignment, List<Assignment>> depend) {
-            Dictionary<Assignment, string> kernel_names = new Dictionary<Assignment, string>();
-
+        void MakeForwardBackward(Class cls, StringWriter body_sw, bool is_forward, List<Assignment> asns, Dictionary<Assignment, List<Assignment>> depend) {
             // すべての代入文に対し
             foreach (Assignment asn in asns) {
                 if (!IsNew(asn.Left.VarRef.Domain)) {
@@ -139,9 +137,6 @@ namespace MkFn {
                 // カーネル関数名
                 string kernel_name = KernelName(is_forward, asn.Left.VarRef);
 
-                // 関数名を辞書に登録する。
-                kernel_names.Add(asn, kernel_name);
-
                 // カーネル関数のソースコードを作る。
                 MakeKenel(body_sw, asn, kernel_name, flds);
 
@@ -149,16 +144,19 @@ namespace MkFn {
                 MakeStartKenel(cls, body_sw, asn, kernel_name, flds, depend);
             }
 
+            // 順伝播/逆伝播の関数を作る。
             string fnc_name = (is_forward ? "Forward" : "Backward");
             body_sw.WriteLine("void {0}::{1}(){{", cls.Name, fnc_name);
             foreach (Assignment asn in asns) {
-                header_sw.WriteLine("\tvoid Start_{0}();", KernelName(is_forward, asn.Left.VarRef));
                 body_sw.WriteLine("\tStart_{0}();", KernelName(is_forward, asn.Left.VarRef));
             }
             body_sw.WriteLine("}");
         }
 
-        Term SizeApply(Variable va) {
+        /*
+          要素の数の計算式を返す。
+        */
+        Term ElementCountApply(Variable va) {
             if (!IsNew(va.Domain)) {
                 throw new Exception();
             }
@@ -182,28 +180,10 @@ namespace MkFn {
         }
 
         /*
-            CUDAのソースコードをファイルに書く。, Variable t_var, Variable x_var
+        ヘッダファイルのコードを作る。
         */
-        void WriteCUDAClassCode(Class cls, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> sorted_asns, Dictionary<Assignment, List<Assignment>> depend) {
-            OutputLanguage = Language.CUDA;
-
-            // Cのソースを作る。
-            MakeCode mc = new MakeCode(this);
-
+        string MakeHeaderFile(Class cls, MakeCode mc, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns) {
             StringWriter header_sw = new StringWriter();
-            StringWriter body_sw = new StringWriter();
-
-            string s = @"#include ""cuda_runtime.h""
-#include ""device_launch_parameters.h""
-#include <stdio.h>
-#include ""MkFn.h""";
-            //#include <algorithm>
-
-            body_sw.WriteLine(s);
-            body_sw.WriteLine("#include \"{0}.h\"", cls.Name);
-
-            var array_flds = cls.Fields.Where(x => x.TypeVar is ArrayType);
-
 
             string header = "class " + cls.Name + " {\r\npublic:\r\n" +
                 string.Join("", from fld in cls.Fields select mc.Nest(1) + mc.FieldCode(fld)) +
@@ -211,45 +191,89 @@ namespace MkFn {
 
             header_sw.WriteLine(header);
 
-            // コンストラクター
-            Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();
-
             header_sw.WriteLine("\t{0};", mc.FunctionHeader(cls, constructor, false));
             header_sw.WriteLine("\t~{0}();", cls.Name);
             header_sw.WriteLine("\tvoid Forward();");
             header_sw.WriteLine("\tvoid Backward();");
 
+            foreach (Assignment asn in sorted_forward_asns) {
+                header_sw.WriteLine("\tvoid Start_{0}();", KernelName(true , asn.Left.VarRef));
+            }
+            foreach (Assignment asn in sorted_backward_asns) {
+                header_sw.WriteLine("\tvoid Start_{0}();", KernelName(false, asn.Left.VarRef));
+            }
+
+            header_sw.WriteLine("};");
+
+            return header_sw.ToString();
+        }
+
+        /*
+            逆伝播の関数を作る。
+        */
+        void MakeBackward(Class cls, Variable x_var, Variable y_var, Variable t_var, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+            // 代入文の依存関係
+            Dictionary<Assignment, List<Assignment>> forward_depend = AssignmentDependency(t_var, forward_asns);
+            Dictionary<Assignment, List<Assignment>> backward_depend = AssignmentDependency(t_var, backward_asns);
+
+            List<Assignment> sorted_forward_asns = SortAssignment(forward_asns, forward_depend);
+            sorted_backward_asns = SortAssignment(backward_asns, backward_depend);
+
+            OutputLanguage = Language.CUDA;
+
+            // Cのソースを作る。
+            MakeCode mc = new MakeCode(this);
+
+            StringWriter sw = new StringWriter();
+
+            if (OutputLanguage == Language.CUDA) {
+
+                sw.WriteLine("#include <cuda_runtime.h>");
+                sw.WriteLine("#include <device_launch_parameters.h>");
+            }
+
+            sw.WriteLine("#include <stdio.h>");
+            sw.WriteLine("#include <FLOAT.h>");
+            sw.WriteLine("#include \"MkFn.h\"");
+            sw.WriteLine("#include \"{0}.h\"", cls.Name);
+
+            List<Variable> array_flds = cls.Fields.Where(x => x.TypeVar is ArrayType).ToList();
+
+
+            // コンストラクター
+            Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();
+
 
             mc.TmpCnt = 0;
 
-            body_sw.WriteLine("");
-            body_sw.WriteLine(mc.FunctionHeader(cls, constructor, true) + "{");
+            sw.WriteLine("");
+            sw.WriteLine(mc.FunctionHeader(cls, constructor, true) + "{");
 
             foreach(Statement stmt in constructor.BodyStatement.Statements) {
                 Variable fld = (stmt as Assignment).Left.VarRef;
                 if (fld.TypeVar is ArrayType) {
 
-                    //body_sw.WriteLine("\t{0} = ({1}*)cudaMalloc({2}); \r\n", fld.Name, (fld.TypeVar as ArrayType).ElementType.Name, SizeApply(fld).Code());
-                    body_sw.WriteLine("\tcudaMalloc(&{0}, {1}); \r\n", fld.Name, SizeApply(fld).Code());
+                    sw.WriteLine("\tcudaMalloc(&{0}, {1}); \r\n", fld.Name, ElementCountApply(fld).Code());
                 }
                 else {
-                    body_sw.WriteLine(mc.StatementCode(stmt, 1));
+                    sw.WriteLine(mc.StatementCode(stmt, 1));
                 }
             }
 
-            body_sw.WriteLine(string.Join("", from fld in array_flds select "\tcudaStreamCreate(&" + StreamName(fld) + ");\r\n"));
-            body_sw.WriteLine("}");
+            sw.WriteLine(string.Join("", from fld in array_flds select "\tcudaStreamCreate(&" + StreamName(fld) + ");\r\n"));
+            sw.WriteLine("}");
 
 
             // デストラクタ
-            body_sw.WriteLine("");
-            body_sw.WriteLine("{0}::~{0}(){{", cls.Name);
-            body_sw.Write(string.Join("", from fld in array_flds select string.Format("\tcudaFree({0}); \r\n", fld.Name)));
-            body_sw.WriteLine(string.Join("", from fld in array_flds select "\tcudaStreamDestroy(" + StreamName(fld) + ");\r\n"));
-            body_sw.WriteLine("}");
+            sw.WriteLine("");
+            sw.WriteLine("{0}::~{0}(){{", cls.Name);
+            sw.Write(string.Join("", from fld in array_flds select string.Format("\tcudaFree({0}); \r\n", fld.Name)));
+            sw.WriteLine(string.Join("", from fld in array_flds select "\tcudaStreamDestroy(" + StreamName(fld) + ");\r\n"));
+            sw.WriteLine("}");
 
-            MakeCUDA(cls, header_sw, body_sw, false, sorted_asns, depend);
-            header_sw.WriteLine("};");
+            // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
+            MakeForwardBackward(cls, sw, true , sorted_forward_asns, forward_depend);
+            MakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
 
             string src_dir = HomeDir + "\\src\\CUDA";
             if (!Directory.Exists(src_dir)) {
@@ -257,12 +281,18 @@ namespace MkFn {
                 Directory.CreateDirectory(src_dir);
             }
 
-            //!!!!!!!!!! デバッグ環境用 !!!!!!!!!!
-            src_dir = @"Z:\prj\mkfn\src\CUDA";
+            if (Directory.Exists(@"Z:\")) {
 
-            // 宣言と実装をファイルに書く。
-            File.WriteAllText(src_dir + "\\" + cls.Name + ".h" , ASCII(header_sw.ToString()), Encoding.UTF8);
-            File.WriteAllText(src_dir + "\\" + cls.Name + ".cu", ASCII(body_sw.ToString()), Encoding.UTF8);
+                //!!!!!!!!!! デバッグ環境用 !!!!!!!!!!
+                src_dir = @"Z:\prj\mkfn\src\CUDA";
+            }
+
+            // ヘッダファイルのコードを作る。
+            string header_code = MakeHeaderFile(cls, mc, array_flds, constructor, sorted_forward_asns, sorted_backward_asns);
+            File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_code), Encoding.UTF8);
+
+            // 実装のコードをファイルに書く。
+            File.WriteAllText(src_dir + "\\" + cls.Name + ".cu", ASCII(sw.ToString()), Encoding.UTF8);
         }
     }
 }

@@ -518,14 +518,4 @@ namespace MkFn {
             return alls;
         }
     }
-
-    public class TermEqualityComparer : IEqualityComparer<Term> {
-        bool IEqualityComparer<Term>.Equals(Term x, Term y) {
-            return x.Eq(y);
-        }
-
-        int IEqualityComparer<Term>.GetHashCode(Term obj) {
-            return obj.HashCode();            
-        }
-    }
 }

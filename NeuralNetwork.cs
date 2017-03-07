@@ -477,4 +477,3 @@ public class DNC : Layer {
         }
     }
 }
-//}

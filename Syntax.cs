@@ -8,6 +8,16 @@ using System.Diagnostics;
 
 namespace MkFn {
     /*
+    フィールドの種類
+    */
+    public enum FieldKind {
+        Unknown,
+        DomainField,
+        CalculatedField,
+        ParameterField,
+    }
+
+    /*
         クラス
     */
     public class Class {
@@ -94,6 +104,9 @@ namespace MkFn {
 
         // 定義域
         public Term Domain;
+
+        // フィールドの種類
+        public FieldKind Kind = FieldKind.Unknown;
 
         public bool IsField() {
             return !(this is Function) && ParentVar is Class;

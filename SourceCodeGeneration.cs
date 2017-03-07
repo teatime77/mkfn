@@ -11,7 +11,7 @@ namespace MkFn {
             添え字から配列の先頭からのオフセットの計算式を得る。
         */
         public static Term OffsetFromIndexes(Reference rf) {
-            if (! IsNew(rf.VarRef.Domain)) {
+            if (!IsNew(rf.VarRef.Domain)) {
                 // 変数の定義域がない場合
 
                 throw new Exception();
@@ -24,42 +24,29 @@ namespace MkFn {
             Apply domain = (rf.VarRef.Domain as Apply).Clone();
 
             Term t = rf.Indexes[0];
-            for(int dim = 1; dim < rf.Indexes.Length; dim++) {
-                t = Add(Mul(domain.Args[dim],  t), rf.Indexes[dim]);
+            for (int dim = 1; dim < rf.Indexes.Length; dim++) {
+                t = Add(Mul(domain.Args[dim], t), rf.Indexes[dim]);
             }
-            
+
             return t;
         }
 
         /*
-            共通部分式除去
-
-            スレッドとブロックのIDから添え字を計算。
-            同じ添え字の計算式をまとめる。        
-        */
-        void CommonSubexpressionElimination(BlockStatement blc) {
-            // ブロック文の中の多次元の添え字付きの変数参照のリスト
-            List<Reference> refs = AllRefs(blc).Where(r => r.Indexes != null && r.Indexes.Length != 1).ToList();
-
-            Dictionary<Term, Variable> common_offsets = new Dictionary<Term, Variable>(new TermEqualityComparer());
-
-            foreach(Reference rf in refs) {
-                Term offset = OffsetFromIndexes(rf);
-
-                Variable va;
-
-                if(common_offsets.TryGetValue(offset, out va)) {
-
-                }
-                else {
-
-                    va = new Variable(offset.ToString(), IntClass, null);
-                    common_offsets.Add(offset, va);
-                }
-            }
-        }
-
-        /*
+CUDAとCの違い
+・ 出力先 \\src\\CUDA
+・ ファイル拡張子 .cu / .cpp
+・ #include
+・ cudaMalloc、cudaFree
+・ cudaStreamCreate、cudaStreamDestroy
+・ カーネル関数の本体
+   ・ ヘッダー行 __global__  inline
+   ・ 代入先の添え字
+     ・ threadIdxとblockIdxから計算
+     ・ カーネル関数の引数に含める。
+・ カーネル関数の起動
+・ 
+・ 
+・ 
         
         */
 
@@ -73,17 +60,12 @@ namespace MkFn {
 
         /*
          
+        バッチ
+            メモリの確保
+            カーネル関数の起動
+            配列のアクセス
+            集計
 
-        メモリの操作( CPU / GPU )
-            確保
-            解放
-         
-        カーネルの操作
-            メモリーのコピー( CPU⇔GPU )
-            起動
-                引数のセット
-                スレッドとブロックの割り当て
-            同期
          
          
          */
