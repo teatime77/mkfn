@@ -214,6 +214,8 @@ namespace MkFn {
             逆伝播の関数を作る。
         */
         void MakeBackward(Class cls, Variable x_var, Variable y_var, Variable t_var, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+            MkFn.LinqValue = new Dictionary<LINQ, string>();
+
             // 代入文の依存関係
             Dictionary<Assignment, List<Assignment>> forward_depend = AssignmentDependency(t_var, forward_asns);
             Dictionary<Assignment, List<Assignment>> backward_depend = AssignmentDependency(t_var, backward_asns);
@@ -253,7 +255,7 @@ namespace MkFn {
             sw.WriteLine("");
             sw.WriteLine(mc.FunctionHeader(cls, constructor, true) + "{");
 
-            foreach(Statement stmt in constructor.BodyStatement.Statements) {
+            foreach (Statement stmt in constructor.BodyStatement.Statements) {
                 Variable fld = (stmt as Assignment).Left.VarRef;
                 if (fld.TypeVar is ArrayType) {
 
@@ -308,6 +310,8 @@ namespace MkFn {
 
             // 実装のコードをファイルに書く。
             File.WriteAllText(src_dir + "\\" + cls.Name + ".cu", ASCII(sw.ToString()), Encoding.UTF8);
+
+            MkFn.LinqValue = null;
         }
     }
 }

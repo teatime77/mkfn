@@ -76,6 +76,9 @@ namespace MkFn {
         [ThreadStatic]
         public static Language OutputLanguage;
 
+        [ThreadStatic]
+        public static Dictionary<LINQ, string> LinqValue;
+
         public MkFn() {
             AddFnc = new Variable("+", ArgClass, null);
             MulFnc = new Variable("*", ArgClass, null);
@@ -139,7 +142,7 @@ namespace MkFn {
 
                 Debug.WriteLine("相互依存の代入文");
                 foreach (Assignment asn in pending) {
-                    Debug.WriteLine(asn.ToString());
+                    //Debug.WriteLine(asn.ToString());
                 }
                 break;
 
@@ -482,6 +485,8 @@ namespace MkFn {
 
             // Cのソースを作る。
             MakeCode mc = new MakeCode(this);
+            MkFn.LinqValue = new Dictionary<LINQ, string>();
+
             string header, body;
 
             mc.ClassCode(cls, out header, out body);
@@ -495,6 +500,8 @@ namespace MkFn {
             // 宣言と実装をファイルに書く。
             File.WriteAllText(html_dir + "\\" + cls.Name + ".h"  , ASCII(header), Encoding.UTF8);
             File.WriteAllText(html_dir + "\\" + cls.Name + ".cpp", ASCII(body), Encoding.UTF8);
+
+            MkFn.LinqValue = null;
         }
 
         // u[iu, ju, k] = (from p in Range(H) from q in Range(H) select x[iu + p, ju + q] * h[p, q, k]).Sum() + b[k];

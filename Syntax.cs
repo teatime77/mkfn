@@ -733,16 +733,21 @@ namespace MkFn {
                 Debug.Assert(Args.Length != 1);
 
                 if (IsAdd()) {
+                    // 加算の場合
 
                     //s = string.Join(" ", from x in Args select (x == Args[0] || x.Value < 0 ? "" : "+ ") + (Math.Abs(x.Value) == 1 ? x.ToStringBody() : x.ToString()));
                     s = string.Join(" ", from x in Args select (x == Args[0] || x.Value < 0 ? "" : "+ ") + x.ToString());
                 }
                 else {
+                    // 加算でない場合
 
                     s = string.Join(" " + Function.Name + " ", from x in Args select x.ToString());
                 }
 
                 if (Parent is Apply && (Parent as Apply).Precedence() <= Precedence()) {
+                    // 親の演算子の優先順位が高い場合
+
+                    // カッコで囲む。
                     return "(" + s + ")";
                 }
                 else {
@@ -750,6 +755,7 @@ namespace MkFn {
                 }
             }
             else {
+                // 演算子でない場合
 
                 if (Function.VarRef == MkFn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
 
@@ -881,6 +887,10 @@ namespace MkFn {
         }
 
         public override string ToStringBody() {
+            if (MkFn.LinqValue != null) {
+
+                return MkFn.LinqValue[this];
+            }
             string list = string.Join(" ", from x in Variables select "from " + x.Name + " in " + x.Domain.ToString()) + " select " + Select.ToString();
             if (Aggregate == null) {
 
