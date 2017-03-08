@@ -6,16 +6,8 @@ using System.Linq;
 using System.Text;
 
 namespace MkFn {
-    public partial class MakeCode {
-        public MkFn theMkFn;
+    public partial class MkFn {
         public int TmpCnt;
-
-        /*
-            コンストラクター
-        */
-        public MakeCode(MkFn mkfn) {
-            theMkFn = mkfn;
-        }
 
         /*
           ネストの空白を返す。  
@@ -84,33 +76,33 @@ namespace MkFn {
                     string tmp_name = MkFn.LinqValue[lnq];
 
                     // 作業変数を初期化する。
-                    if (lnq.Aggregate.VarRef == theMkFn.SumFnc) {
+                    if (lnq.Aggregate.VarRef == SumFnc) {
                         // 和の場合
 
                         // 初期値 = 0
                         sw.WriteLine("{0}{1} {2} = 0;", Nest(nest), lnq.TypeTerm.ToString(), tmp_name);
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.ProdFnc) {
+                    else if (lnq.Aggregate.VarRef == ProdFnc) {
                         // 積の場合
 
                         // 初期値 = 1
                         sw.WriteLine("{0}{1} {2} = 1;", Nest(nest), lnq.TypeTerm.ToString(), tmp_name);
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.MaxFnc) {
+                    else if (lnq.Aggregate.VarRef == MaxFnc) {
                         // 最大値の場合
 
                         string min_const = "";
-                        if(lnq.TypeTerm == theMkFn.DoubleClass) {
+                        if(lnq.TypeTerm == DoubleClass) {
                             // doubleの場合
 
                             min_const = "-DBL_MAX";
                         }
-                        else if (lnq.TypeTerm == theMkFn.FloatClass) {
+                        else if (lnq.TypeTerm == FloatClass) {
                             // floatの場合
                             
                             min_const = "-FLT_MAX";
                         }
-                        else if (lnq.TypeTerm == theMkFn.IntClass) {
+                        else if (lnq.TypeTerm == IntClass) {
                             // intの場合
                             
                             min_const = "INT_MIN";
@@ -129,19 +121,19 @@ namespace MkFn {
                         ForHeadCode(loop_var, sw, nest);
                     }
 
-                    if (lnq.Aggregate.VarRef == theMkFn.SumFnc) {
+                    if (lnq.Aggregate.VarRef == SumFnc) {
                         // 和の場合
 
                         // 加算する。
                         sw.WriteLine("{0}{1} += {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.ProdFnc) {
+                    else if (lnq.Aggregate.VarRef == ProdFnc) {
                         // 積の場合
 
                         // 乗算する。
                         sw.WriteLine("{0}{1} *= {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.MaxFnc) {
+                    else if (lnq.Aggregate.VarRef == MaxFnc) {
                         // 最大値の場合
 
                         // 最大値を更新する。

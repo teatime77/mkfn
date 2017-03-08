@@ -41,10 +41,8 @@ namespace MkFn {
                 sw.WriteLine("\tint {0} = {1};", asn.Left.Indexes[dim1].ToString(), idx);
             }
 
-            MakeCode mc = new MakeCode(this);
-
             // カーネル関数の本体のコードを書く。
-            sw.WriteLine(mc.StatementCode(asn, 1));
+            sw.WriteLine(StatementCode(asn, 1));
 
             sw.WriteLine("}");
         }
@@ -182,16 +180,16 @@ namespace MkFn {
         /*
         ヘッダファイルのコードを作る。
         */
-        string MakeHeaderFile(Class cls, MakeCode mc, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns) {
+        string MakeHeaderFile(Class cls, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns) {
             StringWriter header_sw = new StringWriter();
 
             string header = "class " + cls.Name + " : Layer {\r\npublic:\r\n" +
-                string.Join("", from fld in cls.Fields select mc.Nest(1) + mc.FieldCode(fld)) +
+                string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld)) +
                 string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
 
             header_sw.WriteLine(header);
 
-            header_sw.WriteLine("\t{0};", mc.FunctionHeader(cls, constructor, false));
+            header_sw.WriteLine("\t{0};", FunctionHeader(cls, constructor, false));
             header_sw.WriteLine("\t~{0}();", cls.Name);
             header_sw.WriteLine("\tvoid Forward();");
             header_sw.WriteLine("\tvoid Backward();");
@@ -225,9 +223,6 @@ namespace MkFn {
 
             OutputLanguage = Language.CUDA;
 
-            // Cのソースを作る。
-            MakeCode mc = new MakeCode(this);
-
             StringWriter sw = new StringWriter();
 
             if (OutputLanguage == Language.CUDA) {
@@ -250,10 +245,10 @@ namespace MkFn {
             Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();
 
 
-            mc.TmpCnt = 0;
+            TmpCnt = 0;
 
             sw.WriteLine("");
-            sw.WriteLine(mc.FunctionHeader(cls, constructor, true) + "{");
+            sw.WriteLine(FunctionHeader(cls, constructor, true) + "{");
 
             foreach (Statement stmt in constructor.BodyStatement.Statements) {
                 Variable fld = (stmt as Assignment).Left.VarRef;
@@ -261,7 +256,7 @@ namespace MkFn {
 
                 }
                 else {
-                    sw.WriteLine(mc.StatementCode(stmt, 1));
+                    sw.WriteLine(StatementCode(stmt, 1));
                 }
             }
 
@@ -305,7 +300,7 @@ namespace MkFn {
             }
 
             // ヘッダファイルのコードを作る。
-            string header_code = MakeHeaderFile(cls, mc, array_flds, constructor, sorted_forward_asns, sorted_backward_asns);
+            string header_code = MakeHeaderFile(cls, array_flds, constructor, sorted_forward_asns, sorted_backward_asns);
             File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_code), Encoding.UTF8);
 
             // 実装のコードをファイルに書く。

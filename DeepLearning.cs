@@ -484,12 +484,11 @@ namespace MkFn {
             OutputLanguage = Language.CPP;
 
             // Cのソースを作る。
-            MakeCode mc = new MakeCode(this);
             MkFn.LinqValue = new Dictionary<LINQ, string>();
 
             string header, body;
 
-            mc.ClassCode(cls, out header, out body);
+            ClassCode(cls, out header, out body);
 
             string html_dir = HomeDir + "\\src\\C";
             if (!Directory.Exists(html_dir)) {
