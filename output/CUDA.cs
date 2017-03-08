@@ -181,37 +181,37 @@ namespace MkFn {
         ヘッダファイルのコードを作る。
         */
         string MakeHeaderFile(Class cls, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns) {
-            StringWriter header_sw = new StringWriter();
+            StringWriter sw = new StringWriter();
 
             string header = "class " + cls.Name + " : Layer {\r\npublic:\r\n" +
                 string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld)) +
                 string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
 
-            header_sw.WriteLine(header);
+            sw.WriteLine(header);
 
-            header_sw.WriteLine("\t{0};", FunctionHeader(cls, constructor, false));
-            header_sw.WriteLine("\t~{0}();", cls.Name);
-            header_sw.WriteLine("\tvoid Forward();");
-            header_sw.WriteLine("\tvoid Backward();");
-            header_sw.WriteLine("\tvoid Allocate();");
-            header_sw.WriteLine("\tvoid Free();");
+            sw.WriteLine("\t{0};", FunctionHeader(cls, constructor, false));
+            sw.WriteLine("\t~{0}();", cls.Name);
+            sw.WriteLine("\tvoid Forward();");
+            sw.WriteLine("\tvoid Backward();");
+            sw.WriteLine("\tvoid Allocate();");
+            sw.WriteLine("\tvoid Free();");
 
             foreach (Assignment asn in sorted_forward_asns) {
-                header_sw.WriteLine("\tvoid Start_{0}();", KernelName(true , asn.Left.VarRef));
+                sw.WriteLine("\tvoid Start_{0}();", KernelName(true , asn.Left.VarRef));
             }
             foreach (Assignment asn in sorted_backward_asns) {
-                header_sw.WriteLine("\tvoid Start_{0}();", KernelName(false, asn.Left.VarRef));
+                sw.WriteLine("\tvoid Start_{0}();", KernelName(false, asn.Left.VarRef));
             }
 
-            header_sw.WriteLine("};");
+            sw.WriteLine("};");
 
-            return header_sw.ToString();
+            return sw.ToString();
         }
 
         /*
-            逆伝播の関数を作る。
+            ソースコードを作る。
         */
-        void MakeBackward(Class cls, Variable x_var, Variable y_var, Variable t_var, Function forward, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+        void MakeSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
             MkFn.LinqValue = new Dictionary<LINQ, string>();
 
             // 代入文の依存関係
@@ -243,7 +243,6 @@ namespace MkFn {
 
             // コンストラクター
             Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();
-
 
             TmpCnt = 0;
 
@@ -286,6 +285,36 @@ namespace MkFn {
             // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
             MakeForwardBackward(cls, sw, true , sorted_forward_asns, forward_depend);
             MakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
+
+            // パラメータ更新のカーネル関数とカーネル起動関数を作る。
+            var param_flds = cls.Fields.Where(x => x.Kind == FieldKind.ParameterField);
+            Dictionary<Apply, List<Variable>> dic = new Dictionary<Apply, List<Variable>>(new TermEqualityComparer());
+            foreach(Variable fld in param_flds) {
+                List<Variable> flds;
+
+                Debug.Assert(IsNew(fld.Domain));
+                if(! dic.TryGetValue(fld.Domain as Apply, out flds)) {
+
+                    flds = new List<Variable>();
+                    dic.Add(fld.Domain as Apply, flds);
+
+                    Debug.WriteLine("A PARAM {0}.{1}", cls.Name, fld.Name);
+                }
+                else {
+
+                    Debug.WriteLine("B PARAM {0}.{1}", cls.Name, fld.Name);
+                }
+
+                flds.Add(fld);
+            }
+            foreach(Apply app in dic.Keys) {
+                List<Variable> flds = dic[app];
+                Debug.Assert(IsNew(app));
+                foreach(Variable fld in flds) {
+                    //Assignment asn = new Assignment( )
+                }
+            }
+
 
             string src_dir = HomeDir + "\\src\\CUDA";
             if (!Directory.Exists(src_dir)) {

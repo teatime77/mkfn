@@ -436,13 +436,6 @@ namespace MkFn {
             return this is Apply && AsApply().Function.VarRef == MkFn.Singleton.MulFnc;
         }
 
-        /*
-            Rangeならtrueを返す。
-        */
-        public static bool IsRange(Term t) {
-            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.RangeFnc;
-        }
-
         public virtual string Code() {
             return ToString();
         }

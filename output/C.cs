@@ -20,7 +20,7 @@ namespace MkFn {
           for文の先頭のコードを追加する。  
         */
         public void ForHeadCode(Variable loop_var, StringWriter sw, int nest) {
-            if (!Term.IsRange(loop_var.Domain)) {
+            if (!IsRange(loop_var.Domain)) {
                 throw new Exception();
             }
 

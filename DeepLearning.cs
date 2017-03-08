@@ -622,9 +622,20 @@ namespace MkFn {
                 fld.Kind = FieldKind.CalculatedField;
             }
 
-            var domain_fields = (from fld in cls.Fields where IsNew(fld.Domain) from r in AllRefs(fld.Domain) select r.VarRef).Distinct();
-            foreach (Variable fld in domain_fields) {
-                fld.Kind = FieldKind.DomainField;
+            var range_vars = from x in All<Variable>(cls) where IsRange(x.Domain) from r in AllRefs(x.Domain) where r.VarRef != RangeFnc && r.VarRef.ParentVar == cls select r.VarRef;
+            var domain_fields = from fld in cls.Fields where IsNew(fld.Domain) from r in AllRefs(fld.Domain) where r.VarRef != NewFnc select r.VarRef;
+            
+            foreach (Variable fld in range_vars.Union(domain_fields).Distinct()) {
+                if(fld.TypeVar != IntClass) {
+                    throw new Exception();
+                }
+                else {
+
+                    fld.Kind = FieldKind.DomainField;
+                }
+            }
+            foreach(Variable fld in cls.Fields.Where(x => x.TypeVar == IntClass)) {
+                Debug.Assert(fld.Kind == FieldKind.DomainField);
             }
 
             foreach (Variable fld in cls.Fields.Where(x => x.Kind == FieldKind.Unknown)) {
@@ -839,9 +850,9 @@ namespace MkFn {
                     cls.AddField(delta_fld);
                 }
 
-                // 逆伝播の関数を作る。
+                // ソースコードを作る。
                 List<Assignment> sorted_backward_asns;
-                MakeBackward(cls, x_var, y_var, t_var, forward, forward_asns, backward_asns, out sorted_backward_asns);
+                MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_asns, backward_asns, out sorted_backward_asns);
 
                 sw.WriteLine("<hr/>");
                 sw.WriteLine("<h4 style='color : red;'>逆伝播</h4>");
