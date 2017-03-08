@@ -57,7 +57,7 @@ namespace MkFn {
             cpu_sw.WriteLine("\tint threadsPerBlock;");
             cpu_sw.WriteLine("\tint blocks_x = 1;");
             cpu_sw.WriteLine("\tint blocks_y = 1;");
-            cpu_sw.WriteLine("\tint blocks_z = 1;");
+            cpu_sw.WriteLine("\tint blocks_z = BatchSize;");
 
             Apply domain = asn.Left.VarRef.Domain as Apply;
 
@@ -76,7 +76,6 @@ namespace MkFn {
                     dst = "blocks_y";
                     break;
                 case 3:
-                    dst = "blocks_z";
                     break;
                 }
                 cpu_sw.WriteLine("\t{0} = {1};", dst, sz);
@@ -147,6 +146,7 @@ namespace MkFn {
             // 順伝播/逆伝播の関数を作る。
             string fnc_name = (is_forward ? "Forward" : "Backward");
             body_sw.WriteLine("void {0}::{1}(){{", cls.Name, fnc_name);
+            body_sw.WriteLine("\tcudaMemcpyToSymbol(&_BatchSize, &BatchSize, sizeof(BatchSize));");
             foreach (Assignment asn in asns) {
                 body_sw.WriteLine("\tStart_{0}();", KernelName(is_forward, asn.Left.VarRef));
             }
@@ -185,7 +185,7 @@ namespace MkFn {
         string MakeHeaderFile(Class cls, MakeCode mc, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns) {
             StringWriter header_sw = new StringWriter();
 
-            string header = "class " + cls.Name + " {\r\npublic:\r\n" +
+            string header = "class " + cls.Name + " : Layer {\r\npublic:\r\n" +
                 string.Join("", from fld in cls.Fields select mc.Nest(1) + mc.FieldCode(fld)) +
                 string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
 
@@ -195,6 +195,8 @@ namespace MkFn {
             header_sw.WriteLine("\t~{0}();", cls.Name);
             header_sw.WriteLine("\tvoid Forward();");
             header_sw.WriteLine("\tvoid Backward();");
+            header_sw.WriteLine("\tvoid Allocate();");
+            header_sw.WriteLine("\tvoid Free();");
 
             foreach (Assignment asn in sorted_forward_asns) {
                 header_sw.WriteLine("\tvoid Start_{0}();", KernelName(true , asn.Left.VarRef));
@@ -237,6 +239,8 @@ namespace MkFn {
             sw.WriteLine("#include \"MkFn.h\"");
             sw.WriteLine("#include \"{0}.h\"", cls.Name);
 
+            sw.WriteLine("__constant__ int _BatchSize;");
+
             List<Variable> array_flds = cls.Fields.Where(x => x.TypeVar is ArrayType).ToList();
 
 
@@ -253,7 +257,6 @@ namespace MkFn {
                 Variable fld = (stmt as Assignment).Left.VarRef;
                 if (fld.TypeVar is ArrayType) {
 
-                    sw.WriteLine("\tcudaMalloc(&{0}, {1}); \r\n", fld.Name, ElementCountApply(fld).Code());
                 }
                 else {
                     sw.WriteLine(mc.StatementCode(stmt, 1));
@@ -267,8 +270,20 @@ namespace MkFn {
             // デストラクタ
             sw.WriteLine("");
             sw.WriteLine("{0}::~{0}(){{", cls.Name);
-            sw.Write(string.Join("", from fld in array_flds select string.Format("\tcudaFree({0}); \r\n", fld.Name)));
+            sw.WriteLine("\tFree();");
             sw.WriteLine(string.Join("", from fld in array_flds select "\tcudaStreamDestroy(" + StreamName(fld) + ");\r\n"));
+            sw.WriteLine("}");
+
+            // 配列の領域の確保
+            sw.WriteLine("");
+            sw.WriteLine("void {0}::Allocate(){{", cls.Name);
+            sw.Write(string.Join("", from fld in array_flds select string.Format("\tcudaMalloc(&{0}, BatchSize * {1}); \r\n", fld.Name, ElementCountApply(fld).Code())));
+            sw.WriteLine("}");
+
+            // 配列の領域の解放
+            sw.WriteLine("");
+            sw.WriteLine("void {0}::Free(){{", cls.Name);
+            sw.Write(string.Join("", from fld in array_flds select string.Format("\tcudaFree({0}); \r\n", fld.Name)));
             sw.WriteLine("}");
 
             // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
