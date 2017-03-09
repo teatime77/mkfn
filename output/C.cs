@@ -6,17 +6,8 @@ using System.Linq;
 using System.Text;
 
 namespace MkFn {
-    public partial class MakeCode {
-        public MkFn theMkFn;
-        Dictionary<LINQ, string> LinqValue = new Dictionary<LINQ, string>();
+    public partial class MkFn {
         public int TmpCnt;
-
-        /*
-            コンストラクター
-        */
-        public MakeCode(MkFn mkfn) {
-            theMkFn = mkfn;
-        }
 
         /*
           ネストの空白を返す。  
@@ -26,40 +17,10 @@ namespace MkFn {
         }
 
         /*
-          型のコードを返す。  
-        */
-        public string TypeCode(Class cls) {
-            Debug.Assert(cls != null);
-
-            if(cls.DimCnt == 0) {
-                // スカラーの場合
-
-                return cls.Name;
-            }
-            else if (cls.DimCnt == 1) {
-                // 1次元配列の場合
-
-                return cls.Name + "*";
-            }
-            else {
-                // 多次元配列の場合
-
-                if(MkFn.OutputLanguage == Language.CPP) {
-
-                    return string.Format("boost::multi_array<{0}, {1}>", cls.Name, cls.DimCnt);
-                }
-                else {
-
-                    return cls.Name + "*";
-                }
-            }
-        }
-
-        /*
           for文の先頭のコードを追加する。  
         */
         public void ForHeadCode(Variable loop_var, StringWriter sw, int nest) {
-            if (!Term.IsRange(loop_var.Domain)) {
+            if (!IsRange(loop_var.Domain)) {
                 throw new Exception();
             }
 
@@ -67,11 +28,11 @@ namespace MkFn {
 
             if (rng.Args.Length == 1) {
 
-                sw.WriteLine("{0}for(int {1} = 0; {1} < {2}; {1}++){{", Nest(nest), loop_var.Name, TermCode(rng.Args[0]));
+                sw.WriteLine("{0}for(int {1} = 0; {1} < {2}; {1}++){{", Nest(nest), loop_var.Name, rng.Args[0].ToString());
             }
             else if (rng.Args.Length == 2) {
 
-                sw.WriteLine("{0}for(int {1} = {2}; {1} < {3}; {1}++){{", Nest(nest), loop_var.Name, TermCode(rng.Args[0]), TermCode(rng.Args[1]));
+                sw.WriteLine("{0}for(int {1} = {2}; {1} < {3}; {1}++){{", Nest(nest), loop_var.Name, rng.Args[0].ToString(), rng.Args[1].ToString());
             }
             else {
 
@@ -88,9 +49,6 @@ namespace MkFn {
             if (stmt is Assignment || stmt is Return) {
                 // 代入文かreturnの場合
 
-                sw.WriteLine("");
-                sw.WriteLine(Nest(nest) + "// " + stmt.ToString());
-
                 // すべてのLINQのリスト
                 List<LINQ> lnks = new List<LINQ>();
                 MkFn.Traverse(stmt,
@@ -106,42 +64,45 @@ namespace MkFn {
                     // 集計用の変数
                     TmpCnt++;
                     string tmp_name = string.Format("_wk{0}", TmpCnt);
-                    LinqValue.Add(lnq, tmp_name);
+                    MkFn.LinqValue.Add(lnq, tmp_name);
                 }
+
+                sw.WriteLine("");
+                sw.WriteLine(Nest(nest) + "// " + stmt.ToString());
 
                 foreach (LINQ lnq in lnks) {
 
                     // 作業変数の名前
-                    string tmp_name = LinqValue[lnq];
+                    string tmp_name = MkFn.LinqValue[lnq];
 
                     // 作業変数を初期化する。
-                    if (lnq.Aggregate.VarRef == theMkFn.SumFnc) {
+                    if (lnq.Aggregate.VarRef == SumFnc) {
                         // 和の場合
 
                         // 初期値 = 0
-                        sw.WriteLine("{0}{1} {2} = 0;", Nest(nest), TypeCode(lnq.TypeTerm), tmp_name);
+                        sw.WriteLine("{0}{1} {2} = 0;", Nest(nest), lnq.TypeTerm.ToString(), tmp_name);
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.ProdFnc) {
+                    else if (lnq.Aggregate.VarRef == ProdFnc) {
                         // 積の場合
 
                         // 初期値 = 1
-                        sw.WriteLine("{0}{1} {2} = 1;", Nest(nest), TypeCode(lnq.TypeTerm), tmp_name);
+                        sw.WriteLine("{0}{1} {2} = 1;", Nest(nest), lnq.TypeTerm.ToString(), tmp_name);
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.MaxFnc) {
+                    else if (lnq.Aggregate.VarRef == MaxFnc) {
                         // 最大値の場合
 
                         string min_const = "";
-                        if(lnq.TypeTerm == theMkFn.DoubleClass) {
+                        if(lnq.TypeTerm == DoubleClass) {
                             // doubleの場合
 
                             min_const = "-DBL_MAX";
                         }
-                        else if (lnq.TypeTerm == theMkFn.FloatClass) {
+                        else if (lnq.TypeTerm == FloatClass) {
                             // floatの場合
                             
                             min_const = "-FLT_MAX";
                         }
-                        else if (lnq.TypeTerm == theMkFn.IntClass) {
+                        else if (lnq.TypeTerm == IntClass) {
                             // intの場合
                             
                             min_const = "INT_MIN";
@@ -151,7 +112,7 @@ namespace MkFn {
                         }
 
                         // 初期値 = 数の最小値
-                        sw.WriteLine("{0}{1} {2} = {3};", Nest(nest), TypeCode(lnq.TypeTerm), tmp_name, min_const);
+                        sw.WriteLine("{0}{1} {2} = {3};", Nest(nest), lnq.TypeTerm.ToString(), tmp_name, min_const);
                     }
 
                     // ループ変数に対し
@@ -160,23 +121,23 @@ namespace MkFn {
                         ForHeadCode(loop_var, sw, nest);
                     }
 
-                    if (lnq.Aggregate.VarRef == theMkFn.SumFnc) {
+                    if (lnq.Aggregate.VarRef == SumFnc) {
                         // 和の場合
 
                         // 加算する。
-                        sw.WriteLine("{0}{1} += {2};", Nest(nest+1), tmp_name, TermCode(lnq.Select));
+                        sw.WriteLine("{0}{1} += {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.ProdFnc) {
+                    else if (lnq.Aggregate.VarRef == ProdFnc) {
                         // 積の場合
 
                         // 乗算する。
-                        sw.WriteLine("{0}{1} *= {2};", Nest(nest+1), tmp_name, TermCode(lnq.Select));
+                        sw.WriteLine("{0}{1} *= {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
-                    else if (lnq.Aggregate.VarRef == theMkFn.MaxFnc) {
+                    else if (lnq.Aggregate.VarRef == MaxFnc) {
                         // 最大値の場合
 
                         // 最大値を更新する。
-                        sw.WriteLine("{0}{1} = std::max({1}, {2});", Nest(nest+1), tmp_name, TermCode(lnq.Select));
+                        sw.WriteLine("{0}{1} = std::max({1}, {2});", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
 
                     // ループ変数に対し
@@ -190,12 +151,12 @@ namespace MkFn {
 
                     Assignment asn = stmt as Assignment;
 
-                    sw.WriteLine( Nest(nest) + TermCode(asn.Left) + " = " + TermCode(asn.Right) + ";");
+                    sw.WriteLine( Nest(nest) + asn.Left.ToString() + " = " + asn.Right.ToString() + ";");
                 }
                 else {
                     // return文の場合
 
-                    sw.WriteLine( Nest(nest) + "return " + TermCode((stmt as Return).Value) + ";");
+                    sw.WriteLine( Nest(nest) + "return " + (stmt as Return).Value.ToString() + ";");
                 }
             }
             else if(stmt is ForEach) {
@@ -230,126 +191,10 @@ namespace MkFn {
         }
 
         /*
-          係数を含んだ項のコードを返す。  
-        */
-        public string TermCode(Term trm) {
-            if (!(trm is Number)) {
-                // 数値定数でない場合
-
-                if (trm.Value == 1) {
-
-                    return TermCodeBody(trm);
-                }
-                else if (trm.Value == -1) {
-
-                    return "- " + TermCodeBody(trm);
-                }
-                else {
-
-                    return trm.Value.ToString() + " * " + TermCodeBody(trm);
-                }
-            }
-            else {
-
-                return TermCodeBody(trm);
-            }
-        }
-
-        /*
-          係数を除く項の本体のコードを返す。  
-        */
-        string TermCodeBody(Term trm) {
-            if (trm is Reference) {
-                // 変数参照の場合
-
-                return trm.ToString();
-            }
-            else if (trm is Number) {
-                // 数値定数の場合
-
-                return trm.ToString();
-            }
-            else if (trm is Apply) {
-                // 関数適用の場合
-
-                Apply app = trm as Apply;
-
-                if ("+-*/%".Contains(app.Function.Name[0])) {
-                    // 演算子の場合
-
-                    string s;
-
-                    Debug.Assert(app.Args.Length != 1);
-
-                    if (app.IsAdd()) {
-                        // 加算の場合
-
-                        s = string.Join(" ", from x in app.Args select (x == app.Args[0] || x.Value < 0 ? "" : "+ ") + TermCode(x));
-                    }
-                    else {
-                        // 加算でない場合
-
-                        s = string.Join(" " + app.Function.Name + " ", from x in app.Args select TermCode(x));
-                    }
-
-                    if (app.Parent is Apply && (app.Parent as Apply).Precedence() <= app.Precedence()) {
-                        // 親の演算子の優先順位が高い場合
-
-                        // カッコで囲む。
-                        return "(" + s + ")";
-                    }
-                    else {
-                        return s;
-                    }
-                }
-                else {
-                    // 演算子でない場合
-
-                    if (app.Function.VarRef == MkFn.Singleton.DiffFnc && app.Args[0] is Reference && (app.Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
-
-                        return "δ_" + app.Args[1].ToString();
-                    }
-                    else if (MkFn.IsNew(app)) {
-                        // newの場合
-
-                        if (app.Args.Length == 0) {
-                            // スカラーの場合
-
-                            throw new Exception();
-                        }
-                        else if (app.Args.Length == 1) {
-                            // 1次元配列の場合
-
-                            return app.Function.Name + " " + app.NewClass.Name + string.Join("", from x in app.Args select "[" + x.ToString() + "]");
-                        }
-                        else {
-                            // 多次元配列の場合
-
-                            return string.Format("boost::multi_array<{0}, {1}>(boost::extents{2});", app.NewClass.Name, app.Args.Length, string.Join("", from x in app.Args select "[" + x.ToString() + "]"));
-                        }
-
-                    }
-                    else {
-
-                        return app.Function.Name + "(" + string.Join(", ", from x in app.Args select TermCode(x)) + ")";
-                    }
-                }
-            }
-            else if (trm is LINQ) {
-                // LINQの場合
-
-                return LinqValue[trm as LINQ];
-            }
-            else {
-                throw new Exception();
-            }
-        }
-
-        /*
           変数の宣言のコードを返す。  
         */
         public string VariableCode(Variable v) {
-            return TypeCode(v.TypeVar) + " " + v.Name;
+            return v.TypeVar.ToString() + " " + v.Name;
         }
 
         /*
@@ -370,7 +215,7 @@ namespace MkFn {
                 else {
                     // コンストラクターでない場合
 
-                    sw.Write("{0} {1}::{2}", TypeCode(fnc.TypeVar), (fnc.ParentVar as Class).Name, fnc.Name);
+                    sw.Write("{0} {1}::{2}", fnc.TypeVar.ToString(), (fnc.ParentVar as Class).Name, fnc.Name);
                 }
             }
             else {
@@ -384,7 +229,7 @@ namespace MkFn {
                 else {
                     // コンストラクターでない場合
 
-                    sw.Write("{0} {1}", TypeCode(fnc.TypeVar), fnc.Name);
+                    sw.Write("{0} {1}", fnc.TypeVar.ToString(), fnc.Name);
                 }
             }
             sw.Write("(" + string.Join(", ", from v in fnc.Params select VariableCode(v)) + ")");
@@ -411,7 +256,7 @@ namespace MkFn {
           フィールドの宣言のコードを返す。  
         */
         public string FieldCode(Variable fld) {
-            return TypeCode(fld.TypeVar) + " " + fld.Name + ";\r\n";
+            return fld.TypeVar.ToString() + " " + fld.Name + ";\r\n";
         }
 
         /*

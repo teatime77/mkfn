@@ -13,6 +13,14 @@ namespace MkFn {
             return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.NewFnc;
         }
 
+        /*
+            Rangeならtrueを返す。
+        */
+        public static bool IsRange(Term t) {
+            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.RangeFnc;
+        }
+
+
         Apply Range(Term start, Term end) {
             return new Apply(RangeFnc, start, end);
         }
@@ -517,5 +525,21 @@ namespace MkFn {
 
             return alls;
         }
+
+        public static List<T> All<T>(object root) {
+            List<T> alls = new List<T>();
+
+            MkFn.Traverse(root,
+                delegate (object obj) {
+                    if (obj is T) {
+                        // 変数参照の場合
+
+                        alls.Add((T)obj);
+                    }
+                });
+
+            return alls;
+        }
+
     }
 }

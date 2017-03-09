@@ -76,6 +76,9 @@ namespace MkFn {
         [ThreadStatic]
         public static Language OutputLanguage;
 
+        [ThreadStatic]
+        public static Dictionary<LINQ, string> LinqValue;
+
         public MkFn() {
             AddFnc = new Variable("+", ArgClass, null);
             MulFnc = new Variable("*", ArgClass, null);
@@ -139,7 +142,7 @@ namespace MkFn {
 
                 Debug.WriteLine("相互依存の代入文");
                 foreach (Assignment asn in pending) {
-                    Debug.WriteLine(asn.ToString());
+                    //Debug.WriteLine(asn.ToString());
                 }
                 break;
 
@@ -481,10 +484,11 @@ namespace MkFn {
             OutputLanguage = Language.CPP;
 
             // Cのソースを作る。
-            MakeCode mc = new MakeCode(this);
+            MkFn.LinqValue = new Dictionary<LINQ, string>();
+
             string header, body;
 
-            mc.ClassCode(cls, out header, out body);
+            ClassCode(cls, out header, out body);
 
             string html_dir = HomeDir + "\\src\\C";
             if (!Directory.Exists(html_dir)) {
@@ -495,6 +499,8 @@ namespace MkFn {
             // 宣言と実装をファイルに書く。
             File.WriteAllText(html_dir + "\\" + cls.Name + ".h"  , ASCII(header), Encoding.UTF8);
             File.WriteAllText(html_dir + "\\" + cls.Name + ".cpp", ASCII(body), Encoding.UTF8);
+
+            MkFn.LinqValue = null;
         }
 
         // u[iu, ju, k] = (from p in Range(H) from q in Range(H) select x[iu + p, ju + q] * h[p, q, k]).Sum() + b[k];
@@ -616,9 +622,20 @@ namespace MkFn {
                 fld.Kind = FieldKind.CalculatedField;
             }
 
-            var domain_fields = (from fld in cls.Fields where IsNew(fld.Domain) from r in AllRefs(fld.Domain) select r.VarRef).Distinct();
-            foreach (Variable fld in domain_fields) {
-                fld.Kind = FieldKind.DomainField;
+            var range_vars = from x in All<Variable>(cls) where IsRange(x.Domain) from r in AllRefs(x.Domain) where r.VarRef != RangeFnc && r.VarRef.ParentVar == cls select r.VarRef;
+            var domain_fields = from fld in cls.Fields where IsNew(fld.Domain) from r in AllRefs(fld.Domain) where r.VarRef != NewFnc select r.VarRef;
+            
+            foreach (Variable fld in range_vars.Union(domain_fields).Distinct()) {
+                if(fld.TypeVar != IntClass) {
+                    throw new Exception();
+                }
+                else {
+
+                    fld.Kind = FieldKind.DomainField;
+                }
+            }
+            foreach(Variable fld in cls.Fields.Where(x => x.TypeVar == IntClass)) {
+                Debug.Assert(fld.Kind == FieldKind.DomainField);
             }
 
             foreach (Variable fld in cls.Fields.Where(x => x.Kind == FieldKind.Unknown)) {
@@ -833,9 +850,9 @@ namespace MkFn {
                     cls.AddField(delta_fld);
                 }
 
-                // 逆伝播の関数を作る。
+                // ソースコードを作る。
                 List<Assignment> sorted_backward_asns;
-                MakeBackward(cls, x_var, y_var, t_var, forward, forward_asns, backward_asns, out sorted_backward_asns);
+                MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_asns, backward_asns, out sorted_backward_asns);
 
                 sw.WriteLine("<hr/>");
                 sw.WriteLine("<h4 style='color : red;'>逆伝播</h4>");

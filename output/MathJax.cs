@@ -162,7 +162,7 @@ namespace MkFn {
 
                 string s = "";
 
-                Debug.Assert(lnq.Variables.All(v => Term.IsRange(v.Domain)));
+                Debug.Assert(lnq.Variables.All(v => IsRange(v.Domain)));
 
                 Dictionary<Variable, Term> doms = lnq.Variables.ToDictionary(v => v, v => (v.Domain as Apply).Args[0]);
 
