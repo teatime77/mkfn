@@ -3,6 +3,11 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#include <vector>
+#include "../Lib/Lib.h"
+#include "MkFn.h"
+#include "FullyConnectedLayer.h"
+#include "../Lib/Network.h"
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
@@ -12,8 +17,25 @@ __global__ void addKernel(int *c, const int *a, const int *b)
     c[i] = a[i] + b[i];
 }
 
-int main()
-{
+void NetworkTest() {
+	_chk(cudaSetDevice(0));
+
+	Network<double> *net = new Network<double>();
+	net->EpochSize = 100;
+	net->TrainBatchSize = 10;
+	net->TestBatchSize = 20;
+	net->Layers = std::vector<Layer*>{
+		new FullyConnectedLayer(28 * 28, 30),
+		new FullyConnectedLayer(30, 0)
+	};
+
+	net->DeepLearning();
+
+}
+
+int main(){
+	NetworkTest();
+
     const int arraySize = 5;
     const int a[arraySize] = { 1, 2, 3, 4, 5 };
     const int b[arraySize] = { 10, 20, 30, 40, 50 };

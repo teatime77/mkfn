@@ -105,6 +105,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <AdditionalOptions>-Xcompiler "/wd 4819" -Wno-deprecated-gpu-targets %(AdditionalOptions)</AdditionalOptions>
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -159,11 +160,17 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <CudaCompile Include="RecurrentLayer.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Lib\Lib.h" />
+    <ClInclude Include="..\Lib\Network.h" />
     <ClInclude Include="ConvolutionalLayer.h" />
     <ClInclude Include="FullyConnectedLayer.h" />
     <ClInclude Include="LSTMLayer.h" />
     <ClInclude Include="MaxPoolingLayer.h" />
+    <ClInclude Include="MkFn.h" />
     <ClInclude Include="RecurrentLayer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Lib\Lib.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

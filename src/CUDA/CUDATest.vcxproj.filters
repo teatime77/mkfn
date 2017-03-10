@@ -42,5 +42,19 @@
     <ClInclude Include="RecurrentLayer.h">
       <Filter>inc</Filter>
     </ClInclude>
+    <ClInclude Include="MkFn.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Lib\Lib.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Lib\Network.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Lib\Lib.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

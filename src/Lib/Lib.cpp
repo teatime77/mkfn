@@ -4,7 +4,9 @@
 #include "stdlib.h"
 #include <random>
 #include <vector>
+#include <assert.h> 
 #include "Lib.h"
+#include "Network.h"
 
 UCHAR* ReadBinaryFile(wchar_t* mnist_dir, wchar_t* file_name) {
 	FILE* fp;
@@ -53,13 +55,13 @@ int* RandomSampling(int all_count, int sample_count) {
 		ret[i] = numbers[n];
 		numbers[n] = numbers[all_count - i - 1];
 	}
-	/*
+	
 	for (int i = 0; i < sample_count; i++) {
-	for (int j = i + 1; j < sample_count; j++) {
-	Debug.Assert(ret[i] != ret[j]);
+		for (int j = i + 1; j < sample_count; j++) {
+			assert(ret[i] != ret[j]);
+		}
 	}
-	}
-	*/
+
 
 	return ret;
 }
