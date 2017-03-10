@@ -87,7 +87,7 @@ namespace MkFn {
             if (depend.TryGetValue(asn, out depend_asns)) {
                 foreach(Assignment dep_asn in depend_asns) {
 
-                    sw.WriteLine("\tcudaStreamSynchronize({0});", StreamName(dep_asn.Left.VarRef));
+                    sw.WriteLine("\t_chk(cudaStreamSynchronize({0}));", StreamName(dep_asn.Left.VarRef));
                 }
             }
 
@@ -146,7 +146,7 @@ namespace MkFn {
             // 順伝播/逆伝播の関数を作る。
             string fnc_name = (is_forward ? "Forward" : "Backward");
             sw.WriteLine("void {0}::{1}(){{", cls.Name, fnc_name);
-            sw.WriteLine("\tcudaMemcpyToSymbol(&_BatchSize, &BatchSize, sizeof(BatchSize));");
+            sw.WriteLine("\t_chk(cudaMemcpyToSymbol(_BatchSize, &BatchSize, sizeof(BatchSize)));");
             foreach (Assignment asn in asns) {
                 sw.WriteLine("\tStart_{0}();", KernelName(is_forward, asn.Left.VarRef));
             }
@@ -292,7 +292,7 @@ namespace MkFn {
 
             // パラメータ更新の関数を作る。
             sw.WriteLine("void {0}::ParameterUpdate(){{", cls.Name);
-            sw.WriteLine("\tcudaMemcpyToSymbol(&_BatchSize, &BatchSize, sizeof(BatchSize));");
+            sw.WriteLine("\t_chk(cudaMemcpyToSymbol(_BatchSize, &BatchSize, sizeof(BatchSize)));");
             foreach (int i in Range(dic.Keys.Count)) {
                 sw.WriteLine("\tParameterUpdate_{0}();", i);
             }
@@ -330,10 +330,10 @@ namespace MkFn {
         /*
         ヘッダファイルのコードを作る。
         */
-        string MakeHeaderFile(Class cls, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, int n_parameter_update) {
+        string MakeHeaderFile(Class cls, Variable x_var, Variable y_var, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, int n_parameter_update) {
             StringWriter sw = new StringWriter();
 
-            string header = "class " + cls.Name + " : Layer {\r\npublic:\r\n" +
+            string header = "class " + cls.Name + " : public Layer {\r\npublic:\r\n" +
                 string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld)) +
                 string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
 
@@ -341,10 +341,13 @@ namespace MkFn {
 
             sw.WriteLine("\t{0};", FunctionHeader(cls, constructor, false));
             sw.WriteLine("\t~{0}();", cls.Name);
-            sw.WriteLine("\tvoid Forward();");
-            sw.WriteLine("\tvoid Backward();");
-            sw.WriteLine("\tvoid Allocate();");
-            sw.WriteLine("\tvoid Free();");
+            sw.WriteLine("\tvirtual void Forward() override;");
+            sw.WriteLine("\tvirtual void Backward() override;");
+            sw.WriteLine("\tvirtual void Allocate() override;");
+            sw.WriteLine("\tvirtual void Free() override;");
+
+            sw.WriteLine("\tvirtual void SetX(void* src) override {{ _chk(cudaMemcpy({0}, src, BatchSize * {1} * sizeof({2}), cudaMemcpyHostToDevice)); }}", x_var.Name, ElementCountApply(x_var).Code(), x_var.TypeVar.Name);
+            sw.WriteLine("\tvirtual void SetY(void* src) override {{ _chk(cudaMemcpy({0}, src, BatchSize * {1} * sizeof({2}), cudaMemcpyHostToDevice)); }}", y_var.Name, ElementCountApply(y_var).Code(), y_var.TypeVar.Name);
 
             foreach (Assignment asn in sorted_forward_asns) {
                 sw.WriteLine("\tvoid Start_{0}();", KernelName(true , asn.Left.VarRef));
@@ -380,26 +383,26 @@ namespace MkFn {
                     sw.WriteLine(StatementCode(stmt, 1));
                 }
             }
-            sw.WriteLine(string.Join("", from fld in array_flds select "\tcudaStreamCreate(&" + StreamName(fld) + ");\r\n"));
+            sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamCreate(&" + StreamName(fld) + "));\r\n"));
             sw.WriteLine("}");
 
             // デストラクタを作る。
             sw.WriteLine("");
             sw.WriteLine("{0}::~{0}(){{", cls.Name);
             sw.WriteLine("\tFree();");
-            sw.WriteLine(string.Join("", from fld in array_flds select "\tcudaStreamDestroy(" + StreamName(fld) + ");\r\n"));
+            sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamDestroy(" + StreamName(fld) + "));\r\n"));
             sw.WriteLine("}");
 
             // 配列の領域の確保を作る。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Allocate(){{", cls.Name);
-            sw.Write(string.Join("", from fld in array_flds select string.Format("\tcudaMalloc(&{0}, BatchSize * {1}); \r\n", fld.Name, ElementCountApply(fld).Code())));
+            sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(cudaMalloc(&{0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCountApply(fld).Code(), fld.TypeVar.Name)));
             sw.WriteLine("}");
 
             // 配列の領域の解放を作る。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Free(){{", cls.Name);
-            sw.Write(string.Join("", from fld in array_flds select string.Format("\tcudaFree({0}); \r\n", fld.Name)));
+            sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(cudaFree({0})); \r\n", fld.Name)));
             sw.WriteLine("}");
         }
 
@@ -428,6 +431,7 @@ namespace MkFn {
 
             sw.WriteLine("#include <stdio.h>");
             sw.WriteLine("#include <FLOAT.h>");
+            sw.WriteLine("#include \"../Lib/Lib.h\"");
             sw.WriteLine("#include \"MkFn.h\"");
             sw.WriteLine("#include \"{0}.h\"", cls.Name);
 
@@ -465,7 +469,7 @@ namespace MkFn {
             }
 
             // ヘッダファイルのコードを作る。
-            string header_code = MakeHeaderFile(cls, array_flds, constructor, sorted_forward_asns, sorted_backward_asns, n_parameter_update);
+            string header_code = MakeHeaderFile(cls, x_var, y_var, array_flds, constructor, sorted_forward_asns, sorted_backward_asns, n_parameter_update);
             File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_code), Encoding.UTF8);
 
             // 実装のコードをファイルに書く。
