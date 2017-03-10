@@ -56,11 +56,11 @@ int* RandomSampling(int all_count, int sample_count) {
 		numbers[n] = numbers[all_count - i - 1];
 	}
 	
-	for (int i = 0; i < sample_count; i++) {
-		for (int j = i + 1; j < sample_count; j++) {
-			assert(ret[i] != ret[j]);
-		}
-	}
+	//for (int i = 0; i < sample_count; i++) {
+	//	for (int j = i + 1; j < sample_count; j++) {
+	//		assert(ret[i] != ret[j]);
+	//	}
+	//}
 
 
 	return ret;
