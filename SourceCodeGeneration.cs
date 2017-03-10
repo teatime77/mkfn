@@ -31,41 +31,11 @@ namespace MkFn {
             return t;
         }
 
-        /*
-CUDAとCの違い
-・ 出力先 \\src\\CUDA
-・ ファイル拡張子 .cu / .cpp
-・ #include
-・ cudaMalloc、cudaFree
-・ cudaStreamCreate、cudaStreamDestroy
-・ カーネル関数の本体
-   ・ ヘッダー行 __global__  inline
-   ・ 代入先の添え字
-     ・ threadIdxとblockIdxから計算
-     ・ カーネル関数の引数に含める。
-・ カーネル関数の起動
-・ 
-・ 
-・ 
-        
-        */
-
-        /*
-        
-        */
-
-        /*
-        
-        */
 
         /*
          
         バッチ
             配列のアクセス
-            パラメータの更新
-                定義域が同じパラメータをまとめる。
-                    カーネル関数の生成
-                カーネル関数の起動の生成
 
         検証
             CalculatedField

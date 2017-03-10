@@ -114,7 +114,7 @@ namespace MkFn {
         /*
             順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
         */
-        void MakeForwardBackward(Class cls, StringWriter sw, bool is_forward, List<Assignment> asns, Dictionary<Assignment, List<Assignment>> depend) {
+        void CudaMakeForwardBackward(Class cls, StringWriter sw, bool is_forward, List<Assignment> asns, Dictionary<Assignment, List<Assignment>> depend) {
             // すべての代入文に対し
             foreach (Assignment asn in asns) {
                 if (!IsNew(asn.Left.VarRef.Domain)) {
@@ -146,9 +146,56 @@ namespace MkFn {
             // 順伝播/逆伝播の関数を作る。
             string fnc_name = (is_forward ? "Forward" : "Backward");
             sw.WriteLine("void {0}::{1}(){{", cls.Name, fnc_name);
-            sw.WriteLine("\t_chk(cudaMemcpyToSymbol(_BatchSize, &BatchSize, sizeof(BatchSize)));");
+            sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
             foreach (Assignment asn in asns) {
                 sw.WriteLine("\tStart_{0}();", KernelName(is_forward, asn.Left.VarRef));
+            }
+            sw.WriteLine("}");
+        }
+
+
+        /*
+            C++の順伝播/逆伝播の関数を作る。
+        */
+        void CppMakeForwardBackward(Class cls, StringWriter sw, bool is_forward, List<Assignment> asns, Dictionary<Assignment, List<Assignment>> depend) {
+            // 順伝播/逆伝播の関数を作る。
+            string fnc_name = (is_forward ? "Forward" : "Backward");
+            sw.WriteLine("void {0}::{1}(){{", cls.Name, fnc_name);
+            sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
+
+            // すべての代入文に対し
+            foreach (Assignment asn in asns) {
+                if (!IsNew(asn.Left.VarRef.Domain)) {
+                    throw new Exception();
+                }
+
+                // 代入先の添え字に対し
+                for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
+                    Reference idx = asn.Left.Indexes[dim1] as Reference;
+
+                    if (!IsRange(idx.VarRef.Domain)) {
+                        throw new Exception();
+                    }
+                    Apply range = idx.VarRef.Domain as Apply;
+
+                    if(range.Args.Length == 1) {
+
+                        sw.WriteLine("{0}for (int {1} = 0; {1} < {2}; {1}++) {{", Nest(dim1 + 1), idx.Name, range.Args[0].ToString());
+                    }
+                    else {
+
+                        sw.WriteLine("{0}for (int {1} = {2}; {1} < {3}; {1}++) {{", Nest(dim1 + 1), idx.Name, range.Args[0], range.Args[1]);
+                    }
+                }
+
+                // 代入文のコードを書く。
+                sw.WriteLine(StatementCode(asn, 2));
+
+                // 代入先の添え字に対し
+                for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
+
+                    sw.WriteLine("{0}}}", Nest(dim1 + 1));
+                }
             }
             sw.WriteLine("}");
         }
@@ -256,6 +303,33 @@ namespace MkFn {
         /*
             パラメータ更新のカーネル関数とカーネル起動関数を作る。
         */
+        void CppMakeParameterUpdate(Class cls, Dictionary<Variable, Variable> to_delta_fld, StringWriter sw, int kernel_idx, List<Variable> flds) {
+            sw.WriteLine("");
+            sw.WriteLine("void {0}::ParameterUpdate_{1}(){{", cls.Name, kernel_idx);
+            sw.WriteLine("\tint _count = {0};", ElementCountApply(flds[0]).Code());
+
+            sw.WriteLine("\tfor(int _idx = 0; _idx < _count; _idx++) {");
+            sw.WriteLine("\t\tint offset = _idx * _BatchSize;");
+
+            // カーネル関数の本体のコードを書く。
+            foreach (Variable fld in flds) {
+                Variable delta_fld = to_delta_fld[fld];
+                sw.WriteLine("\t\t{");
+                sw.WriteLine("\t\t\t{0} sum = 0;", fld.TypeVar.Name);
+                sw.WriteLine("\t\t\tfor (int i = 0; i < _BatchSize; i++) {");
+                sw.WriteLine("\t\t\t\tsum += {0}[offset + i];", delta_fld.Name);
+                sw.WriteLine("\t\t\t}");
+                sw.WriteLine("\t\t\t{0}[offset] += _LearningRate * sum;", fld.Name);
+                sw.WriteLine("\t\t}");
+            }
+            sw.WriteLine("\t}");
+
+            sw.WriteLine("}");
+        }
+
+        /*
+            パラメータ更新のカーネル関数とカーネル起動関数を作る。
+        */
         int MakeParameterUpdate(Class cls, Dictionary<Variable, Variable> to_delta_fld, StringWriter sw) {
             var param_flds = cls.Fields.Where(x => x.Kind == FieldKind.ParameterField);
             Dictionary<Apply, List<Variable>> dic = new Dictionary<Apply, List<Variable>>(new TermEqualityComparer());
@@ -278,24 +352,33 @@ namespace MkFn {
                 List<Variable> flds = dic[app];
                 Debug.Assert(IsNew(app));
 
-                // カーネル関数名
-                string kernel_name = "ParameterUpdateKernel_" + kernel_idx.ToString();
+                if(OutputLanguage == Language.CUDA) {
 
-                // パラメータ更新のカーネル関数のソースコードを作る。
-                MakeParameterUpdateKenel(sw, app, kernel_name, flds, to_delta_fld);
+                    // カーネル関数名
+                    string kernel_name = "ParameterUpdateKernel_" + kernel_idx.ToString();
 
-                // パラメータ更新のカーネル関数の起動のソースコードを作る。
-                MakeStartParameterUpdateKenel(cls, sw, app, kernel_name, kernel_idx, flds, to_delta_fld);
+                    // パラメータ更新のカーネル関数のソースコードを作る。
+                    MakeParameterUpdateKenel(sw, app, kernel_name, flds, to_delta_fld);
+
+                    // パラメータ更新のカーネル関数の起動のソースコードを作る。
+                    MakeStartParameterUpdateKenel(cls, sw, app, kernel_name, kernel_idx, flds, to_delta_fld);
+                }
+                else {
+
+                    CppMakeParameterUpdate(cls, to_delta_fld, sw, kernel_idx, flds);
+                }
 
                 kernel_idx++;
             }
 
             // パラメータ更新の関数を作る。
             sw.WriteLine("void {0}::ParameterUpdate(){{", cls.Name);
-            sw.WriteLine("\t_chk(cudaMemcpyToSymbol(_BatchSize, &BatchSize, sizeof(BatchSize)));");
+            sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
             foreach (int i in Range(dic.Keys.Count)) {
+
                 sw.WriteLine("\tParameterUpdate_{0}();", i);
             }
+
             sw.WriteLine("}");
 
             return dic.Keys.Count;
@@ -334,8 +417,12 @@ namespace MkFn {
             StringWriter sw = new StringWriter();
 
             string header = "class " + cls.Name + " : public Layer {\r\npublic:\r\n" +
-                string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld)) +
-                string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
+                string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld));
+
+            if(OutputLanguage == Language.CUDA) {
+
+                header += string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
+            }
 
             sw.WriteLine(header);
 
@@ -346,8 +433,8 @@ namespace MkFn {
             sw.WriteLine("\tvirtual void Allocate() override;");
             sw.WriteLine("\tvirtual void Free() override;");
 
-            sw.WriteLine("\tvirtual void SetX(void* src) override {{ _chk(cudaMemcpy({0}, src, BatchSize * {1} * sizeof({2}), cudaMemcpyHostToDevice)); }}", x_var.Name, ElementCountApply(x_var).Code(), x_var.TypeVar.Name);
-            sw.WriteLine("\tvirtual void SetY(void* src) override {{ _chk(cudaMemcpy({0}, src, BatchSize * {1} * sizeof({2}), cudaMemcpyHostToDevice)); }}", y_var.Name, ElementCountApply(y_var).Code(), y_var.TypeVar.Name);
+            sw.WriteLine("\tvirtual void SetX(void* src) override {{ _chk(_Memcpy({0}, src, BatchSize * {1} * sizeof({2}))); }}", x_var.Name, ElementCountApply(x_var).Code(), x_var.TypeVar.Name);
+            sw.WriteLine("\tvirtual void SetY(void* src) override {{ _chk(_Memcpy({0}, src, BatchSize * {1} * sizeof({2}))); }}", y_var.Name, ElementCountApply(y_var).Code(), y_var.TypeVar.Name);
 
             foreach (Assignment asn in sorted_forward_asns) {
                 sw.WriteLine("\tvoid Start_{0}();", KernelName(true , asn.Left.VarRef));
@@ -383,26 +470,32 @@ namespace MkFn {
                     sw.WriteLine(StatementCode(stmt, 1));
                 }
             }
-            sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamCreate(&" + StreamName(fld) + "));\r\n"));
+            if(OutputLanguage == Language.CUDA) {
+
+                sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamCreate(&" + StreamName(fld) + "));\r\n"));
+            }
             sw.WriteLine("}");
 
             // デストラクタを作る。
             sw.WriteLine("");
             sw.WriteLine("{0}::~{0}(){{", cls.Name);
             sw.WriteLine("\tFree();");
-            sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamDestroy(" + StreamName(fld) + "));\r\n"));
+            if (OutputLanguage == Language.CUDA) {
+
+                sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamDestroy(" + StreamName(fld) + "));\r\n"));
+            }
             sw.WriteLine("}");
 
             // 配列の領域の確保を作る。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Allocate(){{", cls.Name);
-            sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(cudaMalloc(&{0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCountApply(fld).Code(), fld.TypeVar.Name)));
+            sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(_Malloc({0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCountApply(fld).Code(), fld.TypeVar.Name)));
             sw.WriteLine("}");
 
             // 配列の領域の解放を作る。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Free(){{", cls.Name);
-            sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(cudaFree({0})); \r\n", fld.Name)));
+            sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(_Free({0})); \r\n", fld.Name)));
             sw.WriteLine("}");
         }
 
@@ -424,6 +517,7 @@ namespace MkFn {
                 sw.WriteLine("#include <device_launch_parameters.h>");
             }
 
+            sw.WriteLine("#include <stdlib.h>");
             sw.WriteLine("#include <stdio.h>");
             sw.WriteLine("#include <FLOAT.h>");
             sw.WriteLine("#include \"../Lib/Lib.h\"");
@@ -444,9 +538,18 @@ namespace MkFn {
             // コンストラクタ、デストラクタ、配列の領域の確保と解放の関数を作る。
             MakeSetup(cls, constructor, array_flds, sw);
 
-            // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
-            MakeForwardBackward(cls, sw, true, sorted_forward_asns, forward_depend);
-            MakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
+            if(OutputLanguage == Language.CUDA) {
+
+                // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
+                CudaMakeForwardBackward(cls, sw, true, sorted_forward_asns, forward_depend);
+                CudaMakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
+            }
+            else {
+
+                // C++の順伝播/逆伝播の関数を作る。
+                CppMakeForwardBackward(cls, sw, true, sorted_forward_asns, forward_depend);
+                CppMakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
+            }
 
             // パラメータ更新のカーネル関数とカーネル起動関数を作る。
             int n_parameter_update = MakeParameterUpdate(cls, to_delta_fld, sw);
