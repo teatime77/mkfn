@@ -238,38 +238,10 @@ namespace MkFn {
         }
 
         /*
-          関数の定義のコードを返す。  
-        */
-        public string FunctionCode(Class cls, Function fnc) {
-            StringWriter sw = new StringWriter();
-            TmpCnt = 0;
-
-            sw.WriteLine("");
-            sw.WriteLine(FunctionHeader(cls, fnc, true) + "{");
-            sw.Write(StatementCode(fnc.BodyStatement, 0));
-            sw.WriteLine("}");
-
-            return sw.ToString();
-        }
-
-        /*
           フィールドの宣言のコードを返す。  
         */
         public string FieldCode(Variable fld) {
             return fld.TypeVar.ToString() + " " + fld.Name + ";\r\n";
-        }
-
-        /*
-          クラスのコードを返す。 
-        */
-        public void ClassCode(Class cls, out string header, out string body) {
-            header = "struct " + cls.Name + " {\r\n" + 
-                string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld)) +
-                string.Join("", from fnc in cls.Functions select Nest(1) + FunctionHeader(cls, fnc, false) + ";\r\n") +
-                "};\r\n";
-
-            string inc = "#include \"boost/multi_array.hpp\"\r\n#include \"MkFn.h\"\r\n#include \"" + cls.Name + ".h\"\r\n";
-            body = inc + string.Join("\r\n", from fnc in cls.Functions select FunctionCode(cls, fnc));
         }
     }
 }

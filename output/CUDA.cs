@@ -409,17 +409,12 @@ namespace MkFn {
         /*
             ソースコードを作る。
         */
-        void MakeSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+        void MakeSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld,
+            Dictionary<Assignment, List<Assignment>> forward_depend, Dictionary<Assignment, List<Assignment>> backward_depend,
+            List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, Language output_language) {
+
             MkFn.LinqValue = new Dictionary<LINQ, string>();
-
-            // 代入文の依存関係
-            Dictionary<Assignment, List<Assignment>> forward_depend = AssignmentDependency(t_var, forward_asns);
-            Dictionary<Assignment, List<Assignment>> backward_depend = AssignmentDependency(t_var, backward_asns);
-
-            List<Assignment> sorted_forward_asns = SortAssignment(forward_asns, forward_depend);
-            sorted_backward_asns = SortAssignment(backward_asns, backward_depend);
-
-            OutputLanguage = Language.CUDA;
+            OutputLanguage = output_language;
 
             StringWriter sw = new StringWriter();
 
@@ -450,22 +445,24 @@ namespace MkFn {
             MakeSetup(cls, constructor, array_flds, sw);
 
             // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
-            MakeForwardBackward(cls, sw, true , sorted_forward_asns, forward_depend);
+            MakeForwardBackward(cls, sw, true, sorted_forward_asns, forward_depend);
             MakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
 
             // パラメータ更新のカーネル関数とカーネル起動関数を作る。
             int n_parameter_update = MakeParameterUpdate(cls, to_delta_fld, sw);
 
-            string src_dir = HomeDir + "\\src\\CUDA";
+            string lang_str = output_language.ToString();
+            lang_str = lang_str.Substring(lang_str.IndexOf('.') + 1);
+            string src_dir = HomeDir + "\\src\\" + lang_str;
             if (!Directory.Exists(src_dir)) {
 
                 Directory.CreateDirectory(src_dir);
             }
 
-            if (Directory.Exists(@"Z:\")) {
+            //!!!!!!!!!! デバッグ環境用 !!!!!!!!!!
+            if (output_language == Language.CUDA && Directory.Exists(@"Z:\")) {
 
-                //!!!!!!!!!! デバッグ環境用 !!!!!!!!!!
-                src_dir = @"Z:\prj\mkfn\src\CUDA";
+                src_dir = @"Z:\prj\mkfn\src\" + lang_str;
             }
 
             // ヘッダファイルのコードを作る。
@@ -473,9 +470,29 @@ namespace MkFn {
             File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_code), Encoding.UTF8);
 
             // 実装のコードをファイルに書く。
-            File.WriteAllText(src_dir + "\\" + cls.Name + ".cu", ASCII(sw.ToString()), Encoding.UTF8);
+            string ext = (output_language == Language.CUDA ? ".cu" : ".cpp");
+            File.WriteAllText(src_dir + "\\" + cls.Name + ext, ASCII(sw.ToString()), Encoding.UTF8);
 
             MkFn.LinqValue = null;
+        }
+
+        /*
+            すべての言語のソースコードを作る。
+        */
+        void MakeAllSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+
+            // 代入文の依存関係
+            Dictionary<Assignment, List<Assignment>> forward_depend = AssignmentDependency(t_var, forward_asns);
+            Dictionary<Assignment, List<Assignment>> backward_depend = AssignmentDependency(t_var, backward_asns);
+
+            List<Assignment> sorted_forward_asns = SortAssignment(forward_asns, forward_depend);
+            sorted_backward_asns = SortAssignment(backward_asns, backward_depend);
+
+            // CUDAのソースコードを作る。
+            MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CUDA);
+
+            // C++のソースコードを作る。
+            MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CPP);
         }
     }
 }

@@ -477,32 +477,6 @@ namespace MkFn {
             return pr;
         }
 
-        /*
-            クラスのソースコードをファイルに書く。
-        */
-        void WriteClassCode(Class cls) {
-            OutputLanguage = Language.CPP;
-
-            // Cのソースを作る。
-            MkFn.LinqValue = new Dictionary<LINQ, string>();
-
-            string header, body;
-
-            ClassCode(cls, out header, out body);
-
-            string html_dir = HomeDir + "\\src\\C";
-            if (!Directory.Exists(html_dir)) {
-
-                Directory.CreateDirectory(html_dir);
-            }
-
-            // 宣言と実装をファイルに書く。
-            File.WriteAllText(html_dir + "\\" + cls.Name + ".h"  , ASCII(header), Encoding.UTF8);
-            File.WriteAllText(html_dir + "\\" + cls.Name + ".cpp", ASCII(body), Encoding.UTF8);
-
-            MkFn.LinqValue = null;
-        }
-
         // u[iu, ju, k] = (from p in Range(H) from q in Range(H) select x[iu + p, ju + q] * h[p, q, k]).Sum() + b[k];
         // ix = iu + p   : 0 <= iu <= IU - 1   0 <= p <= H - 1
         //   iu = ix - p  : 0 <= ix - p <= IU - 1    ix - IU + 1 <= p <= ix  max(0, ix - IU + 1) <= p <= min(H - 1, ix)
@@ -852,7 +826,7 @@ namespace MkFn {
 
                 // ソースコードを作る。
                 List<Assignment> sorted_backward_asns;
-                MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_asns, backward_asns, out sorted_backward_asns);
+                MakeAllSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_asns, backward_asns, out sorted_backward_asns);
 
                 sw.WriteLine("<hr/>");
                 sw.WriteLine("<h4 style='color : red;'>逆伝播</h4>");
@@ -876,12 +850,6 @@ namespace MkFn {
                             Debug.Assert((obj as Variable).TypeVar != null);
                         }
                     });
-
-                // 型推論
-                TypeInference(cls);
-
-                // クラスのソースコードをファイルに書く。
-                WriteClassCode(cls);
 
                 // フィールドのリストを復元する。
                 cls.Fields = sv_flds;
