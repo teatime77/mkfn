@@ -153,6 +153,8 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Lib\Lib.h" />
+    <ClInclude Include="..\Lib\Network.h" />
     <ClInclude Include="ConvolutionalLayer.h" />
     <ClInclude Include="FullyConnectedLayer.h" />
     <ClInclude Include="LSTMLayer.h" />
@@ -163,6 +165,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Lib\Lib.cpp" />
     <ClCompile Include="ConvolutionalLayer.cpp" />
     <ClCompile Include="CTest.cpp" />
     <ClCompile Include="FullyConnectedLayer.cpp" />

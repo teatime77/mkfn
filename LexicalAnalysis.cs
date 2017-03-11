@@ -106,7 +106,6 @@ namespace MkFn {
             // 現在の文字位置
             int pos = 0;
 
-
             // 文字列の最後までループする。
             while (pos < text_len) {
                 
