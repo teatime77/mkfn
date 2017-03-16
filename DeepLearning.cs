@@ -123,6 +123,9 @@ namespace MkFn {
             }
         }
 
+        /*
+            代入文の依存関係を使い代入文の実行順序を決めます。
+        */
         List<Assignment> SortAssignment(List<Assignment> asns, Dictionary<Assignment, List<Assignment>> dct) {
             List<Assignment> pending = new List<Assignment>(asns);
             List<Assignment> processed = new List<Assignment>();
@@ -589,6 +592,9 @@ namespace MkFn {
             return def_idxes;
         }
 
+        /*
+        変数の種類を調べます。
+        */
         void SetFieldKind(Class cls, Variable x_var, List<Assignment> forward_asns) {
             x_var.Kind = FieldKind.CalculatedField;
             var calculated_fields = from asn in forward_asns select asn.Left.VarRef;
@@ -629,6 +635,7 @@ namespace MkFn {
 
                 Debug.WriteLine("layer : {0}", cls.Name, "");
 
+                // コンストラクターから定義域を得る。
                 SetDomainFromConstructor(cls);
 
                 // 順伝播の関数
@@ -674,6 +681,7 @@ namespace MkFn {
 
                 List<Assignment> backward_asns = new List<Assignment>();
 
+                // 変数の種類を調べます。
                 SetFieldKind(cls, x_var, forward_asns);
 
                 //------------------------------------------------------------ 順伝播

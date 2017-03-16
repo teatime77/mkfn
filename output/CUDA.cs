@@ -584,10 +584,11 @@ namespace MkFn {
         */
         void MakeAllSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
 
-            // 代入文の依存関係
+            // 代入文の依存関係を求めます。
             Dictionary<Assignment, List<Assignment>> forward_depend = AssignmentDependency(t_var, forward_asns);
             Dictionary<Assignment, List<Assignment>> backward_depend = AssignmentDependency(t_var, backward_asns);
 
+            // 代入文の依存関係を使い代入文の実行順序を決めます。
             List<Assignment> sorted_forward_asns = SortAssignment(forward_asns, forward_depend);
             sorted_backward_asns = SortAssignment(backward_asns, backward_depend);
 

@@ -29,6 +29,24 @@ namespace MkFn {
 
         // 指定なし
         Any,
+
+        // 行コメント
+        LineComment,
+
+        // ブロックコメント
+        BlockComment,
+
+        // 改行
+        NewLine,
+
+        // 文字列
+        String,
+
+        // 文字
+        Character,
+
+        // 不正
+        Illegal,
     }
 
     public enum TokenSubType {
@@ -51,6 +69,10 @@ namespace MkFn {
             Text = text;
             LineIndex = line_index;
             CharPos = char_pos;
+        }
+
+        public override string ToString() {
+            return Text;
         }
     }
 
@@ -89,6 +111,24 @@ namespace MkFn {
             ":",
             "<",
             ">",
+
+            "&&",
+            "||",
+
+            "+=",
+            "-=",
+            "*=",
+            "/=",
+            "%=",
+            "!=",
+
+            "++",
+            "--",
+
+            "!",
+            "&",
+            "|",
+            "?",
         };
 
         List<string> IdList = new List<string>();
@@ -100,28 +140,30 @@ namespace MkFn {
         public Token[] LexicalAnalysis(string text, int line_idx) {
             List<Token> token_list = new List<Token>();
 
-            // 文字列の長さ
-            int text_len = text.Length;
-
             // 現在の文字位置
             int pos = 0;
 
+            // 行の先頭位置
+            int line_top = 0;
+
             // 文字列の最後までループする。
-            while (pos < text_len) {
-                
-                // 空白をスキップする。
-                for ( ; pos < text_len && char.IsWhiteSpace(text[pos]); pos++);
-                if(text_len < pos) {
-                    // 行末の場合
-
-                    break;
-                }
-
-                TokenType token_type = TokenType.Unknown;
-                TokenSubType sub_type = TokenSubType.Unknown;
+            while (pos < text.Length) {
 
                 // 字句の開始位置
                 int start_pos = pos;
+
+                TokenType token_type = TokenType.Unknown;
+                TokenSubType sub_type = TokenSubType.Unknown;
+                
+                // 改行以外の空白をスキップする。
+                for ( ; pos < text.Length && text[pos] != '\r' && text[pos] != '\n' && char.IsWhiteSpace(text[pos]); pos++);
+
+                if (text.Length <= pos) {
+                    // テキストの終わりの場合
+
+                    break;
+                }
+                start_pos = pos;
 
                 // 現在位置の文字
                 char ch1 = text[pos];
@@ -140,11 +182,29 @@ namespace MkFn {
                     ch2 = '\0';
                 }
 
-                if (char.IsLetter(ch1) || ch1 == '_') {
+                if (ch1 == '\r' || ch1 == '\n') {
+                    // CRかLFの場合
+
+                    if (ch1 == '\r' && ch2 == '\n') {
+                        // CR+LFの場合
+
+                        pos += 2;
+                    }
+                    else {
+                        // CR+LFでない場合
+
+                        pos++;
+                    }
+                    line_top = pos;
+
+                    line_idx++;
+                    token_type = TokenType.NewLine;
+                }
+                else if (char.IsLetter(ch1) || ch1 == '_') {
                     // 識別子の最初の文字の場合
 
                     // 識別子の文字の最後を探す。識別子の文字はユニコードカテゴリーの文字か数字か'_'。
-                    for (pos++; pos < text_len && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_'); pos++);
+                    for (pos++; pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_'); pos++);
 
                     // 識別子の文字列
                     string name = text.Substring(start_pos, pos - start_pos);
@@ -170,15 +230,15 @@ namespace MkFn {
                     token_type = TokenType.Number;
 
                     // 10進数の終わりを探す。
-                    for (; pos < text_len && char.IsDigit(text[pos]); pos++);
+                    for (; pos < text.Length && char.IsDigit(text[pos]); pos++);
 
-                    if (pos < text_len && text[pos] == '.') {
+                    if (pos < text.Length && text[pos] == '.') {
                         // 小数点の場合
 
                         pos++;
 
                         // 10進数の終わりを探す。
-                        for (; pos < text_len && char.IsDigit(text[pos]); pos++);
+                        for (; pos < text.Length && char.IsDigit(text[pos]); pos++);
 
                         if (text[pos] == 'f') {
 
@@ -198,7 +258,113 @@ namespace MkFn {
                 else if (ch1 == '/' && ch2 == '/') {
                     // 行コメントの場合
 
-                    break;
+                    // 行末を探す。
+                    for (; pos < text.Length && text[pos] != '\r' && text[pos] != '\n'; pos++) ;
+
+                    token_type = TokenType.LineComment;
+                }
+                else if (ch1 == '/' && ch2 == '*') {
+                    // ブロックコメントの場合
+
+                    // ブロックコメントの終わりを探す。
+                    pos = text.IndexOf("*/", start_pos + 2);
+                    if (pos == -1) {
+                        // ブロックコメントの終わりがない場合。
+
+                        pos = text.Length;
+
+                        token_type = TokenType.Illegal;
+                    }
+                    else {
+                        // ブロックコメントの終わりがある場合。
+
+                        pos += 2;
+                        token_type = TokenType.BlockComment;
+                    }
+                }
+                else if (ch1 == '@' && ch2 == '\"') {
+                    // 逐語的文字列の場合
+
+                    pos += 2;
+
+                    // 逐語的文字列の終わりを探す。
+                    while (true) {
+
+                        // 逐語的文字列の終わりを探す。
+                        pos = text.IndexOf('\"', pos);
+                        if (pos == -1) {
+                            // 逐語的文字列の終わりがない場合。
+
+                            pos = text.Length;
+
+                            token_type = TokenType.Illegal;
+                            goto add_token;
+                        }
+
+                        if (pos + 1 < text.Length && text[pos + 1] == '\"') {
+                            // 次の文字が"の場合
+
+                            continue;
+                        }
+
+                        pos++;
+                        break;
+                    }
+
+                    token_type = TokenType.String;
+                }
+                else if (ch1 == '\"') {
+                    // 文字列の場合
+
+                    pos++;
+
+                    // 文字列の終わりを探す。
+                    while(true) {
+                        if (text.Length <= pos) {
+
+                            token_type = TokenType.Illegal;
+                            break;
+                        }
+                        else {
+
+                            if (text[pos] == '"') {
+
+                                pos++;
+                                token_type = TokenType.String;
+                                break;
+                            }
+                            else if (text[pos] == '\\') {
+
+                                pos += 2;
+                            }
+                            else {
+                                pos++;
+                            }
+                        }
+                    }
+                }
+                else if (ch1 == '\'') {
+                    // 文字の場合
+
+                    if(ch2 == '\\') {
+
+                        pos += 3;
+                    }
+                    else {
+
+                        pos += 2;
+                    }
+                    if(pos < text.Length && text[pos] == '\'') {
+                        // 文字の終わりがある場合
+
+                        token_type = TokenType.Character;
+                        pos++;
+                    }
+                    else {
+                        // 文字の終わりがない場合
+
+                        token_type = TokenType.Illegal;
+                    }
                 }
                 else if (SymbolTable.Contains("" + ch1 + ch2)) {
                     // 2文字の記号の表にある場合
@@ -220,17 +386,26 @@ namespace MkFn {
                     Debug.WriteLine("不明 {0}", text.Substring(start_pos, pos - start_pos), "");
 //                    throw new Exception();
                 }
+                add_token:
 
                 // 字句の文字列を得る。
                 string s = text.Substring(start_pos, pos - start_pos);
 
                 // トークンを作り、トークンのリストに追加する。
                 token_list.Add(new Token(token_type, sub_type, s, line_idx, start_pos));
+
+                if(token_type == TokenType.Illegal) {
+
+                    Debug.WriteLine("不正 {0} ^ {1}", text.Substring(line_top, start_pos - line_top), s, "");
+                }
             }
 
             // 各文字の字句型の配列を返す。
             return token_list.ToArray();
         }
 
+        public Token[] RemoveComment(Token[] tokens) {
+            return tokens.Where(x => x.Type != TokenType.LineComment && x.Type != TokenType.BlockComment).ToArray();
+        }
     }
 }

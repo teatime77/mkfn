@@ -583,7 +583,7 @@ namespace MkFn {
 
             TokenList = new List<Token>();
             for (int i = 0; i < Lines.Length; i++) {
-                TokenList.AddRange(LexicalAnalysis(Lines[i], i));
+                TokenList.AddRange(RemoveComment( LexicalAnalysis(Lines[i], i) ));
             }
 
             ParseSource();
