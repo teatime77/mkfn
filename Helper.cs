@@ -285,7 +285,9 @@ namespace MkFn {
                     // foreachの場合
 
                     ForEach for1 = obj as ForEach;
-                    Traverse(for1.LoopVariable, before, after);
+                    foreach(Variable va in for1.LoopVariables) {
+                        Traverse(va, before, after);
+                    }
                     foreach (Statement s in for1.Statements) {
                         Traverse(s, before, after);
                     }
@@ -443,10 +445,12 @@ namespace MkFn {
                     // foreachの場合
 
                     ForEach for1 = obj as ForEach;
-                    for1.LoopVariable = TraverseRep(for1.LoopVariable, before, after) as Variable;
+                    for1.LoopVariables = (from va in for1.LoopVariables select TraverseRep(va, before, after) as Variable).ToList();
                     for1.Statements = (from s in for1.Statements select TraverseRep(s, before, after) as Statement).ToList();
 
-                    for1.LoopVariable.ParentVar = obj;
+                    foreach(Variable va in for1.LoopVariables) {
+                        va.ParentVar = obj;
+                    }
                     foreach (Statement stmt in for1.Statements) {
                         stmt.ParentStmt = obj;
                     }
@@ -541,5 +545,15 @@ namespace MkFn {
             return alls;
         }
 
+    }
+
+    public class TermEqualityComparer : IEqualityComparer<Term> {
+        bool IEqualityComparer<Term>.Equals(Term x, Term y) {
+            return x.Eq(y);
+        }
+
+        int IEqualityComparer<Term>.GetHashCode(Term obj) {
+            return obj.HashCode();
+        }
     }
 }

@@ -63,7 +63,7 @@ namespace MkFn {
                     if (obj is ForEach) {
                         // foreachの場合
 
-                        vars.Add((obj as ForEach).LoopVariable);
+                        vars.AddRange((obj as ForEach).LoopVariables);
                     }
 
                     parent = (obj as Statement).ParentStmt;

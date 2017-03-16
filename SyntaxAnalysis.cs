@@ -451,7 +451,7 @@ namespace MkFn {
 
                 List<Statement> stmts = ReadBlockStatement();
 
-                return new ForEach(v, stmts);
+                return new ForEach(new Variable[] { v }, stmts);
             }
             else {
                 throw new SyntaxException();

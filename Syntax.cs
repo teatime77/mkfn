@@ -313,12 +313,15 @@ namespace MkFn {
     */
     public class ForEach : BlockStatement {
         // ループ変数
-        public Variable LoopVariable;
+        public List<Variable> LoopVariables = new List<Variable>();
 
-        public ForEach(Variable variable, List<Statement> statements) : base(statements) {
-            LoopVariable = variable;
+        public ForEach(IEnumerable<Variable> variables, List<Statement> statements) : base(statements) {
+            LoopVariables.AddRange(variables);
 
-            LoopVariable.ParentVar = this;
+            foreach(Variable va in variables) {
+                va.ParentVar = this;
+            }
+
             foreach (Statement s in Statements) {
                 s.ParentStmt = this;
             }
@@ -332,7 +335,7 @@ namespace MkFn {
                 var_tbl = new Dictionary<Variable, Variable>();
             }
 
-            return new ForEach(LoopVariable.Clone(var_tbl), (from x in Statements select x.Clone(var_tbl)).ToList());
+            return new ForEach(from va in LoopVariables select va.Clone(var_tbl), (from x in Statements select x.Clone(var_tbl)).ToList());
         }
     }
 

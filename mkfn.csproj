@@ -56,7 +56,6 @@
     <Compile Include="SymbolicComputation.cs" />
     <Compile Include="Syntax.cs" />
     <Compile Include="SyntaxAnalysis.cs" />
-    <Compile Include="Unused.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

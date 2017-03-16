@@ -165,14 +165,18 @@ namespace MkFn {
                 ForEach fe = stmt as ForEach;
 
                 // for文の先頭のコードを追加する。  
-                ForHeadCode(fe.LoopVariable, sw, nest);
+                for(int i = 0; i < fe.LoopVariables.Count; i++) {
+                    ForHeadCode(fe.LoopVariables[i], sw, nest + i);
+                }
 
                 // forブロックの内部の文に対し
                 foreach (Statement stmt2 in (stmt as BlockStatement).Statements) {
-                    sw.Write(StatementCode(stmt2, nest + 1));
+                    sw.Write(StatementCode(stmt2, nest + fe.LoopVariables.Count));
                 }
 
-                sw.WriteLine(Nest(nest) + "}");
+                for (int i = 0; i < fe.LoopVariables.Count; i++) {
+                    sw.WriteLine(Nest(nest + i) + "}");
+                }
             }
             else if (stmt is BlockStatement) {
                 // ブロック文の場合

@@ -655,8 +655,9 @@ namespace MkFn {
 
                 // 時刻tの変数
                 Variable t_var = null;
-                if (top_for.LoopVariable.Name == "t") {
-                    t_var = top_for.LoopVariable;
+                var t_vars = top_for.LoopVariables.Where(va => va.Name == "t");
+                if (t_vars.Any()) {
+                    t_var = t_vars.First();
                 }
 
                 // すべての項のリスト
@@ -694,8 +695,6 @@ namespace MkFn {
 
                 // すべての代入文に対し
                 foreach (Assignment asn in forward_asns) {
-                    //Debug.WriteLine(asn.ToString());
-                    Debug.Assert(asn.Left is Reference);
 
                     // 代入文の左辺の変数参照
                     Reference left = asn.Left as Reference;
@@ -705,8 +704,8 @@ namespace MkFn {
                     int dim_cnt = left.Indexes.Length;
 
                     // 代入文の祖先のForEachのリスト
-                    ForEach[] vfor = AncestorForEach(asn);
-                    Debug.Assert(vfor.Length == dim_cnt);
+                    List<Variable> loop_vars = (from x in AncestorForEach(asn) from va in x.LoopVariables select va).ToList();
+                    Debug.Assert(loop_vars.Count == dim_cnt);
 
                     // 左辺の変数参照の各添え字に対し
                     for (int dim = 0; dim < dim_cnt; dim++) {
@@ -717,7 +716,7 @@ namespace MkFn {
                         else {
 
                             // 左辺の変数参照の添え字 = 代入文の祖先のForEachの変数
-                            Debug.Assert(left.Indexes[dim] is Reference && (left.Indexes[dim] as Reference).VarRef == vfor[dim].LoopVariable);
+                            Debug.Assert(left.Indexes[dim] is Reference && (left.Indexes[dim] as Reference).VarRef == loop_vars[dim]);
                         }
                     }
                 }
