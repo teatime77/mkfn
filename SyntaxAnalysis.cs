@@ -591,7 +591,7 @@ namespace MkFn {
 
         public void Main() {
             HomeDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName( Assembly.GetExecutingAssembly().Location ) ) );
-            ParseSourceFile(HomeDir + @"\NeuralNetwork.cs");
+            ParseSourceFile(HomeDir + @"\sample\NeuralNetwork.cs");
 
 
             Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();

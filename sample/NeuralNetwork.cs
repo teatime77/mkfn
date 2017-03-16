@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 
-//namespace Miyu {
 public abstract class Layer {
     public static double e_;
     public double E;    // 損失関数
