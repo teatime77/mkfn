@@ -113,6 +113,19 @@ namespace MkFn {
             return type;
         }
 
+        ArrayType GetArrayType(Class element_type, int dim_cnt) {
+            var v = ArrayTypes.Where(c => c.ElementType == element_type && c.DimCnt == dim_cnt);
+            if (v.Any()) {
+
+                return v.First();
+            }
+
+            ArrayType type = new ArrayType(element_type, dim_cnt);
+            ArrayTypes.Add(type);
+
+            return type;
+        }
+
         Class ReadType() {
             Token type_id = GetToken(TokenType.Identifier);
 
@@ -136,16 +149,9 @@ namespace MkFn {
 
                 GetToken("]");
 
-                var v = from c in ArrayTypes where c.Name == type_id.Text && c.DimCnt == dim_cnt select c;
-                if (v.Any()) {
+                Class element_type = GetSimpleType(type_id.Text);
 
-                    return v.First();
-                }
-
-                ArrayType type = new ArrayType(GetSimpleType(type_id.Text), dim_cnt);
-                ArrayTypes.Add(type);
-
-                return type;
+                return GetArrayType(element_type, dim_cnt);
             }
         }
 
@@ -592,7 +598,6 @@ namespace MkFn {
         public void Main() {
             HomeDir = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName( Assembly.GetExecutingAssembly().Location ) ) );
             ParseSourceFile(HomeDir + @"\sample\NeuralNetwork.cs");
-
 
             Class layer = (from cls in AppClasses where cls.Name == "Layer" select cls).First();
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -545,6 +546,36 @@ namespace MkFn {
             return alls;
         }
 
+        static bool EqList(IEnumerable e1, IEnumerable e2) {
+            List<object> v1 = new List<object>();
+            IEnumerator enum1 = e1.GetEnumerator();
+            while (enum1.MoveNext()) {
+                v1.Add(enum1.Current);
+            }
+
+            List<object> v2 = new List<object>();
+            IEnumerator enum2 = e2.GetEnumerator();
+            while (enum2.MoveNext()) {
+                v2.Add(enum2.Current);
+            }
+
+            if(v1.Count != v2.Count) {
+                return false;
+            }
+
+            while(v1.Count != 0) {
+                object o1 = v1[0];
+                v1.RemoveAt(0);
+
+                int idx = v2.IndexOf(o1);
+                if(idx == -1) {
+                    return false;
+                }
+                v2.RemoveAt(idx);
+            }
+
+            return true;
+        }
     }
 
     public class TermEqualityComparer : IEqualityComparer<Term> {

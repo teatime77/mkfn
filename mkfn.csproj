@@ -43,6 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assertion.cs" />
     <Compile Include="DeepLearning.cs" />
     <Compile Include="Helper.cs" />
     <Compile Include="LexicalAnalysis.cs" />

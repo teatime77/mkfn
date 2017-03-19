@@ -121,17 +121,17 @@ namespace MkFn {
 
                             Reference rf = trm as Reference;
 
-                            if(rf.VarRef == NewFnc) {
+                            if (rf.VarRef == NewFnc) {
                                 return;
                             }
 
                             if (rf.Indexes == null) {
 
-                                trm.TypeTerm = rf.VarRef.TypeVar;
+                                rf.TypeTerm = rf.VarRef.TypeVar;
                             }
                             else {
 
-                                trm.TypeTerm = (rf.VarRef.TypeVar as ArrayType).ElementType;
+                                rf.TypeTerm = (rf.VarRef.TypeVar as ArrayType).ElementType;
                             }
                         }
                         else if (trm is Number) {
@@ -146,7 +146,7 @@ namespace MkFn {
                             if (IsNew(app)) {
 
 
-                                trm.TypeTerm = new ArrayType(app.NewClass, app.Args.Length);
+                                trm.TypeTerm = GetArrayType(app.NewClass, app.Args.Length);
                             }
                             else if (app.Function.VarRef.TypeVar == ArgClass) {
 

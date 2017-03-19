@@ -407,7 +407,7 @@ namespace MkFn {
             ASCII文字列に変換する。
         */
         string ASCII(string s) {
-            return s.Replace("δ", "delta_").Replace("σ", "sigmoid").Replace("std::", "");
+            return s.Replace("δ", "delta_").Replace("σ", "sigmoid").Replace("ι", "i").Replace("std::", "");
         }
 
         /*
