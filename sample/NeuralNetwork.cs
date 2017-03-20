@@ -108,9 +108,9 @@ public class FullyConnectedLayer : Layer {
     public double[] b;
     public double[] u;
 
-    public FullyConnectedLayer(int x_sz, int y_sz) {
-        X = x_sz;
-        Y = y_sz;
+    public FullyConnectedLayer(int x_size, int y_size) {
+        X = x_size;
+        Y = y_size;
 
         x = new double[X];
         y = new double[Y];
@@ -227,9 +227,6 @@ public class LSTMLayer : Layer {
     public int X;
     public int Y;
 
-    //public double[,] z;
-    //public double[,] wZ;
-
     public double[,] x;
     public double[,] y;
 
@@ -259,10 +256,10 @@ public class LSTMLayer : Layer {
     public double[,] uF;
     public double[,] uO;
 
-    public LSTMLayer(int t_sz, int x_sz, int y_sz) {
-        T = t_sz;
-        X = x_sz;
-        Y = y_sz;
+    public LSTMLayer(int t_size, int x_size, int y_size) {
+        T = t_size;
+        X = x_size;
+        Y = y_size;
         x = new double[T, X];
         y = new double[T, Y];
 
@@ -293,9 +290,6 @@ public class LSTMLayer : Layer {
 
     public override void Forward() {
         foreach (int t in Range(T)) {
-            //foreach (int k in Range(Dim(z, 1))) {
-            //    z[t, k] = (from j in Range(Dim(y, 1)) select wZ[k, j] * y[t, j]).Sum();
-            //}
             foreach (int j in Range(Y)) {
                 y[t, j] = σ(uO[t, j]) * σ(s[t, j]);
                 s[t, j] = σ(uF[t, j]) * s[t - 1, j] + σ(uI[t, j]) * σ(u[t, j]);

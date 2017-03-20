@@ -88,8 +88,8 @@ namespace MkFn {
             MaxPoolFnc = new Variable("MaxPool", ArgClass, null);
             MaxPoolPrimeFnc = new Variable("MaxPoolPrime", ArgClass, null);
 
-            maxFnc = new Variable("std::max", ArgClass, null);
-            minFnc = new Variable("std::min", ArgClass, null);
+            maxFnc = new Variable("max", ArgClass, null);
+            minFnc = new Variable("min", ArgClass, null);
 
             NewFnc = new Variable("new", null, null);
             DomainFnc = new Variable("Domain", null, null);

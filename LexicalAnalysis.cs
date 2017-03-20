@@ -79,6 +79,7 @@ namespace MkFn {
     public partial class MkFn {
         // キーワードの文字列の辞書
         List<string> KeywordMap = new List<string>() {
+/*
             "using",
             "public",
             "abstract",
@@ -90,6 +91,114 @@ namespace MkFn {
             "in",
             "select",
             "new",
+*/
+            "abstract",
+            "as",
+            "base",
+            "break",
+            "case",
+            "catch",
+            "checked",
+            "class",
+            "const",
+            "continue",
+            "default",
+            "delegate",
+            "do",
+            "else",
+            "enum",
+            "event",
+            "explicit",
+            "extern",
+            "finally",
+            "fixed",
+            "for",
+            "foreach",
+            "goto",
+            "if",
+            "implicit",
+            "in",
+            "interface",
+            "internal",
+            "is",
+            "lock",
+            "namespace",
+            "new",
+            "operator",
+            "out",
+            "override",
+            "params",
+            "private",
+            "protected",
+            "public",
+            "readonly",
+            "ref",
+            "return",
+            "sealed",
+            "sizeof",
+            "stackalloc",
+            "static",
+            "struct",
+            "switch",
+            "throw",
+            "try",
+            "typeof",
+            "unchecked",
+            "unsafe",
+            "using",
+            "virtual",
+            "volatile",
+            "while",
+
+//          "add",
+            "alias",
+            "ascending",
+            "async",
+            "await",
+            "descending",
+            "dynamic",
+            "from",
+            "get",
+            "global",
+            "group",
+            "into",
+            "join",
+            "let",
+            "orderby",
+            "partial",
+//          "remove",
+            "select",
+            "set",
+//          "value",
+            "var",
+            "where",
+            "yield",
+        };
+
+        List<string> SystemValueTable = new List<string>() {
+            "false",
+            "null",
+            "this",
+            "true",
+        };
+
+        List<string> SystemClassTable = new List<string>() {
+            "bool",
+            "byte",
+            "char",
+            "decimal",
+            "double",
+            "float",
+            "int",
+            "long",
+            "object",
+            "sbyte",
+            "short",
+            "string",
+            "uint",
+            "ulong",
+            "ushort",
+            "void",
         };
 
         List<string> SymbolTable = new List<string>() {
@@ -392,7 +501,7 @@ namespace MkFn {
                 string s = text.Substring(start_pos, pos - start_pos);
 
                 // トークンを作り、トークンのリストに追加する。
-                token_list.Add(new Token(token_type, sub_type, s, line_idx, start_pos));
+                token_list.Add(new Token(token_type, sub_type, s, line_idx, start_pos - line_top));
 
                 if(token_type == TokenType.Illegal) {
 

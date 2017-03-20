@@ -14,68 +14,59 @@ namespace MkFn {
 
             Dictionary<Reference, Dictionary<Reference, Term>> rs = new Dictionary<Reference, Dictionary<Reference, Term>>();
             bool exact = false;
-            Traverse(lnq.Select,
-                delegate (object obj) {
-                    if (obj is Reference) {
-                        // 変数参照の場合
 
-                        Reference r2 = obj as Reference;
+            // r1と同じ変数を参照する変数参照のリスト
+            var refs  = All<Reference>(lnq.Select).Where(x => x.VarRef == r1.VarRef);
 
-                        if (!(from r in rs.Keys where r.Eq(r2) select r).Any()) {
-                            // 処理済みでない場合
+            foreach(Reference r2 in refs) {
+                if (rs.Keys.Any(r => r.Eq(r2))) {
+                    // 処理済みの場合
 
-                            if (r1.VarRef == r2.VarRef) {
-                                // 同じ変数を参照する場合
+                    continue;
+                }
 
-                                if (r1.Eq(obj)) {
-                                    // 一致する場合
+                if (r1.Eq(r2)) {
+                    // 一致する場合
 
-                                    exact = true;
+                    exact = true;
+                }
+                else {
+                    // 一致しない添え字がある場合
+
+                    Dictionary<Reference, Term> pairs = new Dictionary<Reference, Term>();
+                    for (int i = 0; i < r1.Indexes.Length; i++) {
+                        if (!r1.Indexes[i].Eq(r2.Indexes[i])) {
+                            // 添え字が一致しない場合
+
+                            if (!(r2.Indexes[i] is Reference)) {
+                                // 代入候補の変数参照の添え字が変数参照でない場合
+
+                                throw new Exception();
+                            }
+                            else {
+                                // 両方の添え字が変数参照の場合
+
+                                Reference r3 = r2.Indexes[i] as Reference;
+                                var linq_eq_vars = lnq.Variables.Where(va => va == r3.VarRef);
+                                if (linq_eq_vars.Any()) {
+                                    // LINQの変数の場合
+
+                                    Variable va = linq_eq_vars.First();
+                                    Debug.Assert(! pairs.Keys.Any(r => r.VarRef == va));
+                                    pairs.Add(new Reference(va), r1.Indexes[i]);
                                 }
                                 else {
-                                    // 一致しない添え字がある場合
+                                    // LINQの変数でない場合
 
-                                    Dictionary<Reference, Term> pairs = new Dictionary<Reference, Term>();
-                                    bool ok = true;
-                                    for (int i = 0; i < r1.Indexes.Length; i++) {
-                                        if (!r1.Indexes[i].Eq(r2.Indexes[i])) {
-                                            // 添え字が一致しない場合
-
-                                            if (!(r2.Indexes[i] is Reference)) {
-                                                // 代入候補の変数参照の添え字が変数参照でない場合
-
-                                                ok = false;
-                                                break;
-                                            }
-                                            else {
-                                                // 両方の添え字が変数参照の場合
-
-                                                Reference r3 = r2.Indexes[i] as Reference;
-                                                IEnumerable<Variable> linq_eq_vars = from v in lnq.Variables where v == r3.VarRef select v;
-                                                if (linq_eq_vars.Any()) {
-                                                    // LINQの変数の場合
-
-                                                    Variable v = linq_eq_vars.First();
-                                                    Debug.Assert(!(from r in pairs.Keys where r.VarRef == v select r).Any());
-                                                    pairs.Add(new Reference(v), r1.Indexes[i]);
-                                                }
-                                                else {
-                                                    // LINQの変数でない場合
-
-                                                    ok = false;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (ok) {
-                                        rs.Add(r2, pairs);
-                                    }
+                                    throw new Exception();
                                 }
                             }
                         }
                     }
-                });
+
+                    rs.Add(r2, pairs);
+                }
+            }
 
             Debug.Assert(!(exact && rs.Any()), "完全一致の変数参照と代入で一致の変数参照の両方がある場合は未対応");
             if (!(exact || rs.Any())) {
@@ -87,26 +78,13 @@ namespace MkFn {
             // LINQをコピーする。
             LINQ lnq1 = lnq.Clone(var_tbl);
 
+            Term lnq_select;
+
             if (exact) {
                 // 完全一致の変数参照がある場合
 
                 // select句を微分する。
-                Term dif1 = Differential(lnq1.Select, r1, var_tbl);
-
-                if (lnq.Aggregate.Name == "Sum") {
-                    return lnq1;
-                }
-                else if (lnq.Aggregate.Name == "Prod") {
-                    Debug.Write("の微分は未実装");
-                    return lnq1;
-                }
-                if (lnq.Aggregate.Name == "Max") {
-                    Debug.Write("の微分は未実装");
-                    return lnq1;
-                }
-                else {
-                    Debug.Assert(false);
-                }
+                lnq_select = lnq1.Select;
             }
             else {
                 // 代入で一致の変数参照がある場合
@@ -116,28 +94,23 @@ namespace MkFn {
                 Debug.Assert(subst_tbl.Count == lnq.Variables.Length, "LINQの全変数に代入する。");
 
                 // LINQのselect句の変数参照に代入する。
-                Term subst_sel = Subst(lnq1.Select, subst_tbl, var_tbl);
-
-                // LINQの変数に代入をしたselect句を微分する。
-                Term dif1 = Differential(subst_sel, r1, var_tbl);
-
-                if (lnq.Aggregate.Name == "Sum") {
-                    return dif1;
-                }
-                else if (lnq.Aggregate.Name == "Prod") {
-                    Debug.Write("の微分は未実装");
-                    return dif1;
-                }
-                if (lnq.Aggregate.Name == "Max") {
-                    Debug.Write("の微分は未実装");
-                    return lnq1;
-                }
-                else {
-                    Debug.Assert(false);
-                }
+                lnq_select = Subst(lnq1.Select, subst_tbl, var_tbl);
             }
 
-            return null;
+            // LINQのselect句を微分する。
+            Term dif1 = Differential(lnq_select, r1, var_tbl);
+
+            if (lnq.Aggregate.Name == "Sum") {
+                // 集計関数が総和の場合
+
+                return dif1;
+            }
+            else {
+                // 集計関数が総和でない場合
+
+                // 総和以外のLINQの微分は未実装
+                throw new Exception();
+            }
         }
 
         /*
