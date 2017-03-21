@@ -244,7 +244,7 @@ namespace MkFn {
 
 
         /*
-            字句解析をして各文字の字句型の配列を得る。
+            字句解析をして各文字の字句型の配列を得ます。
         */
         public Token[] LexicalAnalysis(string text, int line_idx) {
             List<Token> token_list = new List<Token>();
@@ -255,7 +255,7 @@ namespace MkFn {
             // 行の先頭位置
             int line_top = 0;
 
-            // 文字列の最後までループする。
+            // 文字列の最後までループします。
             while (pos < text.Length) {
 
                 // 字句の開始位置
@@ -264,7 +264,7 @@ namespace MkFn {
                 TokenType token_type = TokenType.Unknown;
                 TokenSubType sub_type = TokenSubType.Unknown;
                 
-                // 改行以外の空白をスキップする。
+                // 改行以外の空白をスキップします。
                 for ( ; pos < text.Length && text[pos] != '\r' && text[pos] != '\n' && char.IsWhiteSpace(text[pos]); pos++);
 
                 if (text.Length <= pos) {
@@ -312,7 +312,7 @@ namespace MkFn {
                 else if (char.IsLetter(ch1) || ch1 == '_') {
                     // 識別子の最初の文字の場合
 
-                    // 識別子の文字の最後を探す。識別子の文字はユニコードカテゴリーの文字か数字か'_'。
+                    // 識別子の文字の最後を探します。識別子の文字はユニコードカテゴリーの文字か数字か'_'。
                     for (pos++; pos < text.Length && (char.IsLetterOrDigit(text[pos]) || text[pos] == '_'); pos++);
 
                     // 識別子の文字列
@@ -338,7 +338,7 @@ namespace MkFn {
 
                     token_type = TokenType.Number;
 
-                    // 10進数の終わりを探す。
+                    // 10進数の終わりを探します。
                     for (; pos < text.Length && char.IsDigit(text[pos]); pos++);
 
                     if (pos < text.Length && text[pos] == '.') {
@@ -346,7 +346,7 @@ namespace MkFn {
 
                         pos++;
 
-                        // 10進数の終わりを探す。
+                        // 10進数の終わりを探します。
                         for (; pos < text.Length && char.IsDigit(text[pos]); pos++);
 
                         if (text[pos] == 'f') {
@@ -367,7 +367,7 @@ namespace MkFn {
                 else if (ch1 == '/' && ch2 == '/') {
                     // 行コメントの場合
 
-                    // 行末を探す。
+                    // 行末を探します。
                     for (; pos < text.Length && text[pos] != '\r' && text[pos] != '\n'; pos++) ;
 
                     token_type = TokenType.LineComment;
@@ -375,7 +375,7 @@ namespace MkFn {
                 else if (ch1 == '/' && ch2 == '*') {
                     // ブロックコメントの場合
 
-                    // ブロックコメントの終わりを探す。
+                    // ブロックコメントの終わりを探します。
                     pos = text.IndexOf("*/", start_pos + 2);
                     if (pos == -1) {
                         // ブロックコメントの終わりがない場合。
@@ -396,10 +396,10 @@ namespace MkFn {
 
                     pos += 2;
 
-                    // 逐語的文字列の終わりを探す。
+                    // 逐語的文字列の終わりを探します。
                     while (true) {
 
-                        // 逐語的文字列の終わりを探す。
+                        // 逐語的文字列の終わりを探します。
                         pos = text.IndexOf('\"', pos);
                         if (pos == -1) {
                             // 逐語的文字列の終わりがない場合。
@@ -427,7 +427,7 @@ namespace MkFn {
 
                     pos++;
 
-                    // 文字列の終わりを探す。
+                    // 文字列の終わりを探します。
                     while(true) {
                         if (text.Length <= pos) {
 
@@ -497,10 +497,10 @@ namespace MkFn {
                 }
                 add_token:
 
-                // 字句の文字列を得る。
+                // 字句の文字列を得ます。
                 string s = text.Substring(start_pos, pos - start_pos);
 
-                // トークンを作り、トークンのリストに追加する。
+                // トークンを作り、トークンのリストに追加します。
                 token_list.Add(new Token(token_type, sub_type, s, line_idx, start_pos - line_top));
 
                 if(token_type == TokenType.Illegal) {
@@ -509,7 +509,7 @@ namespace MkFn {
                 }
             }
 
-            // 各文字の字句型の配列を返す。
+            // 各文字の字句型の配列を返します。
             return token_list.ToArray();
         }
 

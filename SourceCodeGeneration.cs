@@ -8,7 +8,7 @@ namespace MkFn {
     public partial class MkFn {
 
         /*
-            添え字から配列の先頭からのオフセットの計算式を得る。
+            添え字から配列の先頭からのオフセットの計算式を得ます。
         */
         public static Term OffsetFromIndexes(Reference rf) {
             if (!IsNew(rf.VarRef.Domain)) {
@@ -17,10 +17,10 @@ namespace MkFn {
                 throw new Exception();
             }
 
-            // 対象の変数参照をコピーする。
+            // 対象の変数参照をコピーします。
             rf = rf.Clone();
 
-            // 変数の定義域をコピーする。
+            // 変数の定義域をコピーします。
             Apply domain = (rf.VarRef.Domain as Apply).Clone();
 
             Term t = rf.Indexes[0];

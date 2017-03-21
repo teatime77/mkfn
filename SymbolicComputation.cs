@@ -75,7 +75,7 @@ namespace MkFn {
                 return Zero();
             }
 
-            // LINQをコピーする。
+            // LINQをコピーします。
             LINQ lnq1 = lnq.Clone(var_tbl);
 
             Term lnq_select;
@@ -83,7 +83,7 @@ namespace MkFn {
             if (exact) {
                 // 完全一致の変数参照がある場合
 
-                // select句を微分する。
+                // select句を微分します。
                 lnq_select = lnq1.Select;
             }
             else {
@@ -91,13 +91,13 @@ namespace MkFn {
 
                 Debug.Assert(rs.Keys.Count == 1, "代入で一致の変数参照は1種類のみ実装");
                 Dictionary<Reference, Term> subst_tbl = rs.First().Value;
-                Debug.Assert(subst_tbl.Count == lnq.Variables.Length, "LINQの全変数に代入する。");
+                Debug.Assert(subst_tbl.Count == lnq.Variables.Length, "LINQの全変数に代入します。");
 
-                // LINQのselect句の変数参照に代入する。
+                // LINQのselect句の変数参照に代入します。
                 lnq_select = Subst(lnq1.Select, subst_tbl, var_tbl);
             }
 
-            // LINQのselect句を微分する。
+            // LINQのselect句を微分します。
             Term dif1 = Differential(lnq_select, r1, var_tbl);
 
             if (lnq.Aggregate.Name == "Sum") {
@@ -191,7 +191,7 @@ namespace MkFn {
         }
 
         /*
-            変数に項を代入する。
+            変数に項を代入します。
         */
         Term Subst(Term t1, Dictionary<Reference, Term> subst_tbl, Dictionary<Variable, Variable> var_tbl = null) {
             return TraverseRep(t1,
@@ -225,7 +225,7 @@ namespace MkFn {
 
                         Apply app = obj as Apply;
 
-                        // 引数を簡約化する。
+                        // 引数を簡約化します。
                         Term[] args1 = (from t in app.Args select SimplifyExpression(t)).ToArray();
 
 
@@ -255,17 +255,17 @@ namespace MkFn {
                                         if (app.IsAdd()) {
                                             // 加算の場合
 
-                                            // 係数を加算する。
+                                            // 係数を加算します。
                                             args2[i].Value += args2[j].Value;
                                         }
                                         else {
                                             // 乗算の場合
 
-                                            // 係数を乗算する。
+                                            // 係数を乗算します。
                                             args2[i].Value *= args2[j].Value;
                                         }
 
-                                        // 同じ項を取り除く
+                                        // 同じ項を取り除きます。
                                         args2.RemoveAt(j);
                                     }
                                     else {
@@ -279,7 +279,7 @@ namespace MkFn {
                             if (app.IsAdd()) {
                                 // 加算の場合
 
-                                // 係数が0の項を除く。
+                                // 係数が0の項を除きます。
                                 Term[] args3 = (from t in args2 where t.Value != 0 select t).ToArray();
 
                                 switch (args3.Length) {
@@ -300,7 +300,7 @@ namespace MkFn {
                             else {
                                 // 乗算の場合
 
-                                // 引数の係数をすべてかけてまとめる。
+                                // 引数の係数をすべてかけてまとめます。
                                 double n = (from t in args2 select t.Value).Aggregate((x, y) => x * y);
                                 foreach (Term t in args2) {
                                     t.Value = 1;
@@ -314,7 +314,7 @@ namespace MkFn {
                                     return true;
                                 }
 
-                                // 定数を除く。
+                                // 定数を除きます。
                                 Term[] args3 = (from t in args2 where !(t is Number) select t).ToArray();
 
                                 switch (args3.Length) {

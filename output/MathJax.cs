@@ -9,7 +9,7 @@ namespace MkFn {
     public partial class MkFn {
 
         /*
-            MathJaxを含むHTMLファイルを書く。
+            MathJaxを含むHTMLファイルを書きます。
         */
         void WriteMathJax(StringWriter sw, string file_name) {
             string head = @"<!DOCTYPE html>
@@ -39,7 +39,7 @@ namespace MkFn {
 
 
         /*
-            係数を含んだMathJaxのテキストを返す。
+            係数を含んだMathJaxのテキストを返します。
         */
         string MathJax(Term t1) {
             OutputLanguage = Language.MathJax;
@@ -67,7 +67,7 @@ namespace MkFn {
         }
 
         /*
-            係数を含まない本体のMathJaxのテキストを返す。
+            係数を含まない本体のMathJaxのテキストを返します。
         */
         string MathJaxBody(Term t1) {
             if (t1 is Reference) {

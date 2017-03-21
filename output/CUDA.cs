@@ -9,7 +9,7 @@ namespace MkFn {
     public partial class MkFn {
 
         /*
-            カーネル関数のソースコードを作る。
+            カーネル関数のソースコードを作ります。
         */
         void MakeKenel(StringWriter sw, Assignment asn, string kernel_name, List<Variable> flds) {
 
@@ -37,18 +37,18 @@ namespace MkFn {
                     break;
                 }
 
-                // 代入先の添え字をthreadIdxとblockIdxから計算する。
+                // 代入先の添え字をthreadIdxとblockIdxから計算します。
                 sw.WriteLine("\tint {0} = {1};", asn.Left.Indexes[dim1].ToString(), idx);
             }
 
-            // カーネル関数の本体のコードを書く。
+            // カーネル関数の本体のコードを書きます。
             sw.WriteLine(StatementCode(asn, 1));
 
             sw.WriteLine("}");
         }
 
         /*
-            カーネル関数の起動のソースコードを作る。
+            カーネル関数の起動のソースコードを作ります。
         */
         void MakeStartKenel(Class cls, StringWriter sw, Assignment asn, string kernel_name, List<Variable> flds, Dictionary<Assignment, List<Assignment>> depend) {
             sw.WriteLine("void {0}::Start_{1}(){{", cls.Name, kernel_name);
@@ -98,21 +98,21 @@ namespace MkFn {
         }
 
         /*
-            カーネル関数の名前を返す。
+            カーネル関数の名前を返します。
         */
         string KernelName(bool is_forward, Variable va) {
             return (is_forward ? "forward_" : "backward_") + va.Name;
         }
 
         /*
-            ストリーム変数の名前を返す。
+            ストリーム変数の名前を返します。
         */
         string StreamName(Variable va) {
             return "_stream_" + va.Name;
         }
 
         /*
-            順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
+            順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作ります。
         */
         void CudaMakeForwardBackward(Class cls, StringWriter sw, bool is_forward, List<Assignment> asns, Dictionary<Assignment, List<Assignment>> depend) {
             // すべての代入文に対し
@@ -130,20 +130,20 @@ namespace MkFn {
                 // 代入文と定義域の中で参照されているフィールド
                 flds.AddRange(domain_vars);
 
-                // 重複を取り除く。
+                // 重複を取り除きます。
                 flds = flds.Distinct().ToList();
 
                 // カーネル関数名
                 string kernel_name = KernelName(is_forward, asn.Left.VarRef);
 
-                // カーネル関数のソースコードを作る。
+                // カーネル関数のソースコードを作ります。
                 MakeKenel(sw, asn, kernel_name, flds);
 
-                // カーネル関数の起動のソースコードを作る。
+                // カーネル関数の起動のソースコードを作ります。
                 MakeStartKenel(cls, sw, asn, kernel_name, flds, depend);
             }
 
-            // 順伝播/逆伝播の関数を作る。
+            // 順伝播/逆伝播の関数を作ります。
             string fnc_name = (is_forward ? "Forward" : "Backward");
             sw.WriteLine("void {0}::{1}(){{", cls.Name, fnc_name);
             sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
@@ -155,10 +155,10 @@ namespace MkFn {
 
 
         /*
-            C++の順伝播/逆伝播の関数を作る。
+            C++の順伝播/逆伝播の関数を作ります。
         */
         void CppMakeForwardBackward(Class cls, StringWriter sw, bool is_forward, List<Assignment> asns, Dictionary<Assignment, List<Assignment>> depend) {
-            // 順伝播/逆伝播の関数を作る。
+            // 順伝播/逆伝播の関数を作ります。
             string fnc_name = (is_forward ? "Forward" : "Backward");
             sw.WriteLine("void {0}::{1}(){{", cls.Name, fnc_name);
             sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
@@ -188,7 +188,7 @@ namespace MkFn {
                     }
                 }
 
-                // 代入文のコードを書く。
+                // 代入文のコードを書きます。
                 sw.WriteLine(StatementCode(asn, 2));
 
                 // 代入先の添え字に対し
@@ -201,7 +201,7 @@ namespace MkFn {
         }
 
         /*
-            パラメータ更新のカーネル関数のソースコードを作る。
+            パラメータ更新のカーネル関数のソースコードを作ります。
         */
         void MakeParameterUpdateKenel(StringWriter sw, Apply app, string kernel_name, List<Variable> flds, Dictionary<Variable, Variable> to_delta_fld) {
 
@@ -246,7 +246,7 @@ namespace MkFn {
 
             sw.WriteLine("\tint offset = {0};", offset);
 
-            // カーネル関数の本体のコードを書く。
+            // カーネル関数の本体のコードを書きます。
             foreach(Variable fld in flds) {
                 Variable delta_fld = to_delta_fld[fld];
                 sw.WriteLine("\t{");
@@ -262,7 +262,7 @@ namespace MkFn {
         }
 
         /*
-            パラメータ更新のカーネル関数の起動のソースコードを作る。
+            パラメータ更新のカーネル関数の起動のソースコードを作ります。
         */
         void MakeStartParameterUpdateKenel(Class cls, StringWriter sw, Apply app, string kernel_name, int kernel_idx, List<Variable> flds, Dictionary<Variable, Variable> to_delta_fld) {
             sw.WriteLine("void {0}::ParameterUpdate_{1}(){{", cls.Name, kernel_idx);
@@ -301,7 +301,7 @@ namespace MkFn {
         }
 
         /*
-            パラメータ更新のカーネル関数とカーネル起動関数を作る。
+            パラメータ更新のカーネル関数とカーネル起動関数を作ります。
         */
         void CppMakeParameterUpdate(Class cls, Dictionary<Variable, Variable> to_delta_fld, StringWriter sw, int kernel_idx, List<Variable> flds) {
             sw.WriteLine("");
@@ -311,7 +311,7 @@ namespace MkFn {
             sw.WriteLine("\tfor(int _idx = 0; _idx < _count; _idx++) {");
             sw.WriteLine("\t\tint offset = _idx * _BatchSize;");
 
-            // カーネル関数の本体のコードを書く。
+            // カーネル関数の本体のコードを書きます。
             foreach (Variable fld in flds) {
                 Variable delta_fld = to_delta_fld[fld];
                 sw.WriteLine("\t\t{");
@@ -328,7 +328,7 @@ namespace MkFn {
         }
 
         /*
-            パラメータ更新のカーネル関数とカーネル起動関数を作る。
+            パラメータ更新のカーネル関数とカーネル起動関数を作ります。
         */
         int MakeParameterUpdate(Class cls, Dictionary<Variable, Variable> to_delta_fld, StringWriter sw) {
             var param_flds = cls.Fields.Where(x => x.Kind == FieldKind.ParameterField);
@@ -357,10 +357,10 @@ namespace MkFn {
                     // カーネル関数名
                     string kernel_name = "ParameterUpdateKernel_" + kernel_idx.ToString();
 
-                    // パラメータ更新のカーネル関数のソースコードを作る。
+                    // パラメータ更新のカーネル関数のソースコードを作ります。
                     MakeParameterUpdateKenel(sw, app, kernel_name, flds, to_delta_fld);
 
-                    // パラメータ更新のカーネル関数の起動のソースコードを作る。
+                    // パラメータ更新のカーネル関数の起動のソースコードを作ります。
                     MakeStartParameterUpdateKenel(cls, sw, app, kernel_name, kernel_idx, flds, to_delta_fld);
                 }
                 else {
@@ -371,7 +371,7 @@ namespace MkFn {
                 kernel_idx++;
             }
 
-            // パラメータ更新の関数を作る。
+            // パラメータ更新の関数を作ります。
             sw.WriteLine("void {0}::ParameterUpdate(){{", cls.Name);
             sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
             foreach (int i in Range(dic.Keys.Count)) {
@@ -385,7 +385,7 @@ namespace MkFn {
         }
 
         /*
-          要素の数の計算式を返す。
+          要素の数の計算式を返します。
         */
         Term ElementCountApply(Variable va) {
             if (!IsNew(va.Domain)) {
@@ -404,14 +404,14 @@ namespace MkFn {
         }
 
         /*
-            ASCII文字列に変換する。
+            ASCII文字列に変換します。
         */
         string ASCII(string s) {
             return s.Replace("δ", "delta_").Replace("σ", "sigmoid").Replace("ι", "i").Replace("std::", "");
         }
 
         /*
-        ヘッダファイルのコードを作る。
+        ヘッダファイルのコードを作ります。
         */
         string MakeHeaderFile(Class cls, Variable x_var, Variable y_var, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, int n_parameter_update) {
             StringWriter sw = new StringWriter();
@@ -455,10 +455,10 @@ namespace MkFn {
         }
 
         /*
-            コンストラクタ、デストラクタ、配列の領域の確保と解放の関数を作る。
+            コンストラクタ、デストラクタ、配列の領域の確保と解放の関数を作ります。
         */
         void MakeSetup(Class cls, Function constructor, List<Variable> array_flds, StringWriter sw) {
-            // コンストラクタを作る。
+            // コンストラクタを作ります。
             sw.WriteLine("");
             sw.WriteLine(FunctionHeader(cls, constructor, true) + "{");
             foreach (Statement stmt in constructor.BodyStatement.Statements) {
@@ -476,7 +476,7 @@ namespace MkFn {
             }
             sw.WriteLine("}");
 
-            // デストラクタを作る。
+            // デストラクタを作ります。
             sw.WriteLine("");
             sw.WriteLine("{0}::~{0}(){{", cls.Name);
             sw.WriteLine("\tFree();");
@@ -486,13 +486,13 @@ namespace MkFn {
             }
             sw.WriteLine("}");
 
-            // 配列の領域の確保を作る。
+            // 配列の領域の確保を作ります。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Allocate(){{", cls.Name);
             sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(_Malloc({0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCountApply(fld).Code(), fld.TypeVar.Name)));
             sw.WriteLine("}");
 
-            // 配列の領域の解放を作る。
+            // 配列の領域の解放を作ります。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Free(){{", cls.Name);
             sw.Write(string.Join("", from fld in array_flds select string.Format("\t_chk(_Free({0})); \r\n", fld.Name)));
@@ -500,7 +500,7 @@ namespace MkFn {
         }
 
         /*
-            ソースコードを作る。
+            ソースコードを作ります。
         */
         void MakeSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld,
             Dictionary<Assignment, List<Assignment>> forward_depend, Dictionary<Assignment, List<Assignment>> backward_depend,
@@ -535,23 +535,23 @@ namespace MkFn {
 
             TmpCnt = 0;
 
-            // コンストラクタ、デストラクタ、配列の領域の確保と解放の関数を作る。
+            // コンストラクタ、デストラクタ、配列の領域の確保と解放の関数を作ります。
             MakeSetup(cls, constructor, array_flds, sw);
 
             if(OutputLanguage == Language.CUDA) {
 
-                // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作る。
+                // 順伝播/逆伝播の関数とカーネル関数とカーネル起動関数を作ります。
                 CudaMakeForwardBackward(cls, sw, true, sorted_forward_asns, forward_depend);
                 CudaMakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
             }
             else {
 
-                // C++の順伝播/逆伝播の関数を作る。
+                // C++の順伝播/逆伝播の関数を作ります。
                 CppMakeForwardBackward(cls, sw, true, sorted_forward_asns, forward_depend);
                 CppMakeForwardBackward(cls, sw, false, sorted_backward_asns, backward_depend);
             }
 
-            // パラメータ更新のカーネル関数とカーネル起動関数を作る。
+            // パラメータ更新のカーネル関数とカーネル起動関数を作ります。
             int n_parameter_update = MakeParameterUpdate(cls, to_delta_fld, sw);
 
             string lang_str = output_language.ToString();
@@ -568,11 +568,11 @@ namespace MkFn {
                 src_dir = @"Z:\prj\mkfn\src\" + lang_str;
             }
 
-            // ヘッダファイルのコードを作る。
+            // ヘッダファイルのコードを作ります。
             string header_code = MakeHeaderFile(cls, x_var, y_var, array_flds, constructor, sorted_forward_asns, sorted_backward_asns, n_parameter_update);
             File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_code), Encoding.UTF8);
 
-            // 実装のコードをファイルに書く。
+            // 実装のコードをファイルに書きます。
             string ext = (output_language == Language.CUDA ? ".cu" : ".cpp");
             File.WriteAllText(src_dir + "\\" + cls.Name + ext, ASCII(sw.ToString()), Encoding.UTF8);
 
@@ -580,7 +580,7 @@ namespace MkFn {
         }
 
         /*
-            すべての言語のソースコードを作る。
+            すべての言語のソースコードを作ります。
         */
         void MakeAllSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
 
@@ -592,10 +592,10 @@ namespace MkFn {
             List<Assignment> sorted_forward_asns = SortAssignment(forward_asns, forward_depend);
             sorted_backward_asns = SortAssignment(backward_asns, backward_depend);
 
-            // CUDAのソースコードを作る。
+            // CUDAのソースコードを作ります。
             MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CUDA);
 
-            // C++のソースコードを作る。
+            // C++のソースコードを作ります。
             MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CPP);
         }
     }

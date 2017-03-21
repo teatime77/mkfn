@@ -29,7 +29,7 @@ namespace MkFn {
 
             CurrentToken = NextToken;
 
-            // トークンの位置を1つ進める。
+            // トークンの位置を1つ進めます。
             TokenPos++;
 
             if (TokenPos + 1 < TokenList.Count) {
@@ -337,7 +337,7 @@ namespace MkFn {
 
                 Term t1 = PrimaryExpression();
 
-                // 符号を反転する。
+                // 符号を反転します。
                 t1.Value *= -1;
 
                 return t1;
@@ -395,7 +395,7 @@ namespace MkFn {
                 if(opr == "-") {
                     // 減算の場合
 
-                    // 2番目以降の項の符号を反転する。
+                    // 2番目以降の項の符号を反転します。
                     for (int i = 1; i < args.Count; i++) {
 
                         args[i].Value *= -1;

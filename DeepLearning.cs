@@ -155,7 +155,7 @@ namespace MkFn {
         }
 
         /*
-            代入文の依存関係を返す。
+            代入文の依存関係を返します。
         */
         Dictionary<Assignment, List<Assignment>> AssignmentDependency(Variable t_var, List<Assignment> asns) {
             // 代入文の依存関係の辞書
@@ -187,7 +187,7 @@ namespace MkFn {
                 else {
                     // 時刻tの変数がない場合
 
-                    // 代入文に右辺に含まれる変数のリスト ( 添え字にt±aを含む変数参照を除く )
+                    // 代入文に右辺に含まれる変数のリスト ( 添え字にt±aを含む変数参照を除きます。 )
                     depend = (from r in refs where r.Indexes == null || ! r.Indexes.Where(i => i.IsAdd() && (i as Apply).Args[0] is Reference && ((i as Apply).Args[0] as Reference).VarRef == t_var).Any() select r.VarRef).Distinct().ToList();
                 }
 
@@ -222,7 +222,7 @@ namespace MkFn {
         }
 
         /*
-            伝播の情報を作る。
+            伝播の情報を作ります。
         */
         Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Dictionary<Variable, Variable> to_delta_fld, Reference used_ref, Reference def_norm_ref) {
             Reference[] def_idxes = (from x in def_norm_ref.Indexes select x as Reference).ToArray();
@@ -323,10 +323,10 @@ namespace MkFn {
                         throw new Exception();
                     }
 
-                    // 右辺の t に t+1 を代入する。
+                    // 右辺の t に t+1 を代入します。
                     subst_tbl.Add(left_idxes[dim] as Reference, Add(t_var, One()));
 
-                    // 左辺の添え字を t+1 にする。
+                    // 左辺の添え字を t+1 にします。
                     left_idxes[dim] = Add(t_var, One());
 
                 }
@@ -385,7 +385,7 @@ namespace MkFn {
                                 // i0 - p
                                 Apply sub2 = Sub(for_var2, linq_var2);
 
-                                // 右辺の dim に i0 - p を代入する。
+                                // 右辺の dim に i0 - p を代入します。
                                 subst_tbl.Add(left_idxes[dim] as Reference, sub2);
 
                                 left_idxes[dim] = sub2;
@@ -447,7 +447,7 @@ namespace MkFn {
             if (subst_tbl.Keys.Any()) {
                 // 変数の置換がある場合
 
-                // 右辺の i に i0 - p を代入する。
+                // 右辺の i に i0 - p を代入します。
                 u_right = Subst(asn.Right.Clone(), subst_tbl);
             }
             else {
@@ -482,7 +482,7 @@ namespace MkFn {
             // Σ ∂E/∂u * 簡約微分簡約置換右辺
             pr.RightDiffSimple = MakeLinqMulDiff(pr, lnq_vars, SimplifyExpression(differential.Clone()));
 
-            // 伝播の情報を返す。
+            // 伝播の情報を返します。
             return pr;
         }
 
@@ -494,7 +494,7 @@ namespace MkFn {
         // 
 
         /*
-            コンストラクターから定義域を得る。
+            コンストラクターから定義域を得ます。
         */
         void SetDomainFromConstructor(Class cls) {
             // コンストラクター
@@ -518,21 +518,21 @@ namespace MkFn {
         }
 
         /*
-            δfld の定義式の左辺の添え字を返す。
+            δfld の定義式の左辺の添え字を返します。
         */
         Reference[] NormalIndexes(Variable x_var, List<Assignment> forward_asns, Variable fld, Reference[] used_refs) {
 
             // δfld の定義式の左辺の添え字
             Reference[] def_idxes;
 
-            // fldへの代入文のリストを得る。
+            // fldへの代入文のリストを得ます。
             var def_asns = from x in forward_asns where x.Left.VarRef == fld select x;
             if (def_asns.Any()) {
                 // fldへの代入文がある場合
 
                 Debug.Assert(fld.Kind == FieldKind.CalculatedField);
 
-                // 代入文は1個のはず
+                // 代入文は1個のはずです。
                 Debug.Assert(def_asns.Count() == 1);
 
                 // fldへの代入文の左辺
@@ -646,17 +646,17 @@ namespace MkFn {
             sw.WriteLine("$$");
             sw.WriteLine("</div>");
 
-            //------------------------------------------------------------ 順伝播先の変数の偏微分から計算式を作る。
-            sw.WriteLine("<h5>順伝播先の変数の偏微分から計算式を作る。</h5>");
+            //------------------------------------------------------------ 順伝播先の変数の偏微分から計算式を作ります。
+            sw.WriteLine("<h5>順伝播先の変数の偏微分から計算式を作ります。</h5>");
             sw.WriteLine("$$");
             sw.Write("= ");
             sw.WriteLine(string.Join(" + ", from pr in prs select MathJax(pr.Delta)));
 
             sw.WriteLine("$$");
 
-            //------------------------------------------------------------  順伝播先の変数に定義式を代入する。
+            //------------------------------------------------------------  順伝播先の変数に定義式を代入します。
             MathJaxDelta = true;
-            sw.WriteLine("<h5>順伝播先の変数に定義式を代入する。</h5>");
+            sw.WriteLine("<h5>順伝播先の変数に定義式を代入します。</h5>");
             sw.WriteLine("$$");
             sw.Write("= ");
 
@@ -664,8 +664,8 @@ namespace MkFn {
 
             sw.WriteLine("$$");
 
-            //------------------------------------------------------------  (t + 1) − 1 を t に簡約化する。
-            sw.WriteLine("<h5>簡約化する。</h5>");
+            //------------------------------------------------------------  (t + 1) − 1 を t に簡約化します。
+            sw.WriteLine("<h5>簡約化します。</h5>");
             sw.WriteLine("$$");
             sw.Write("= ");
 
@@ -673,8 +673,8 @@ namespace MkFn {
 
             sw.WriteLine("$$");
 
-            //------------------------------------------------------------  微分の計算をする。
-            sw.WriteLine("<h5>微分の計算をする。</h5>");
+            //------------------------------------------------------------  微分の計算をします。
+            sw.WriteLine("<h5>微分の計算をします。</h5>");
             sw.WriteLine("$$");
             sw.Write("= ");
 
@@ -682,8 +682,8 @@ namespace MkFn {
 
             sw.WriteLine("$$");
 
-            //------------------------------------------------------------  式を簡約化する。
-            sw.WriteLine("<h5>式を簡約化する。</h5>");
+            //------------------------------------------------------------  式を簡約化します。
+            sw.WriteLine("<h5>式を簡約化します。</h5>");
             sw.WriteLine("$$");
             sw.Write("= ");
 
@@ -701,7 +701,7 @@ namespace MkFn {
 
                 StringWriter sw = new StringWriter();
 
-                // コンストラクターから定義域を得る。
+                // コンストラクターから定義域を得ます。
                 SetDomainFromConstructor(cls);
 
                 // 順伝播の関数
@@ -784,7 +784,7 @@ namespace MkFn {
                     // δfld の代入文の左辺の変数参照
                     Reference def_norm_ref = new Reference(fld.Name, fld, def_idxes);
 
-                    // フィールドの値を使用する変数参照に対し、伝播の情報を作る。
+                    // フィールドの値を使用する変数参照に対し、伝播の情報を作ります。
                     List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref, def_norm_ref)).ToList();
 
                     // δfld の代入文の右辺
@@ -807,32 +807,32 @@ namespace MkFn {
                     backward_asns.Add(backward_asn);
                 }
 
-                // フィールドのリストを保存する。
+                // フィールドのリストを保存します。
                 List<Variable> sv_flds = new List<Variable>(cls.Fields);
 
-                // フィールドのリストにデルタ変数を追加する。
+                // フィールドのリストにデルタ変数を追加します。
                 foreach(Variable delta_fld in to_delta_fld.Values) {
                     cls.AddField(delta_fld);
                 }
 
-                // ソースコードを作る。
+                // ソースコードを作ります。
                 List<Assignment> sorted_backward_asns;
                 MakeAllSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_asns, backward_asns, out sorted_backward_asns);
 
-                // 逆伝播の式の一覧を書く。
+                // 逆伝播の式の一覧を書きます。
                 sw.WriteLine("<hr/>");
                 sw.WriteLine("<h4 style='color : red;'>逆伝播</h4>");
                 sw.WriteLine("$$");
                 sw.WriteLine(string.Join("\r\n \\\\", from asn in sorted_backward_asns select MathJax(asn.Left) + " = " + MathJax(asn.Right)));
                 sw.WriteLine("$$");
 
-                //  MathJaxを含むHTMLファイルを書く。
+                //  MathJaxを含むHTMLファイルを書きます。
                 WriteMathJax(sw, cls.Name);
 
                 // VarRefとTypeVarの表明
                 AssertVarRefTypeVar(cls);
 
-                // フィールドのリストを復元する。
+                // フィールドのリストを復元します。
                 cls.Fields = sv_flds;
             }
         }

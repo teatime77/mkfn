@@ -123,7 +123,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public Variable Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (this is Function) {
@@ -167,7 +167,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new Function Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (var_tbl == null) {
@@ -186,7 +186,7 @@ namespace MkFn {
         }
 
         /*
-            コンストラクターならtrueを返す。
+            コンストラクターならtrueを返します。
         */
         public bool IsConstructor() {
             return Name == MkFn.ConstructorName(ParentVar as Class);
@@ -201,7 +201,7 @@ namespace MkFn {
         public object ParentStmt;
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public Statement Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (this is Assignment) {
@@ -254,7 +254,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new Assignment Clone(Dictionary<Variable, Variable> var_tbl = null) {
             return new Assignment(Left.Clone(var_tbl), Right.Clone(var_tbl));
@@ -273,7 +273,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new Return Clone(Dictionary<Variable, Variable> var_tbl) {
             return new Return(Value == null ? null : Value.Clone(var_tbl));
@@ -301,7 +301,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new BlockStatement Clone(Dictionary<Variable, Variable> var_tbl) {
             return new BlockStatement( (from x in Statements select x.Clone(var_tbl)).ToList() );
@@ -328,7 +328,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new ForEach Clone(Dictionary<Variable, Variable> var_tbl) {
             if (var_tbl == null) {
@@ -364,19 +364,19 @@ namespace MkFn {
         }
 
         /*
-            係数を除く本体が同じならtrueを返す。
+            係数を除く本体が同じならtrueを返します。
         */
         public abstract bool EqBody(Object obj);
 
         /*
-            係数と本体が同じならtrueを返す。
+            係数と本体が同じならtrueを返します。
         */
         public virtual bool Eq(Object obj) {
             return obj is Term && Value == (obj as Term).Value && EqBody(obj);
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public Term Clone(Dictionary<Variable, Variable> var_tbl = null) {
             if (this is Reference) {
@@ -412,28 +412,28 @@ namespace MkFn {
         }
 
         /*
-            Applyにキャストする。
+            Applyにキャストします。
         */
         public Apply AsApply() {
             return this as Apply;
         }
 
         /*
-            Referenceにキャストする。
+            Referenceにキャストします。
         */
         public Reference AsReference() {
             return this as Reference;
         }
 
         /*
-            加算ならtrueを返す。
+            加算ならtrueを返します。
         */
         public bool IsAdd() {
             return this is Apply && AsApply().Function.VarRef == MkFn.Singleton.AddFnc;
         }
 
         /*
-            乗算ならtrueを返す。
+            乗算ならtrueを返します。
         */
         public bool IsMul() {
             return this is Apply && AsApply().Function.VarRef == MkFn.Singleton.MulFnc;
@@ -520,7 +520,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new Number Clone(Dictionary<Variable, Variable> var_tbl) {
             
@@ -528,7 +528,7 @@ namespace MkFn {
         }
 
         /*
-            係数を除く本体が同じならtrueを返す。
+            係数を除く本体が同じならtrueを返します。
         */
         public override bool EqBody(Object obj) {
             return obj is Number;
@@ -576,7 +576,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new Reference Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Variable v1;
@@ -605,7 +605,7 @@ namespace MkFn {
         }
 
         /*
-            係数を除く本体が同じならtrueを返す。
+            係数を除く本体が同じならtrueを返します。
         */
         public override bool EqBody(Object obj) {
             if (!(obj is Reference)) {
@@ -635,14 +635,14 @@ namespace MkFn {
         }
 
         /*
-            値の定義ならtrueを返す。
+            値の定義ならtrueを返します。
         */
         public bool Defined() {
             return Parent is Assignment && (Parent as Assignment).Left == this;
         }
 
         /*
-            値の使用ならtrueを返す。
+            値の使用ならtrueを返します。
         */
         public bool Used() {
             return !Defined();
@@ -710,7 +710,7 @@ namespace MkFn {
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new Apply Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Term[] args = (from t in Args select t.Clone(var_tbl)).ToArray();
@@ -743,7 +743,7 @@ namespace MkFn {
                 if (Parent is Apply && (Parent as Apply).Precedence() <= Precedence()) {
                     // 親の演算子の優先順位が高い場合
 
-                    // カッコで囲む。
+                    // カッコで囲みます。
                     return "(" + s + ")";
                 }
                 else {
@@ -769,7 +769,7 @@ namespace MkFn {
         }
 
         /*
-            係数を除く本体が同じならtrueを返す。
+            係数を除く本体が同じならtrueを返します。
         */
         public override bool EqBody(Object obj) {
             if (!(obj is Apply)) {
@@ -804,7 +804,7 @@ namespace MkFn {
         }
 
         /*
-            演算子の優先順位を返す。
+            演算子の優先順位を返します。
         */
         public int Precedence() {
             if (Char.IsLetter(Function.Name[0])) {
@@ -861,14 +861,14 @@ namespace MkFn {
         }
 
         /*
-            係数を除く本体が同じならtrueを返す。
+            係数を除く本体が同じならtrueを返します。
         */
         public override bool EqBody(Object obj) {
             return this == obj;
         }
 
         /*
-            コピーを返す。
+            コピーを返します。
         */
         public new LINQ Clone(Dictionary<Variable, Variable> var_tbl) {
             if (var_tbl == null) {

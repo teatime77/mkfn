@@ -10,14 +10,14 @@ namespace MkFn {
         public int TmpCnt;
 
         /*
-          ネストの空白を返す。  
+          ネストの空白を返します。  
         */
         public string Nest(int nest) {
             return new string(' ', 4 * nest);
         }
 
         /*
-          for文の先頭のコードを追加する。  
+          for文の先頭のコードを追加します。  
         */
         public void ForHeadCode(Variable loop_var, StringWriter sw, int nest) {
             if (!IsRange(loop_var.Domain)) {
@@ -41,7 +41,7 @@ namespace MkFn {
         }
 
         /*
-          文のコードを返す。  
+          文のコードを返します。  
         */
         public string StatementCode(Statement stmt, int nest) {
             StringWriter sw = new StringWriter();
@@ -75,7 +75,7 @@ namespace MkFn {
                     // 作業変数の名前
                     string tmp_name = MkFn.LinqValue[lnq];
 
-                    // 作業変数を初期化する。
+                    // 作業変数を初期化します。
                     if (lnq.Aggregate.VarRef == SumFnc) {
                         // 和の場合
 
@@ -117,26 +117,26 @@ namespace MkFn {
 
                     // ループ変数に対し
                     foreach (Variable loop_var in lnq.Variables) {
-                        // for文の先頭のコードを追加する。  
+                        // for文の先頭のコードを追加します。  
                         ForHeadCode(loop_var, sw, nest);
                     }
 
                     if (lnq.Aggregate.VarRef == SumFnc) {
                         // 和の場合
 
-                        // 加算する。
+                        // 加算します。
                         sw.WriteLine("{0}{1} += {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
                     else if (lnq.Aggregate.VarRef == ProdFnc) {
                         // 積の場合
 
-                        // 乗算する。
+                        // 乗算します。
                         sw.WriteLine("{0}{1} *= {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
                     else if (lnq.Aggregate.VarRef == MaxFnc) {
                         // 最大値の場合
 
-                        // 最大値を更新する。
+                        // 最大値を更新します。
                         sw.WriteLine("{0}{1} = std::max({1}, {2});", Nest(nest+1), tmp_name, lnq.Select.ToString());
                     }
 
@@ -164,7 +164,7 @@ namespace MkFn {
 
                 ForEach fe = stmt as ForEach;
 
-                // for文の先頭のコードを追加する。  
+                // for文の先頭のコードを追加します。  
                 for(int i = 0; i < fe.LoopVariables.Count; i++) {
                     ForHeadCode(fe.LoopVariables[i], sw, nest + i);
                 }
@@ -183,7 +183,7 @@ namespace MkFn {
 
                 foreach (Statement stmt2 in (stmt as BlockStatement).Statements) {
 
-                    // 文のコードを追加する。
+                    // 文のコードを追加します。
                     sw.Write(StatementCode(stmt2, nest + 1));
                 }
             }
@@ -195,14 +195,14 @@ namespace MkFn {
         }
 
         /*
-          変数の宣言のコードを返す。  
+          変数の宣言のコードを返します。  
         */
         public string VariableCode(Variable v) {
             return v.TypeVar.ToString() + " " + v.Name;
         }
 
         /*
-          関数のヘッダーのコードを返す。  
+          関数のヘッダーのコードを返します。  
         */
         public string FunctionHeader(Class cls, Function fnc, bool is_body) {
             StringWriter sw = new StringWriter();
@@ -242,7 +242,7 @@ namespace MkFn {
         }
 
         /*
-          フィールドの宣言のコードを返す。  
+          フィールドの宣言のコードを返します。  
         */
         public string FieldCode(Variable fld) {
             return fld.TypeVar.ToString() + " " + fld.Name + ";\r\n";

@@ -8,14 +8,14 @@ namespace MkFn {
     public partial class MkFn {
 
         /*
-            newならtrueを返す。
+            newならtrueを返します。
         */
         public static bool IsNew(Term t) {
             return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.NewFnc;
         }
 
         /*
-            Rangeならtrueを返す。
+            Rangeならtrueを返します。
         */
         public static bool IsRange(Term t) {
             return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.RangeFnc;
@@ -134,7 +134,7 @@ namespace MkFn {
         }
 
         /*
-            内部の変数参照のリストを返す。
+            内部の変数参照のリストを返します。
         */
         Reference[] EnumReference(object root) {
             List<Reference> v = new List<Reference>();
@@ -150,7 +150,7 @@ namespace MkFn {
         }
 
         /*
-            項を含む文を返す。
+            項を含む文を返します。
         */
         Statement ParentStatement(Term t1) {
             for (Object obj = t1.Parent; ;) {
@@ -178,7 +178,7 @@ namespace MkFn {
         }
 
         /*
-            文の祖先のForEachのリストを返す。
+            文の祖先のForEachのリストを返します。
         */
         ForEach[] AncestorForEach(Statement stmt) {
             List<ForEach> vfor = new List<ForEach>();
@@ -192,14 +192,14 @@ namespace MkFn {
             }
             Debug.Assert(for1.ParentStmt is BlockStatement);
 
-            // 1番外側のForEachがリストの最初になるように順序を反転させる。
+            // 1番外側のForEachがリストの最初になるように順序を反転させます。
             vfor.Reverse();
 
             return vfor.ToArray();
         }
 
         /*
-            木構造を走査する。
+            木構造を走査します。
         */
         public static void Traverse(object obj, NaviAction before, NaviAction after = null) {
             if (obj == null) {
@@ -327,7 +327,7 @@ namespace MkFn {
         }
 
         /*
-            木構造を走査してノードを置換する。
+            木構造を走査してノードを置換します。
         */
         object TraverseRep(object obj, NaviFnc before, NaviFnc after = null) {
             if (obj == null) {
@@ -496,7 +496,7 @@ namespace MkFn {
         }
 
         /*
-            木構造に含まれる変数参照のリストを返す。
+            木構造に含まれる変数参照のリストを返します。
         */
         public static List<Reference> AllRefs(object root) {
             List<Reference> all_refs = new List<Reference>();
@@ -514,7 +514,7 @@ namespace MkFn {
         }
 
         /*
-            木構造に含まれる変数参照のリストを返す。
+            木構造に含まれる変数参照のリストを返します。
         */
         public static List<object> All(object root, Type tp) {
             List<object> alls = new List<object>();
