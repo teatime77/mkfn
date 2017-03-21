@@ -2,6 +2,11 @@
 
 #define _chk(ans) { gpuAssert((ans), #ans, __FILE__, __LINE__); }
 
+#define _Memcpy(dst,src, size)	cudaMemcpy(dst, src, size, cudaMemcpyHostToDevice)
+#define _Malloc(x, size)		cudaMalloc(&x, size)
+#define _Free(x)				cudaFree(x)
+#define _MemcpyToSymbol(dst, src, size) cudaMemcpyToSymbol(dst, &src, size)
+
 inline void gpuAssert(cudaError_t code, char*s, const char *file, int line, bool abort = true){
 	if (code != cudaSuccess){
 		fprintf(stderr, "GPUassert: %s %s %s %d\n", cudaGetErrorString(code), s, file, line);
