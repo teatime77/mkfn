@@ -752,7 +752,7 @@ namespace MkFn {
                     t_sub_1 = Add(new Term[] { new Reference(t_var), new Number(-1) });
                 }
 
-                Dictionary<Variable, Variable> to_delta_fld = cls.Fields.ToDictionary(fld => fld, fld => new Variable("δ" + fld.Name, fld.TypeVar, (fld.Domain == null ? null : fld.Domain.Clone())));
+                Dictionary<Variable, Variable> to_delta_fld = cls.Fields.ToDictionary(fld => fld, fld => new Variable("δ" + fld.Name, fld.TypeVar, (fld.Domain == null ? null : fld.Domain.Clone()), FieldKind.CalculatedField));
 
                 // 逆伝播の代入文のリスト
                 List<Assignment> backward_asns = new List<Assignment>();

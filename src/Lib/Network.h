@@ -12,6 +12,8 @@ UCHAR* ReadBinaryFile(wchar_t* mnist_dir, wchar_t* file_name);
 int BytesToInt(UCHAR* v, int offset);
 int* RandomSampling(int all_count, int sample_count);
 
+extern FILE* fpLog;
+
 template<class T>
 class Network {
 public:
@@ -101,19 +103,64 @@ public:
 		}
 	}
 
-	void UpdateMiniBatch(void* batch_X, void* batch_Y) {
-		FirstLayer->SetX(batch_X);
+	/*
+		損失関数の微分	
+	*/
+	void CostDerivative(T* cost_derivative, T* last_y, T* batch_Y, int size) {
+		for (int i = 0; i < size; i++) {
+			cost_derivative[i] = last_y[i] - batch_Y[i];
+		}
+	}
+
+	/*
+	損失関数
+	*/
+	T Cost(T* cost_derivative, int size) {
+		double sum = 0;
+		for (int i = 0; i < size; i++) {
+			T cd = cost_derivative[i];
+			sum += cd * cd;
+		}
+
+		return (T)(sum / 2);
+	}
+
+	void UpdateMiniBatch(T* batch_X, T* batch_Y, T* cost_derivative) {
+		for (int i = 0; i < TrainBatchSize * DomainLen; i++) {
+			//fprintf(fpLog, "x:%f\r\n", batch_X[i]);
+		}
+		FirstLayer->SetInput(batch_X);
 
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->Forward();
 		}
 
-		LastLayer->SetY(batch_Y);
-		for (size_t i = Layers.size() - 1; 1 <= i; i--) {
+		T* last_y = (T*)LastLayer->GetOutput();
+
+		int size = TrainBatchSize * RangeLen;
+
+		// 損失関数の微分
+		CostDerivative(cost_derivative, last_y, batch_Y, size);
+
+		T cost = Cost(cost_derivative, size);
+
+		// 損失関数をログに書きます。
+		fprintf(fpLog, "%f\r\n", cost);
+
+		static int log_idx;
+		log_idx++;
+		if (log_idx % 1000 == 0) {
+			// 計算の途中でログを見れるように、1000回ごとにフラッシュします。
+
+			fflush(fpLog);
+		}
+
+		LastLayer->SetOutputDelta(cost_derivative);
+		for (int i = (int)Layers.size() - 1; 0 <= i; i--) {
 			Layers[i]->Backward();
 		}
 
-		for (size_t i = Layers.size() - 1; 1 <= i; i--) {
+		for (int i = (int)Layers.size() - 1; 0 <= i; i--) {
 			Layers[i]->UpdateParameter();
 		}
 	}
@@ -122,13 +169,11 @@ public:
 		int eq_cnt = 0;
 
 		for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
-			int idx = mini_batch_idx * batch_size + batch_idx;
 
-			T max_val = 0;
+			T max_val = -10000;
 			int max_idx = 0;
 			for (int i = 0; i < RangeLen; i++) {
-				int idx = batch_idx * RangeLen + i;
-				T val = result_Y[idx];
+				T val = result_Y[ i * batch_size + batch_idx ];
 				if (max_val < val) {
 
 					max_val = val;
@@ -137,7 +182,8 @@ public:
 			}
 
 			arg_max[batch_idx] = max_idx;
-			if (max_idx == label[idx]) {
+
+			if (max_idx == label[ mini_batch_idx * batch_size + batch_idx ]) {
 				eq_cnt++;
 			}
 		}
@@ -146,32 +192,50 @@ public:
 	}
 
 	int Evaluate(T* batch_X, T* batch_Y, int batch_size, int mini_batch_idx, UCHAR* arg_max, UCHAR* label) {
-		FirstLayer->SetX(batch_X);
+		FirstLayer->SetInput(batch_X);
 
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->Forward();
 		}
 
-		T* result_Y = (T*)LastLayer->GetY();
+		T* result_Y = (T*)LastLayer->GetOutput();
 
 		int eq_cnt = ArgMax(result_Y, batch_size, mini_batch_idx, arg_max, label);
 
 		return eq_cnt;
 	}
 
-	void AllocateLayers(int batch_size) {
+	/*
+	すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
+	*/
+	void AllocateConnectLayers(int batch_size) {
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->BatchSize = batch_size;
 			Layers[i]->Allocate();
 		}
+
+		// レイヤーの入出力を結合します。
+		for (size_t i = 0; i + 1 < Layers.size(); i++) {
+			// 次のレイヤーの入力は、現在のレイヤーの出力にします。(順伝播)
+			Layers[i + 1]->SetInput(Layers[i]->GetOutput());
+
+			// 現在のレイヤーの出力のデルタは、次のレイヤーの入力のデルタにします。(逆伝播)
+			Layers[i]->SetOutputDelta(Layers[i + 1]->GetInputDelta());
+		}
 	}
 
+	/*
+	すべてのレイヤーのメモリを解放します。
+	*/
 	void FreeLayers() {
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->Free();
 		}
 	}
 
+	/*
+	確率的勾配降下法 (stochastic gradient descent, SGD)
+	*/
 	void SGD() {
 
 		int train_batch_cnt = TrainCnt / TrainBatchSize;
@@ -179,6 +243,7 @@ public:
 
 		T* train_batch_X = new T[TrainBatchSize * DomainLen];
 		T* train_batch_Y = new T[TrainBatchSize * RangeLen];
+		T* cost_derivative = new T[TrainBatchSize * RangeLen];
 
 		T* test_batch_X = new T[TestBatchSize * DomainLen];
 		T* test_batch_Y = new T[TestBatchSize * RangeLen];
@@ -189,26 +254,34 @@ public:
 
 			int* idxes = RandomSampling(TrainCnt, TrainCnt);
 
-			AllocateLayers(TrainBatchSize);
+			// すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
+			AllocateConnectLayers(TrainBatchSize);
 
 			for (int mini_batch_idx = 0; mini_batch_idx < train_batch_cnt; mini_batch_idx++) {
 
 				SetBatchData(TrainX, train_batch_X, train_batch_Y, TrainLabel, TrainBatchSize, idxes, mini_batch_idx);
 
-				UpdateMiniBatch(train_batch_X, train_batch_Y);
+				UpdateMiniBatch(train_batch_X, train_batch_Y, cost_derivative);
 			}
 
 			FreeLayers();
-			AllocateLayers(TestBatchSize);
 
+			// すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
+			AllocateConnectLayers(TestBatchSize);
+
+			int eq_cnt_sum = 0;
 			for (int mini_batch_idx = 0; mini_batch_idx < test_batch_cnt; mini_batch_idx++) {
 
 				SetBatchData(TestX, test_batch_X, test_batch_Y, TestLabel, TestBatchSize, NULL, mini_batch_idx);
 
 				int eq_cnt = Evaluate(test_batch_X, test_batch_Y, TestBatchSize, mini_batch_idx, test_arg_max, TestLabel);
+				eq_cnt_sum += eq_cnt;
 			}
+			Log(L"epoch %d : %d / %d", epoch_idx, eq_cnt_sum, TestCnt);
 
 			FreeLayers();
+
+			delete[] idxes;
 		}
 	}
 

@@ -112,10 +112,11 @@ namespace MkFn {
             return !(this is Function) && ParentVar is Class;
         }
 
-        public Variable(string name, Class type, Term domain) {
+        public Variable(string name, Class type, Term domain, FieldKind kind = FieldKind.Unknown) {
             Name = name;
             TypeVar = type;
             Domain = domain;
+            Kind = kind;
 
             if (Domain != null) {
                 Domain.Parent = this;
@@ -655,9 +656,13 @@ namespace MkFn {
             else {
                 string idx;
 
-                if(MkFn.OutputLanguage == Language.CUDA) {
+                if(MkFn.OutputLanguage == Language.CUDA || MkFn.OutputLanguage == Language.CPP) {
 
                     idx = MkFn.OffsetFromIndexes(this).Code();
+
+                    if(VarRef.Kind == FieldKind.CalculatedField) {
+                        idx = "(" + idx + ") * BatchSize + _batch_idx";
+                    }
                 }
                 else {
 
