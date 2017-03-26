@@ -157,7 +157,7 @@ namespace MkFn {
         /*
             代入文の依存関係を返します。
         */
-        Dictionary<Assignment, List<Assignment>> AssignmentDependency(Variable t_var, List<Assignment> asns) {
+        Dictionary<Assignment, List<Assignment>> AssignmentDependency(List<Assignment> asns) {
             // 代入文の依存関係の辞書
             Dictionary<Assignment, List<Assignment>> dct = new Dictionary<Assignment, List<Assignment>>();
 
@@ -224,7 +224,7 @@ namespace MkFn {
         /*
             伝播の情報を作ります。
         */
-        Propagation MakePropagation(Variable t_var, Apply t_sub_1, Variable fld, Dictionary<Variable, Variable> to_delta_fld, Reference used_ref, Reference def_norm_ref) {
+        Propagation MakePropagation(Apply t_sub_1, Variable fld, Reference used_ref, Reference def_norm_ref) {
             Reference[] def_idxes = (from x in def_norm_ref.Indexes select x as Reference).ToArray();
 
             Apply fld_domain = fld.Domain as Apply;
@@ -520,7 +520,7 @@ namespace MkFn {
         /*
             δfld の定義式の左辺の添え字を返します。
         */
-        Reference[] NormalIndexes(Variable x_var, List<Assignment> forward_asns, Variable fld, Reference[] used_refs) {
+        Reference[] NormalIndexes(List<Assignment> forward_asns, Variable fld, Reference[] used_refs) {
 
             // δfld の定義式の左辺の添え字
             Reference[] def_idxes;
@@ -607,7 +607,7 @@ namespace MkFn {
         /*
         変数の種類を調べます。
         */
-        void SetFieldKind(Class cls, Variable x_var, List<Assignment> forward_asns) {
+        void SetFieldKind(Class cls, List<Assignment> forward_asns) {
             x_var.Kind = FieldKind.CalculatedField;
             var calculated_fields = from asn in forward_asns select asn.Left.VarRef;
             foreach (Variable fld in calculated_fields) {
@@ -708,11 +708,11 @@ namespace MkFn {
                 Function forward = (from f in cls.Functions where f.Name == "Forward" select f).First();
 
                 // 入力変数
-                Variable x_var = (from f in cls.Fields where f.Name == "x" select f).First();
+                x_var = (from f in cls.Fields where f.Name == "x" select f).First();
                 Debug.Assert(IsNew(x_var.Domain));
 
                 // 出力変数
-                Variable y_var = (from f in cls.Fields where f.Name == "y" select f).First();
+                y_var = (from f in cls.Fields where f.Name == "y" select f).First();
                 Debug.Assert(x_var.TypeVar is ArrayType && y_var.TypeVar is ArrayType && IsNew(y_var.Domain));
 
                 // 順伝播の関数定義の直下のforeach
@@ -720,7 +720,7 @@ namespace MkFn {
                 ForEach top_for = (ForEach)forward.BodyStatement.Statements[0];
 
                 // 時刻tの変数
-                Variable t_var = null;
+                t_var = null;
                 var t_vars = top_for.LoopVariables.Where(va => va.Name == "t");
                 if (t_vars.Any()) {
                     t_var = t_vars.First();
@@ -733,7 +733,7 @@ namespace MkFn {
                 Reference[] all_refs = All<Reference>(top_for).ToArray();
 
                 // 変数の種類を調べます。
-                SetFieldKind(cls, x_var, forward_asns);
+                SetFieldKind(cls, forward_asns);
 
                 //------------------------------------------------------------ 順伝播
                 MathJaxDelta = false;
@@ -752,7 +752,9 @@ namespace MkFn {
                     t_sub_1 = Add(new Term[] { new Reference(t_var), new Number(-1) });
                 }
 
-                Dictionary<Variable, Variable> to_delta_fld = cls.Fields.ToDictionary(fld => fld, fld => new Variable("δ" + fld.Name, fld.TypeVar, (fld.Domain == null ? null : fld.Domain.Clone()), FieldKind.CalculatedField));
+                // δフィールドのリスト
+                // DomainField以外のフィールドに対して作ります。
+                to_delta_fld = cls.Fields.Where(x => x.Kind != FieldKind.DomainField).ToDictionary(fld => fld, fld => new Variable("δ" + fld.Name, fld.TypeVar, (fld.Domain == null ? null : fld.Domain.Clone()), FieldKind.CalculatedField));
 
                 // 逆伝播の代入文のリスト
                 List<Assignment> backward_asns = new List<Assignment>();
@@ -779,13 +781,13 @@ namespace MkFn {
                     //??? used_refsの中に、同じ代入文で同じ変数参照がある場合 ???
 
                     // δfld の代入文の左辺の添え字
-                    Reference[] def_idxes = NormalIndexes(x_var, forward_asns, fld, used_refs);
+                    Reference[] def_idxes = NormalIndexes(forward_asns, fld, used_refs);
 
                     // δfld の代入文の左辺の変数参照
                     Reference def_norm_ref = new Reference(fld.Name, fld, def_idxes);
 
                     // フィールドの値を使用する変数参照に対し、伝播の情報を作ります。
-                    List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_var, t_sub_1, fld, to_delta_fld, used_ref, def_norm_ref)).ToList();
+                    List<Propagation> prs = (from used_ref in used_refs select MakePropagation(t_sub_1, fld, used_ref, def_norm_ref)).ToList();
 
                     // δfld の代入文の右辺
                     Term result = SimplifyExpression(Add((from pr in prs select pr.RightDiffSimple.Clone()).ToArray()));
@@ -817,7 +819,7 @@ namespace MkFn {
 
                 // ソースコードを作ります。
                 List<Assignment> sorted_backward_asns;
-                MakeAllSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_asns, backward_asns, out sorted_backward_asns);
+                MakeAllSourceCode(cls, forward_asns, backward_asns, out sorted_backward_asns);
 
                 // 逆伝播の式の一覧を書きます。
                 sw.WriteLine("<hr/>");

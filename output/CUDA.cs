@@ -8,6 +8,21 @@ using System.Text;
 namespace MkFn {
     public partial class MkFn {
 
+        [ThreadStatic]
+        Variable x_var;
+
+        [ThreadStatic]
+        Variable y_var;
+
+        [ThreadStatic]
+        Variable t_var;
+
+        [ThreadStatic]
+        Dictionary<Variable, Variable> to_delta_fld;
+
+        [ThreadStatic]
+        List<Variable> created_flds;
+
         /*
             カーネル関数のソースコードを作ります。
         */
@@ -18,6 +33,8 @@ namespace MkFn {
 
             // カーネル関数のヘッダー行
             sw.WriteLine("__global__ static void {0}({1}){{", kernel_name, args);
+
+            sw.WriteLine("\tint _batch_idx = threadIdx.x;");
 
             // 代入先の添え字に対し
             for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
@@ -208,7 +225,7 @@ namespace MkFn {
         /*
             パラメータ更新のカーネル関数のソースコードを作ります。
         */
-        void MakeUpdateParameterKenel(StringWriter sw, Apply app, string kernel_name, List<Variable> flds, Dictionary<Variable, Variable> to_delta_fld) {
+        void MakeUpdateParameterKenel(StringWriter sw, Apply app, string kernel_name, List<Variable> flds) {
 
             // カーネル関数の引数
             string args = string.Join(", ", from x in flds select x.Code() + ", " + to_delta_fld[x].Code());
@@ -269,7 +286,7 @@ namespace MkFn {
         /*
             パラメータ更新のカーネル関数の起動のソースコードを作ります。
         */
-        void MakeStartUpdateParameterKenel(Class cls, StringWriter sw, Apply app, string kernel_name, int kernel_idx, List<Variable> flds, Dictionary<Variable, Variable> to_delta_fld) {
+        void MakeStartUpdateParameterKenel(Class cls, StringWriter sw, Apply app, string kernel_name, int kernel_idx, List<Variable> flds) {
             sw.WriteLine("void {0}::UpdateParameter_{1}(){{", cls.Name, kernel_idx);
             sw.WriteLine("\tint threads_y = 1;");
             sw.WriteLine("\tint blocks_x = 1;");
@@ -308,7 +325,7 @@ namespace MkFn {
         /*
             パラメータ更新のカーネル関数とカーネル起動関数を作ります。
         */
-        void CppMakeUpdateParameter(Class cls, Dictionary<Variable, Variable> to_delta_fld, StringWriter sw, int kernel_idx, List<Variable> flds) {
+        void CppMakeUpdateParameter(Class cls, StringWriter sw, int kernel_idx, List<Variable> flds) {
             sw.WriteLine("");
             sw.WriteLine("void {0}::UpdateParameter_{1}(){{", cls.Name, kernel_idx);
             sw.WriteLine("\tint _count = {0};", ElementCountApply(flds[0]).Code());
@@ -335,7 +352,7 @@ namespace MkFn {
         /*
             パラメータ更新のカーネル関数とカーネル起動関数を作ります。
         */
-        int MakeUpdateParameter(Class cls, Dictionary<Variable, Variable> to_delta_fld, StringWriter sw) {
+        int MakeUpdateParameter(Class cls, StringWriter sw) {
             var param_flds = cls.Fields.Where(x => x.Kind == FieldKind.ParameterField);
             Dictionary<Apply, List<Variable>> dic = new Dictionary<Apply, List<Variable>>(new TermEqualityComparer());
             foreach (Variable fld in param_flds) {
@@ -363,14 +380,14 @@ namespace MkFn {
                     string kernel_name = "UpdateParameterKernel_" + kernel_idx.ToString();
 
                     // パラメータ更新のカーネル関数のソースコードを作ります。
-                    MakeUpdateParameterKenel(sw, app, kernel_name, flds, to_delta_fld);
+                    MakeUpdateParameterKenel(sw, app, kernel_name, flds);
 
                     // パラメータ更新のカーネル関数の起動のソースコードを作ります。
-                    MakeStartUpdateParameterKenel(cls, sw, app, kernel_name, kernel_idx, flds, to_delta_fld);
+                    MakeStartUpdateParameterKenel(cls, sw, app, kernel_name, kernel_idx, flds);
                 }
                 else {
 
-                    CppMakeUpdateParameter(cls, to_delta_fld, sw, kernel_idx, flds);
+                    CppMakeUpdateParameter(cls, sw, kernel_idx, flds);
                 }
 
                 kernel_idx++;
@@ -421,7 +438,7 @@ namespace MkFn {
         /*
         ヘッダファイルのコードを作ります。
         */
-        string MakeHeaderFile(Class cls, Variable x_var, Variable y_var, Dictionary<Variable, Variable> to_delta_fld, List<Variable> array_flds, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, int n_parameter_update) {
+        string MakeHeaderFile(Class cls, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, int n_parameter_update) {
             StringWriter sw = new StringWriter();
 
             string header = "class " + cls.Name + " : public Layer {\r\npublic:\r\n" +
@@ -429,7 +446,7 @@ namespace MkFn {
 
             if(OutputLanguage == Language.CUDA) {
 
-                header += string.Join("", from fld in array_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
+                header += string.Join("", from fld in created_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
             }
 
             sw.WriteLine(header);
@@ -471,7 +488,7 @@ namespace MkFn {
         /*
             コンストラクタ、デストラクタ、配列の領域の確保と解放の関数を作ります。
         */
-        void MakeSetup(Class cls, Function constructor, List<Variable> array_flds, StringWriter sw) {
+        void MakeSetup(Class cls, Function constructor, StringWriter sw) {
             // コンストラクタを作ります。
             sw.WriteLine("");
             sw.WriteLine(FunctionHeader(cls, constructor, true) + "{");
@@ -489,7 +506,7 @@ namespace MkFn {
             }
             if(OutputLanguage == Language.CUDA) {
 
-                sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamCreate(&" + StreamName(fld) + "));\r\n"));
+                sw.WriteLine(string.Join("", from fld in created_flds select "\t_chk(cudaStreamCreate(&" + StreamName(fld) + "));\r\n"));
             }
             sw.WriteLine("}");
 
@@ -499,28 +516,28 @@ namespace MkFn {
             sw.WriteLine("\tFree();");
             if (OutputLanguage == Language.CUDA) {
 
-                sw.WriteLine(string.Join("", from fld in array_flds select "\t_chk(cudaStreamDestroy(" + StreamName(fld) + "));\r\n"));
+                sw.WriteLine(string.Join("", from fld in created_flds select "\t_chk(cudaStreamDestroy(" + StreamName(fld) + "));\r\n"));
             }
-            sw.WriteLine(string.Join("", from fld in array_flds where fld.Kind == FieldKind.ParameterField select "\tdelete[] " + fld.Name + ";\r\n"));
+            sw.WriteLine(string.Join("", from fld in created_flds where fld.Kind == FieldKind.ParameterField select "\tdelete[] " + fld.Name + ";\r\n"));
             sw.WriteLine("}");
 
             // 配列の領域の確保を作ります。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Allocate(){{", cls.Name);
-            sw.Write(string.Join("", from fld in array_flds where fld.Kind != FieldKind.ParameterField select string.Format("\t_chk(_Malloc({0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCountApply(fld).Code(), fld.TypeVar.Name)));
+            sw.Write(string.Join("", from fld in created_flds where fld.Kind != FieldKind.ParameterField select string.Format("\t_chk(_Malloc({0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCountApply(fld).Code(), fld.TypeVar.Name)));
             sw.WriteLine("}");
 
             // 配列の領域の解放を作ります。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Free(){{", cls.Name);
-            sw.Write(string.Join("", from fld in array_flds where fld.Kind != FieldKind.ParameterField select string.Format("\t_chk(_Free({0})); \r\n", fld.Name)));
+            sw.Write(string.Join("", from fld in created_flds where fld.Kind != FieldKind.ParameterField select string.Format("\t_chk(_Free({0})); \r\n", fld.Name)));
             sw.WriteLine("}");
         }
 
         /*
             ソースコードを作ります。
         */
-        void MakeSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld,
+        void MakeSourceCode(Class cls,
             Dictionary<Assignment, List<Assignment>> forward_depend, Dictionary<Assignment, List<Assignment>> backward_depend,
             List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, Language output_language) {
 
@@ -550,7 +567,7 @@ namespace MkFn {
             }
 
             Variable delta_y_var = to_delta_fld[y_var];
-            List<Variable> array_flds = cls.Fields.Where(x => x != x_var && x != delta_y_var && x.TypeVar is ArrayType).ToList();
+            created_flds = cls.Fields.Where(x => x != x_var && x != delta_y_var && x.TypeVar is ArrayType).ToList();
 
 
             // コンストラクター
@@ -559,7 +576,7 @@ namespace MkFn {
             TmpCnt = 0;
 
             // コンストラクタ、デストラクタ、配列の領域の確保と解放の関数を作ります。
-            MakeSetup(cls, constructor, array_flds, sw);
+            MakeSetup(cls, constructor, sw);
 
             if(OutputLanguage == Language.CUDA) {
 
@@ -575,7 +592,7 @@ namespace MkFn {
             }
 
             // パラメータ更新のカーネル関数とカーネル起動関数を作ります。
-            int n_parameter_update = MakeUpdateParameter(cls, to_delta_fld, sw);
+            int n_parameter_update = MakeUpdateParameter(cls, sw);
 
             string lang_str = output_language.ToString();
             lang_str = lang_str.Substring(lang_str.IndexOf('.') + 1);
@@ -592,7 +609,7 @@ namespace MkFn {
             }
 
             // ヘッダファイルのコードを作ります。
-            string header_code = MakeHeaderFile(cls, x_var, y_var, to_delta_fld, array_flds, constructor, sorted_forward_asns, sorted_backward_asns, n_parameter_update);
+            string header_code = MakeHeaderFile(cls, constructor, sorted_forward_asns, sorted_backward_asns, n_parameter_update);
             File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_code), Encoding.UTF8);
 
             // 実装のコードをファイルに書きます。
@@ -605,21 +622,21 @@ namespace MkFn {
         /*
             すべての言語のソースコードを作ります。
         */
-        void MakeAllSourceCode(Class cls, Variable x_var, Variable y_var, Variable t_var, Dictionary<Variable, Variable> to_delta_fld, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
+        void MakeAllSourceCode(Class cls, List<Assignment> forward_asns, List<Assignment> backward_asns, out List<Assignment> sorted_backward_asns) {
 
             // 代入文の依存関係を求めます。
-            Dictionary<Assignment, List<Assignment>> forward_depend = AssignmentDependency(t_var, forward_asns);
-            Dictionary<Assignment, List<Assignment>> backward_depend = AssignmentDependency(t_var, backward_asns);
+            Dictionary<Assignment, List<Assignment>> forward_depend = AssignmentDependency(forward_asns);
+            Dictionary<Assignment, List<Assignment>> backward_depend = AssignmentDependency(backward_asns);
 
             // 代入文の依存関係を使い代入文の実行順序を決めます。
             List<Assignment> sorted_forward_asns = SortAssignment(forward_asns, forward_depend);
             sorted_backward_asns = SortAssignment(backward_asns, backward_depend);
 
             // CUDAのソースコードを作ります。
-            MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CUDA);
+            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CUDA);
 
             // C++のソースコードを作ります。
-            MakeSourceCode(cls, x_var, y_var, t_var, to_delta_fld, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CPP);
+            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CPP);
         }
     }
 }

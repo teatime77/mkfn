@@ -661,7 +661,15 @@ namespace MkFn {
                     idx = MkFn.OffsetFromIndexes(this).Code();
 
                     if(VarRef.Kind == FieldKind.CalculatedField) {
-                        idx = "(" + idx + ") * BatchSize + _batch_idx";
+
+                        if (MkFn.OutputLanguage == Language.CUDA) {
+
+                            idx = "(" + idx + ") * _BatchSize + _batch_idx";
+                        }
+                        else {
+
+                            idx = "(" + idx + ") * BatchSize + _batch_idx";
+                        }
                     }
                 }
                 else {
