@@ -12,9 +12,6 @@
 #include <assert.h> 
 #include "windows.h"
 
-#include "Lib.h"
-#include "Network.h"
-
 FILE* fpLog;
 
 UCHAR* ReadBinaryFile(wchar_t* mnist_dir, wchar_t* file_name) {

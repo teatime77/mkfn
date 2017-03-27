@@ -18,6 +18,9 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 }
 
 void NetworkTest() {
+	// ログファイルを初期化します。
+	InitLog();
+
 	_chk(cudaSetDevice(0));
 
 	Network<double> *net = new Network<double>();
@@ -26,11 +29,14 @@ void NetworkTest() {
 	net->TestBatchSize = 20;
 	net->Layers = std::vector<Layer*>{
 		new FullyConnectedLayer(28 * 28, 30),
-		new FullyConnectedLayer(30, 0)
+		new FullyConnectedLayer(30, 10)
 	};
 
-	net->DeepLearning();
+	for (size_t i = 0; i < net->Layers.size(); i++) {
+		net->Layers[i]->LearningRate = 3.0f / net->TrainBatchSize;
+	}
 
+	net->DeepLearning();
 }
 
 int main(){
