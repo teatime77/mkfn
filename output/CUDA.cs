@@ -15,6 +15,12 @@ namespace MkFn {
         Variable y_var;
 
         [ThreadStatic]
+        Variable delta_x_var;
+
+        [ThreadStatic]
+        Variable delta_y_var;
+
+        [ThreadStatic]
         Variable t_var;
 
         [ThreadStatic]
@@ -22,6 +28,9 @@ namespace MkFn {
 
         [ThreadStatic]
         List<Variable> created_flds;
+
+        [ThreadStatic]
+        List<Variable> calculated_flds;
 
         /*
             カーネル関数のソースコードを作ります。
@@ -104,12 +113,16 @@ namespace MkFn {
             if (depend.TryGetValue(asn, out depend_asns)) {
                 foreach(Assignment dep_asn in depend_asns) {
 
-                    sw.WriteLine("\t_chk(cudaStreamSynchronize({0}));", StreamName(dep_asn.Left.VarRef));
+                    // 依存するカーネル関数の実行終了のイベントを待ちます。
+                    sw.WriteLine("\t_chk(cudaStreamWaitEvent({0}, {1}, 0));", StreamName(asn.Left.VarRef), EventName(dep_asn.Left.VarRef));
                 }
             }
 
             // addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
-            sw.WriteLine("\t{0}<<<blocksPerGrid, threadsPerBlock>>>({1});", kernel_name, string.Join(", ", from x in flds select x.Name));
+            sw.WriteLine("\t{0}<<<blocksPerGrid, threadsPerBlock, 0, {1}>>>({2});", kernel_name, StreamName(asn.Left.VarRef), string.Join(", ", from x in flds select x.Name));
+
+            // カーネル関数の実行終了のイベントを記録します。
+            sw.WriteLine("\t_chk(cudaEventRecord({0}, {1}));", EventName(asn.Left.VarRef), StreamName(asn.Left.VarRef));
 
             sw.WriteLine("}");
         }
@@ -126,6 +139,13 @@ namespace MkFn {
         */
         string StreamName(Variable va) {
             return "_stream_" + va.Name;
+        }
+
+        /*
+            イベント変数の名前を返します。
+        */
+        string EventName(Variable va) {
+            return "_event_" + va.Name;
         }
 
         /*
@@ -446,7 +466,11 @@ namespace MkFn {
 
             if(OutputLanguage == Language.CUDA) {
 
-                header += string.Join("", from fld in created_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
+                // CUDAのストリーム変数
+                header += string.Join("", from fld in calculated_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
+ 
+                // CUDAのイベント変数
+                header += string.Join("", from fld in calculated_flds select "\tcudaEvent_t " + EventName(fld) + ";\r\n");
             }
 
             sw.WriteLine(header);
@@ -458,23 +482,53 @@ namespace MkFn {
             sw.WriteLine("\tvirtual void Allocate() override;");
             sw.WriteLine("\tvirtual void Free() override;");
 
+            sw.WriteLine("");
             sw.WriteLine("\tvirtual void SetInput (void* src) override {{ {0} = ({1}*)src; }}", x_var.Name, x_var.TypeVar.Name);
+            sw.WriteLine("\tvirtual void* GetInput()  override {{ return {0}; }}", x_var.Name);
             sw.WriteLine("\tvirtual void* GetOutput() override {{ return {0}; }}", y_var.Name);
 
-            Variable delta_x_var = to_delta_fld[x_var];
-            Variable delta_y_var = to_delta_fld[y_var];
-
             sw.WriteLine("\tvirtual void SetOutputDelta (void* src) override {{ {0} = ({1}*)src; }}", delta_y_var.Name, delta_y_var.TypeVar.Name);
-            sw.WriteLine("\tvirtual void* GetInputDelta() override {{ return {0}; }}", delta_x_var.Name);
+            sw.WriteLine("\tvirtual void* GetOutputDelta() override {{ return {0}; }}", delta_y_var.Name);
+            sw.WriteLine("\tvirtual void* GetInputDelta()  override {{ return {0}; }}", delta_x_var.Name);
 
+            // 入力と出力の数
+            sw.WriteLine("");
+            sw.WriteLine("\tvirtual int GetInputCount()  override {{ return {0}; }}", ElementCountApply(x_var).Code());
+            sw.WriteLine("\tvirtual int GetOutputCount() override {{ return {0}; }}", ElementCountApply(y_var).Code());
+
+            if (OutputLanguage == Language.CUDA) {
+
+                // ストリーム変数の取得と設定
+                sw.WriteLine("");
+                sw.WriteLine("\tvirtual void SetInputStream (cudaStream_t src) override {{ {0} = src; }}", StreamName(x_var));
+                sw.WriteLine("\tvirtual cudaStream_t GetOutputStream() override {{ return {0}; }}", StreamName(y_var));
+
+                sw.WriteLine("\tvirtual void SetOutputDeltaStream (cudaStream_t src) override {{ {0} = src; }}", StreamName(delta_y_var));
+                sw.WriteLine("\tvirtual cudaStream_t GetInputDeltaStream() override {{ return {0}; }}", StreamName(delta_x_var));
+
+                // イベント変数の取得と設定
+                sw.WriteLine("");
+                sw.WriteLine("\tvirtual void SetInputEvent (cudaEvent_t src) override {{ {0} = src; }}", EventName(x_var));
+                sw.WriteLine("\tvirtual cudaEvent_t GetOutputEvent() override {{ return {0}; }}", EventName(y_var));
+
+                sw.WriteLine("\tvirtual void SetOutputDeltaEvent (cudaEvent_t src) override {{ {0} = src; }}", EventName(delta_y_var));
+                sw.WriteLine("\tvirtual cudaEvent_t GetInputDeltaEvent() override {{ return {0}; }}", EventName(delta_x_var));
+            }
+
+            // 順伝播の関数
+            sw.WriteLine("");
             foreach (Assignment asn in sorted_forward_asns) {
                 sw.WriteLine("\tvoid Start_{0}();", KernelName(true , asn.Left.VarRef));
             }
+
+            // 逆伝播の関数
+            sw.WriteLine("");
             foreach (Assignment asn in sorted_backward_asns) {
                 sw.WriteLine("\tvoid Start_{0}();", KernelName(false, asn.Left.VarRef));
             }
 
             // パラメータ更新の関数
+            sw.WriteLine("");
             sw.WriteLine("\tvirtual void UpdateParameter() override;");
             foreach (int i in Range(n_parameter_update)) {
                 sw.WriteLine("\tvoid UpdateParameter_{0}();", i);
@@ -506,7 +560,11 @@ namespace MkFn {
             }
             if(OutputLanguage == Language.CUDA) {
 
-                sw.WriteLine(string.Join("", from fld in created_flds select "\t_chk(cudaStreamCreate(&" + StreamName(fld) + "));\r\n"));
+                // CUDAのストリーム変数を作ります。
+                sw.WriteLine(string.Join("", from fld in created_flds.Intersect(calculated_flds) select "\t_chk(cudaStreamCreate(&" + StreamName(fld) + "));\r\n"));
+
+                // CUDAのイベント変数を作ります。
+                sw.WriteLine(string.Join("", from fld in created_flds.Intersect(calculated_flds) select "\t_chk(cudaEventCreate(&" + EventName(fld) + "));\r\n"));
             }
             sw.WriteLine("}");
 
@@ -516,7 +574,11 @@ namespace MkFn {
             sw.WriteLine("\tFree();");
             if (OutputLanguage == Language.CUDA) {
 
-                sw.WriteLine(string.Join("", from fld in created_flds select "\t_chk(cudaStreamDestroy(" + StreamName(fld) + "));\r\n"));
+                // CUDAのストリーム変数を削除します。
+                sw.WriteLine(string.Join("", from fld in created_flds.Intersect(calculated_flds) select "\t_chk(cudaStreamDestroy(" + StreamName(fld) + "));\r\n"));
+
+                // CUDAのイベント変数を削除します。
+                sw.WriteLine(string.Join("", from fld in created_flds.Intersect(calculated_flds) select "\t_chk(cudaEventDestroy(" + EventName(fld) + "));\r\n"));
             }
             sw.WriteLine(string.Join("", from fld in created_flds where fld.Kind == FieldKind.ParameterField select "\tdelete[] " + fld.Name + ";\r\n"));
             sw.WriteLine("}");
@@ -555,8 +617,8 @@ namespace MkFn {
             sw.WriteLine("#include <stdlib.h>");
             sw.WriteLine("#include <stdio.h>");
             sw.WriteLine("#include <FLOAT.h>");
-            sw.WriteLine("#include \"../Lib/Lib.h\"");
             sw.WriteLine("#include \"MkFn.h\"");
+            sw.WriteLine("#include \"../Lib/Lib.h\"");
             sw.WriteLine("#include \"{0}.h\"", cls.Name);
 
 
@@ -565,10 +627,6 @@ namespace MkFn {
                 sw.WriteLine("__constant__ int _BatchSize;");
                 sw.WriteLine("__constant__ float _LearningRate;");
             }
-
-            Variable delta_y_var = to_delta_fld[y_var];
-            created_flds = cls.Fields.Where(x => x != x_var && x != delta_y_var && x.TypeVar is ArrayType).ToList();
-
 
             // コンストラクター
             Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();

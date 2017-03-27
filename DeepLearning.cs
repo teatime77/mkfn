@@ -756,6 +756,10 @@ namespace MkFn {
                 // DomainField以外のフィールドに対して作ります。
                 to_delta_fld = cls.Fields.Where(x => x.Kind != FieldKind.DomainField).ToDictionary(fld => fld, fld => new Variable("δ" + fld.Name, fld.TypeVar, (fld.Domain == null ? null : fld.Domain.Clone()), FieldKind.CalculatedField));
 
+                delta_x_var = to_delta_fld[x_var];
+
+                delta_y_var = to_delta_fld[y_var];
+
                 // 逆伝播の代入文のリスト
                 List<Assignment> backward_asns = new List<Assignment>();
 
@@ -816,6 +820,10 @@ namespace MkFn {
                 foreach(Variable delta_fld in to_delta_fld.Values) {
                     cls.AddField(delta_fld);
                 }
+
+                created_flds = cls.Fields.Where(x => x != x_var && x != delta_y_var && (x.Kind == FieldKind.CalculatedField || x.Kind == FieldKind.ParameterField)).ToList();
+
+                calculated_flds = (cls.Fields.Where(x => x.Kind == FieldKind.CalculatedField)).ToList();
 
                 // ソースコードを作ります。
                 List<Assignment> sorted_backward_asns;

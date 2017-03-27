@@ -12,6 +12,9 @@
 #include <assert.h> 
 #include "windows.h"
 
+#define _CRT_SECURE_NO_WARNINGS
+#pragma warning(disable:4996)
+
 FILE* fpLog;
 
 UCHAR* ReadBinaryFile(wchar_t* mnist_dir, wchar_t* file_name) {
@@ -48,10 +51,11 @@ int BytesToInt(UCHAR* v, int offset) {
 
 
 // 非決定的な乱数生成器を生成します。
-std::random_device rnd;     
+//std::random_device rnd;     
 
 //  メルセンヌ・ツイスタの32ビット版、引数は初期シード値
-std::mt19937 mt(rnd());     
+//std::mt19937 mt(rnd());     
+std::mt19937 mt;
 
 #define MT_RNG		(1000 * 1000)
 
