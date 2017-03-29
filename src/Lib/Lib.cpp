@@ -226,3 +226,24 @@ void Log(wchar_t *szFormat, ...) {
 
 	OutputDebugStringW(buf);
 }
+
+void LogA(char *szFormat, ...) {
+#define NUMCHARS	1024
+	char buf[NUMCHARS];  // Large buffer for long filenames or URLs
+	const int LASTCHAR = NUMCHARS - 1;
+
+	// Format the input string
+	va_list pArgs;
+	va_start(pArgs, szFormat);
+
+	// Use a bounded buffer size to prevent buffer overruns.  Limit count to
+	// character size minus one to allow for a NULL terminating character.
+	_vsnprintf_s(buf, NUMCHARS - 1, szFormat, pArgs);
+	va_end(pArgs);
+
+	// Ensure that the formatted string is NULL-terminated
+	buf[LASTCHAR] = '\0';
+	strcat_s(buf, "\r\n");
+
+	OutputDebugStringA(buf);
+}

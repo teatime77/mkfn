@@ -28,6 +28,8 @@ public:
 	T* TestX;
 	UCHAR* TrainLabel;
 	UCHAR* TestLabel;
+	int EpochIdx;
+	int MiniBatchIdx;
 
 	std::vector<Layer*> Layers;
 	Layer* FirstLayer;
@@ -84,11 +86,11 @@ public:
 		free(buf);
 	}
 
-	void SetBatchData(T* X, T* batch_X, T* batch_Y, UCHAR* label, int batch_size, int* idxes, int mini_batch_idx) {
+	void SetBatchData(T* X, T* batch_X, T* batch_Y, UCHAR* label, int batch_size, int* idxes) {
 		memset(batch_Y, 0, RangeLen * batch_size * sizeof(T));
 
 		for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
-			int idx = mini_batch_idx * batch_size + batch_idx;
+			int idx = MiniBatchIdx * batch_size + batch_idx;
 
 			if (idxes != NULL) {
 
@@ -125,6 +127,50 @@ public:
 		return (T)(sum / 2);
 	}
 
+	/*
+		C++版とCUDA版の計算結果の違いをダンプファイルに書いて比較します。	
+	*/
+	void Dmp(wchar_t* msg, T* p, int sz) {
+		wchar_t base_dir[_MAX_PATH];
+		wchar_t dmp_path[_MAX_PATH];
+
+		_wgetcwd(base_dir, _MAX_PATH);
+		*wcsrchr(base_dir, L'\\') = 0;
+
+		swprintf(dmp_path, L"%ls\\data\\%ls", base_dir, msg);
+
+		FILE *fp;
+#ifdef __CUDACC__
+		T* c = new T[sz];
+		T* f = new T[sz];
+
+		_chk(cudaDeviceSynchronize());
+
+		_chk(cudaMemcpy(c, p, sz * sizeof(T), cudaMemcpyDeviceToHost));
+		_chk(cudaDeviceSynchronize());
+
+		fp = _wfopen(dmp_path, L"rb");
+
+		fread(f, sizeof(T), sz, fp);
+		for (int i = 0; i < sz; i++) {
+			if (c[i] != f[i]) {
+				Log(L"%ls %d : %.16f != %.16f %g", msg, i, c[i], f[i], max(abs(c[i]), abs(f[i])) / (c[i] - f[i]));
+			}
+		}
+		delete[] c;
+		delete[] f;
+#else
+
+		fp = _wfopen(dmp_path, L"wb");
+		fwrite(p, sizeof(T), sz, fp);
+#endif
+
+		fclose(fp);
+	}
+
+	/*
+		ミニバッチごとにパラメータを更新します。
+	*/
 	void UpdateMiniBatch(T* batch_X, T* batch_Y, T* last_y, T* cost_derivative) {
 		for (int i = 0; i < TrainBatchSize * DomainLen; i++) {
 			//fprintf(fpLog, "x:%f\r\n", batch_X[i]);
@@ -132,6 +178,7 @@ public:
 
 #ifdef __CUDACC__
 		_chk(cudaMemcpy(FirstLayer->GetInput(), batch_X, TrainBatchSize * DomainLen * sizeof(T), cudaMemcpyHostToDevice));
+		_chk(cudaDeviceSynchronize());
 #else
 		FirstLayer->SetInput(batch_X);
 #endif
@@ -141,6 +188,7 @@ public:
 		}
 
 #ifdef __CUDACC__
+		_chk(cudaDeviceSynchronize());
 		_chk(cudaMemcpy(last_y, LastLayer->GetOutput(), TrainBatchSize * RangeLen * sizeof(T), cudaMemcpyDeviceToHost));
 		T* last_y_ptr = last_y;
 #else
@@ -154,8 +202,10 @@ public:
 
 		T cost = Cost(cost_derivative, size);
 
+/*
 		// 損失関数をログに書きます。
 		fprintf(fpLog, "%f\r\n", cost);
+		Log(L"%d:%d:%.16f", EpochIdx, MiniBatchIdx, cost);
 
 		static int log_idx;
 		log_idx++;
@@ -164,9 +214,11 @@ public:
 
 			fflush(fpLog);
 		}
+*/
 
 #ifdef __CUDACC__
 		_chk(cudaMemcpy(LastLayer->GetOutputDelta(), cost_derivative, TrainBatchSize * RangeLen * sizeof(T), cudaMemcpyHostToDevice));
+		_chk(cudaDeviceSynchronize());
 #else
 		LastLayer->SetOutputDelta(cost_derivative);
 #endif
@@ -174,13 +226,25 @@ public:
 		for (int i = (int)Layers.size() - 1; 0 <= i; i--) {
 			Layers[i]->Backward();
 		}
+#ifdef __CUDACC__
+		_chk(cudaDeviceSynchronize());
+#endif
 
 		for (int i = (int)Layers.size() - 1; 0 <= i; i--) {
 			Layers[i]->UpdateParameter();
 		}
+/*
+		FullyConnectedLayer* fl = (FullyConnectedLayer*)FirstLayer;
+		Dmp(L"b", fl->b, fl->Y);
+		Dmp(L"w", fl->w, fl->Y * fl->X);
+*/
+
+#ifdef __CUDACC__
+		_chk(cudaDeviceSynchronize());
+#endif
 	}
 
-	int ArgMax(T* result_Y, int batch_size, int mini_batch_idx, UCHAR* arg_max, UCHAR* label) {
+	int ArgMax(T* result_Y, int batch_size, UCHAR* arg_max, UCHAR* label) {
 		int eq_cnt = 0;
 
 		for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
@@ -198,7 +262,7 @@ public:
 
 			arg_max[batch_idx] = max_idx;
 
-			if (max_idx == label[ mini_batch_idx * batch_size + batch_idx ]) {
+			if (max_idx == label[ MiniBatchIdx * batch_size + batch_idx ]) {
 				eq_cnt++;
 			}
 		}
@@ -206,9 +270,10 @@ public:
 		return eq_cnt;
 	}
 
-	int Evaluate(T* batch_X, T* batch_Y, T* last_y, int batch_size, int mini_batch_idx, UCHAR* arg_max, UCHAR* label) {
+	int Evaluate(T* batch_X, T* batch_Y, T* last_y, int batch_size, UCHAR* arg_max, UCHAR* label) {
 #ifdef __CUDACC__
 		_chk(cudaMemcpy(FirstLayer->GetInput(), batch_X, batch_size * DomainLen * sizeof(T), cudaMemcpyHostToDevice));
+		_chk(cudaDeviceSynchronize());
 #else
 		FirstLayer->SetInput(batch_X);
 #endif
@@ -218,13 +283,15 @@ public:
 		}
 
 #ifdef __CUDACC__
+		_chk(cudaDeviceSynchronize());
 		_chk(cudaMemcpy(last_y, LastLayer->GetOutput(), batch_size * RangeLen * sizeof(T), cudaMemcpyDeviceToHost));
+		_chk(cudaDeviceSynchronize());
 		T* last_y_ptr = last_y;
 #else
 		T* last_y_ptr = (T*)LastLayer->GetOutput();
 #endif
 
-		int eq_cnt = ArgMax(last_y_ptr, batch_size, mini_batch_idx, arg_max, label);
+		int eq_cnt = ArgMax(last_y_ptr, batch_size, arg_max, label);
 
 		return eq_cnt;
 	}
@@ -306,16 +373,16 @@ public:
 
 		UCHAR* test_arg_max = new UCHAR[TestBatchSize];
 
-		for (int epoch_idx = 0; epoch_idx < EpochSize; epoch_idx++) {
+		for (EpochIdx = 0; EpochIdx < EpochSize; EpochIdx++) {
 
 			int* idxes = RandomSampling(TrainCnt, TrainCnt);
 
 			// すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
 			AllocateConnectLayers(TrainBatchSize);
 
-			for (int mini_batch_idx = 0; mini_batch_idx < train_batch_cnt; mini_batch_idx++) {
+			for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt; MiniBatchIdx++) {
 
-				SetBatchData(TrainX, train_batch_X, train_batch_Y, TrainLabel, TrainBatchSize, idxes, mini_batch_idx);
+				SetBatchData(TrainX, train_batch_X, train_batch_Y, TrainLabel, TrainBatchSize, idxes);
 
 				UpdateMiniBatch(train_batch_X, train_batch_Y, train_last_Y, cost_derivative);
 			}
@@ -326,14 +393,14 @@ public:
 			AllocateConnectLayers(TestBatchSize);
 
 			int eq_cnt_sum = 0;
-			for (int mini_batch_idx = 0; mini_batch_idx < test_batch_cnt; mini_batch_idx++) {
+			for (MiniBatchIdx = 0; MiniBatchIdx < test_batch_cnt; MiniBatchIdx++) {
 
-				SetBatchData(TestX, test_batch_X, test_batch_Y, TestLabel, TestBatchSize, NULL, mini_batch_idx);
+				SetBatchData(TestX, test_batch_X, test_batch_Y, TestLabel, TestBatchSize, NULL);
 
-				int eq_cnt = Evaluate(test_batch_X, test_batch_Y, test_last_Y, TestBatchSize, mini_batch_idx, test_arg_max, TestLabel);
+				int eq_cnt = Evaluate(test_batch_X, test_batch_Y, test_last_Y, TestBatchSize, test_arg_max, TestLabel);
 				eq_cnt_sum += eq_cnt;
 			}
-			Log(L"epoch %d : %d / %d", epoch_idx, eq_cnt_sum, TestCnt);
+			Log(L"epoch %d : %d / %d", EpochIdx, eq_cnt_sum, TestCnt);
 
 			FreeLayers();
 
