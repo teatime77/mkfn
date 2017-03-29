@@ -50,15 +50,12 @@ namespace MkFn {
                 string idx = "";
                 switch (asn.Left.Indexes.Length - 1 - dim1) {
                 case 0:
-                    idx = "threadIdx.y";
-                    break;
-                case 1:
                     idx = "blockIdx.x";
                     break;
-                case 2:
+                case 1:
                     idx = "blockIdx.y";
                     break;
-                case 3:
+                case 2:
                     idx = "blockIdx.z";
                     break;
                 }
@@ -78,35 +75,32 @@ namespace MkFn {
         */
         void MakeStartKenel(Class cls, StringWriter sw, Assignment asn, string kernel_name, List<Variable> flds, Dictionary<Assignment, List<Assignment>> depend) {
             sw.WriteLine("void {0}::Start_{1}(){{", cls.Name, kernel_name);
-            sw.WriteLine("\tint threads_y = 1;");
             sw.WriteLine("\tint blocks_x = 1;");
             sw.WriteLine("\tint blocks_y = 1;");
             sw.WriteLine("\tint blocks_z = 1;");
 
             Apply domain = asn.Left.VarRef.Domain as Apply;
 
+            Debug.Assert(asn.Left.Indexes.Length <= 3);
             for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
 
                 string sz = domain.Args[dim1].ToString();
                 string dst = "";
                 switch (asn.Left.Indexes.Length - 1 - dim1) {
                 case 0:
-                    dst = "threads_y";
-                    break;
-                case 1:
                     dst = "blocks_x";
                     break;
-                case 2:
+                case 1:
                     dst = "blocks_y";
                     break;
-                case 3:
+                case 2:
                     dst = "blocks_z";
                     break;
                 }
                 sw.WriteLine("\t{0} = {1};", dst, sz);
             }
 
-            sw.WriteLine("\tdim3 threadsPerBlock = dim3(BatchSize, threads_y);");
+            sw.WriteLine("\tdim3 threadsPerBlock = dim3(BatchSize);");
             sw.WriteLine("\tdim3 blocksPerGrid   = dim3(blocks_x, blocks_y, blocks_z);");
 
             List<Assignment> depend_asns;
@@ -253,7 +247,7 @@ namespace MkFn {
             // カーネル関数のヘッダー行
             sw.WriteLine("__global__ static void {0}({1}){{", kernel_name, args);
 
-            string offset = "";
+            string idx2 = "";
 
             // 代入先の添え字に対し
             for (int dim1 = 0; dim1 < app.Args.Length; dim1++) {
@@ -262,8 +256,8 @@ namespace MkFn {
 
                 switch (app.Args.Length - 1 - dim1) {
                 case 0:
-                    idx = "threadIdx.y";
-                    sz = "blockDim.y";
+                    idx = "threadIdx.x";
+                    sz = "blockDim.x";
                     break;
                 case 1:
                     idx = "blockIdx.x";
@@ -281,22 +275,23 @@ namespace MkFn {
 
                 if(dim1 != 0) {
 
-                    offset = "(" + offset + ") * " + sz + " + ";
+                    idx2 = "(" + idx2 + ") * " + sz + " + ";
                 }
-                offset += idx;
+                idx2 += idx;
             }
 
-            sw.WriteLine("\tint offset = {0};", offset);
+            sw.WriteLine("\tint _idx = {0};", idx2);
+            sw.WriteLine("\tint offset = _idx * _BatchSize;");
 
             // カーネル関数の本体のコードを書きます。
-            foreach(Variable fld in flds) {
+            foreach (Variable fld in flds) {
                 Variable delta_fld = to_delta_fld[fld];
                 sw.WriteLine("\t{");
                 sw.WriteLine("\t\t{0} sum = 0;", fld.TypeVar.Name);
                 sw.WriteLine("\t\tfor (int i = 0; i < _BatchSize; i++) {");
                 sw.WriteLine("\t\t\tsum += {0}[offset + i];", delta_fld.Name);
                 sw.WriteLine("\t\t}");
-                sw.WriteLine("\t\t{0}[offset] += _LearningRate * sum;", fld.Name);
+                sw.WriteLine("\t\t{0}[_idx] -= _LearningRate * sum;", fld.Name);
                 sw.WriteLine("\t}");
             }
 
@@ -308,7 +303,7 @@ namespace MkFn {
         */
         void MakeStartUpdateParameterKenel(Class cls, StringWriter sw, Apply app, string kernel_name, int kernel_idx, List<Variable> flds) {
             sw.WriteLine("void {0}::UpdateParameter_{1}(){{", cls.Name, kernel_idx);
-            sw.WriteLine("\tint threads_y = 1;");
+            sw.WriteLine("\tint threads_x = 1;");
             sw.WriteLine("\tint blocks_x = 1;");
             sw.WriteLine("\tint blocks_y = 1;");
             sw.WriteLine("\tint blocks_z = 1;");
@@ -319,7 +314,7 @@ namespace MkFn {
                 string dst = "";
                 switch (app.Args.Length - 1 - dim1) {
                 case 0:
-                    dst = "threads_y";
+                    dst = "threads_x";
                     break;
                 case 1:
                     dst = "blocks_x";
@@ -334,7 +329,7 @@ namespace MkFn {
                 sw.WriteLine("\t{0} = {1};", dst, sz);
             }
 
-            sw.WriteLine("\tdim3 threadsPerBlock = dim3(BatchSize, threads_y);");
+            sw.WriteLine("\tdim3 threadsPerBlock = dim3(threads_x);");
             sw.WriteLine("\tdim3 blocksPerGrid   = dim3(blocks_x, blocks_y, blocks_z);");
 
             sw.WriteLine("\t{0}<<<blocksPerGrid, threadsPerBlock>>>({1});", kernel_name, string.Join(", ", from x in flds select x.Name + ", " + to_delta_fld[x].Name));
@@ -418,11 +413,17 @@ namespace MkFn {
             if (OutputLanguage == Language.CUDA) {
 
                 sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
+                sw.WriteLine("\t_chk(_MemcpyToSymbol(_LearningRate, LearningRate, sizeof(LearningRate)));");
             }
+
+            sw.WriteLine("\t_chk(cudaDeviceSynchronize());");
+
             foreach (int i in Range(dic.Keys.Count)) {
 
                 sw.WriteLine("\tUpdateParameter_{0}();", i);
             }
+
+            sw.WriteLine("\t_chk(cudaDeviceSynchronize());");
 
             sw.WriteLine("}");
 
