@@ -4,7 +4,17 @@
 
 #define _Memcpy(dst,src, size)	cudaMemcpy(dst, src, size, cudaMemcpyHostToDevice)
 #define _Malloc(x, size)		cudaMalloc(&x, size)
-#define _Free(x)				cudaFree(x)
+
+template <class T> inline cudaError_t _Free(T* &x) {
+	cudaError_t sts = cudaSuccess;
+
+	if (x != 0) {
+		sts = cudaFree(x);
+		x = 0;
+	}
+	return sts;
+}
+
 #define _MemcpyToSymbol(dst, src, size) cudaMemcpyToSymbol(dst, &src, size)
 
 void LogA(char *szFormat, ...);
@@ -35,12 +45,3 @@ __device__ inline double sigmoid_prime(double z) {
 	double f = sigmoid(z);
 	return f * (1 - f);
 }
-
-__device__ inline double MaxPoolPrime(double) {
-	return 0;
-}
-
-
-//__device__ extern double sigmoid(double);
-//__device__ extern double sigmoid_prime(double);
-//__device__ extern double MaxPoolPrime(double);

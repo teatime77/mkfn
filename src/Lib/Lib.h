@@ -8,6 +8,8 @@ public:
 	Layer() {
 	}
 
+	virtual ~Layer() {};
+
 	virtual void Forward() = 0;
 	virtual void Backward() = 0;
 	virtual void Allocate() = 0;
@@ -43,7 +45,7 @@ void Log(wchar_t *szFormat, ...);
 float NormalRand();
 
 template <class T> inline void SetNormalRand(T* &x, int size) {
-	T* wk = new T[size];
+	T* wk = (T*)malloc(size * sizeof(T));
 
 	for (int i = 0; i < size; i++) {
 		wk[i] = NormalRand();
@@ -53,7 +55,7 @@ template <class T> inline void SetNormalRand(T* &x, int size) {
 
 	_chk(cudaMalloc(&x, size * sizeof(T)));
 	_chk(cudaMemcpy(x, wk, size * sizeof(T), cudaMemcpyHostToDevice));
-	delete[] wk;
+	free(wk);
 #else
 	x = wk;
 #endif

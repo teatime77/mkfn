@@ -4,7 +4,7 @@
 
 #define _Memcpy(dst,src, size) memcpy(dst, src, size)
 #define _Malloc(x, size)		MyMalloc((void**)&x, size)
-#define _Free(x)				free(x)
+#define _Free(x)				if(x != 0){ free(x); x = 0; }
 #define _MemcpyToSymbol(dst, src, size) memcpy(&dst, &src, size)
 
 #define __constant__ static
@@ -24,4 +24,3 @@ template <class T> inline T min(T x, T y) {
 
 double sigmoid(double);
 double sigmoid_prime(double);
-double MaxPoolPrime(double);

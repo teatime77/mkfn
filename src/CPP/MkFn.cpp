@@ -8,7 +8,3 @@ double sigmoid_prime(double z) {
 	double f = sigmoid(z);
 	return f * (1 - f);
 }
-
-double MaxPoolPrime(double) {
-	return 0;
-}

@@ -7,6 +7,8 @@
 #include "../Lib/Lib.h"
 #include "MkFn.h"
 #include "FullyConnectedLayer.h"
+#include "ConvolutionalLayer.h"
+#include "MaxPoolingLayer.h"
 #include "../Lib/Network.h"
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
@@ -17,27 +19,6 @@ __global__ void addKernel(int *c, const int *a, const int *b)
     c[i] = a[i] + b[i];
 }
 
-void NetworkTest() {
-	// ログファイルを初期化します。
-	InitLog();
-
-	_chk(cudaSetDevice(0));
-
-	Network<double> *net = new Network<double>();
-	net->EpochSize = 100;
-	net->TrainBatchSize = 10;
-	net->TestBatchSize = 20;
-	net->Layers = std::vector<Layer*>{
-		new FullyConnectedLayer(28 * 28, 30),
-		new FullyConnectedLayer(30, 10)
-	};
-
-	for (size_t i = 0; i < net->Layers.size(); i++) {
-		net->Layers[i]->LearningRate = 3.0f / net->TrainBatchSize;
-	}
-
-	net->DeepLearning();
-}
 
 int main(){
 	NetworkTest();
