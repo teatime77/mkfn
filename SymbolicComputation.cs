@@ -157,7 +157,7 @@ namespace MkFn {
                     return Add(args);
                 }
                 else if (app.Function.VarRef == MaxPoolFnc) {
-                    return new Apply(MaxPoolPrimeFnc, app.Args[0].Clone(var_tbl));
+                    return new Apply(MaxPoolPrimeFnc, app.Args.Select(x => x.Clone(var_tbl)).ToArray());
                 }
                 else if (app.Function.Name == "σ") {
 

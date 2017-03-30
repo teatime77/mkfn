@@ -10,7 +10,7 @@ namespace MkFn {
         /*
             添え字から配列の先頭からのオフセットの計算式を得ます。
         */
-        public static Term OffsetFromIndexes(Reference rf) {
+        public static string OffsetFromIndexes(Reference rf) {
             if (!IsNew(rf.VarRef.Domain)) {
                 // 変数の定義域がない場合
 
@@ -28,7 +28,21 @@ namespace MkFn {
                 t = Add(Mul(domain.Args[dim], t), rf.Indexes[dim]);
             }
 
-            return t;
+            string idx = t.Code();
+
+            if (rf.VarRef.Kind == FieldKind.CalculatedField) {
+
+                if (OutputLanguage == Language.CUDA) {
+
+                    idx = "(" + idx + ") * _BatchSize + _batch_idx";
+                }
+                else {
+
+                    idx = "(" + idx + ") * BatchSize + _batch_idx";
+                }
+            }
+
+            return idx;
         }
 
 

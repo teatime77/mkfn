@@ -658,19 +658,7 @@ namespace MkFn {
 
                 if(MkFn.OutputLanguage == Language.CUDA || MkFn.OutputLanguage == Language.CPP) {
 
-                    idx = MkFn.OffsetFromIndexes(this).Code();
-
-                    if(VarRef.Kind == FieldKind.CalculatedField) {
-
-                        if (MkFn.OutputLanguage == Language.CUDA) {
-
-                            idx = "(" + idx + ") * _BatchSize + _batch_idx";
-                        }
-                        else {
-
-                            idx = "(" + idx + ") * BatchSize + _batch_idx";
-                        }
-                    }
+                    idx = MkFn.OffsetFromIndexes(this);
                 }
                 else {
 
@@ -769,6 +757,15 @@ namespace MkFn {
                 if (Function.VarRef == MkFn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
 
                     return "δ_" + Args[1].ToString();
+                }
+                else if (Function.VarRef == MkFn.Singleton.MaxPoolPrimeFnc) {
+                    Reference x = Args[0] as Reference;
+                    Reference y = Args[1] as Reference;
+
+                    string x_idx = MkFn.OffsetFromIndexes(x);
+                    string y_idx = MkFn.OffsetFromIndexes(y);
+
+                    return string.Format("({0}[{1}] == {2} ? {3}[{2}] : 0)", MkFn.IndexName(x.VarRef), y_idx, x_idx, x.Name);
                 }
                 else if (MkFn.IsNew(this)) {
 

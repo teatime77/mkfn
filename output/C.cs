@@ -91,6 +91,11 @@ namespace MkFn {
                     else if (lnq.Aggregate.VarRef == MaxFnc) {
                         // 最大値の場合
 
+                        if (! (lnq.Select is Reference)) {
+
+                            throw new Exception();
+                        }
+
                         string min_const = "";
                         if(lnq.TypeTerm == DoubleClass) {
                             // doubleの場合
@@ -113,37 +118,62 @@ namespace MkFn {
 
                         // 初期値 = 数の最小値
                         sw.WriteLine("{0}{1} {2} = {3};", Nest(nest), lnq.TypeTerm.ToString(), tmp_name, min_const);
+                        sw.WriteLine("{0}int {1}_max_idx = 0;", Nest(nest), tmp_name);
                     }
 
+                    // ループの内部のネスト
+                    int inner_nest = nest + lnq.Variables.Length;
+
                     // ループ変数に対し
-                    foreach (Variable loop_var in lnq.Variables) {
+                    for (int i = 0; i < lnq.Variables.Length; i++) {
                         // for文の先頭のコードを追加します。  
-                        ForHeadCode(loop_var, sw, nest);
+                        ForHeadCode(lnq.Variables[i], sw, nest + i);
                     }
 
                     if (lnq.Aggregate.VarRef == SumFnc) {
                         // 和の場合
 
                         // 加算します。
-                        sw.WriteLine("{0}{1} += {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
+                        sw.WriteLine("{0}{1} += {2};", Nest(inner_nest), tmp_name, lnq.Select.ToString());
                     }
                     else if (lnq.Aggregate.VarRef == ProdFnc) {
                         // 積の場合
 
                         // 乗算します。
-                        sw.WriteLine("{0}{1} *= {2};", Nest(nest+1), tmp_name, lnq.Select.ToString());
+                        sw.WriteLine("{0}{1} *= {2};", Nest(inner_nest), tmp_name, lnq.Select.ToString());
                     }
                     else if (lnq.Aggregate.VarRef == MaxFnc) {
                         // 最大値の場合
 
+                        Reference max_ref = lnq.Select as Reference;
+
+                        string idx = OffsetFromIndexes(max_ref);
+
                         // 最大値を更新します。
-                        sw.WriteLine("{0}{1} = std::max({1}, {2});", Nest(nest+1), tmp_name, lnq.Select.ToString());
+                        sw.WriteLine("{0}int {1}_idx = {2};", Nest(inner_nest), tmp_name, idx);
+                        sw.WriteLine("{0}if({1} < {2}[{1}_idx]) {{", Nest(inner_nest), tmp_name, max_ref.Name);
+                        sw.WriteLine("{0}{1} = {2}[{1}_idx];", Nest(inner_nest + 1), tmp_name, max_ref.Name);
+                        sw.WriteLine("{0}{1}_max_idx = {1}_idx;", Nest(inner_nest + 1), tmp_name);
+                        sw.WriteLine("{0}}}", Nest(inner_nest));
+                    }
+                    
+                    // ループ変数に対し
+                    for (int i = lnq.Variables.Length - 1; 0 <= i; i--) {
+                        sw.WriteLine(Nest(nest + i) + "}");
                     }
 
-                    // ループ変数に対し
-                    foreach (Variable loop_var in lnq.Variables) {
-                        sw.WriteLine(Nest(nest) + "}");
+                    if (lnq.Aggregate.VarRef == MaxFnc) {
+                        // 最大値の場合
+
+                        Assignment asn = stmt as Assignment;
+
+                        Variable max_var = (lnq.Select as Reference).VarRef;
+
+                        string idx = OffsetFromIndexes(asn.Left);
+
+                        sw.WriteLine("{0}{1}[{2}] = {3}_max_idx;", Nest(nest), IndexName(max_var), idx, tmp_name);
                     }
+
                 }
 
                 if (stmt is Assignment) {

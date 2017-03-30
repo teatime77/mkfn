@@ -6,7 +6,6 @@ using System.Linq;
 
 namespace MkFn {
     public partial class MkFn {
-
         /*
             newならtrueを返します。
         */
@@ -98,6 +97,10 @@ namespace MkFn {
 
         static Apply Mul(params object[] args) {
             return new Apply(new Reference(Singleton.MulFnc), VariableToReference(args));
+        }
+
+        static Apply Div(params object[] args) {
+            return new Apply(new Reference(Singleton.DivFnc), VariableToReference(args));
         }
 
         static Apply Add(params object[] args) {

@@ -335,17 +335,14 @@ namespace MkFn {
 
                     Apply app = used_ref.Indexes[dim] as Apply;
 
-                    if (app.Args.Length == 2 && app.Args[0] is Reference && app.Args[1] is Reference) {
+                    if (app.Args.Length == 2 && app.Args[1] is Reference) {
                         // 引数の数が2個で、それぞれが変数参照の場合
-
-                        // 加算の最初の引数
-                        Reference ref1 = app.Args[0] as Reference;
 
                         // 加算の2番目の引数
                         Reference ref2 = app.Args[1] as Reference;
 
-                        if (ref1.VarRef.ParentVar is ForEach && ref2.VarRef.ParentVar is LINQ) {
-                            // 最初がforeachのループ変数の参照で、2番目がLINQのループ変数の参照の場合
+                        if (ref2.VarRef.ParentVar is LINQ) {
+                            // 2番目の引数がLINQのループ変数の参照の場合
 
                             // 2番目の引数のLINQ
                             LINQ lnq = ref2.VarRef.ParentVar as LINQ;
@@ -355,9 +352,6 @@ namespace MkFn {
 
                                 throw new Exception();
                             }
-
-                            // i
-                            Variable for_var1 = (ref1).VarRef;
 
                             // p
                             Variable linq_var1 = (ref2).VarRef;
@@ -370,27 +364,68 @@ namespace MkFn {
                                 // i0
                                 Variable for_var2 = def_idxes[dim].VarRef;
 
-                                Apply start = Add(Add(for_var2, MaxRange(for_var1.Domain).Minus()), One());
-                                Reference end = new Reference(for_var2);
-                                Apply linq_var2_domain = Intersect(linq_var1.Domain, Range(start, end));
+                                if (app.Args[0] is Reference && app.Args[0].AsReference().VarRef.ParentVar is ForEach) {
+                                    // 最初の引数がforeachのループ変数の参照の場合
 
-                                // p
-                                Variable linq_var2 = new Variable(linq_var1.Name, linq_var1.TypeVar, linq_var2_domain);
-                                var_tbl.Add(linq_var1, linq_var2);
+                                    // 加算の最初の引数
+                                    Reference ref1 = app.Args[0] as Reference;
 
-                                lnq_vars.Add(linq_var2);
+                                    // i
+                                    Variable for_var1 = (ref1).VarRef;
 
-                                Debug.Assert(left_idxes[dim] is Reference);
+                                    Apply start = Add(Add(for_var2, MaxRange(for_var1.Domain.Clone()).Minus()), One());
+                                    Reference end = new Reference(for_var2);
+                                    Apply linq_var2_domain = Intersect(linq_var1.Domain, Range(start, end));
 
-                                // i0 - p
-                                Apply sub2 = Sub(for_var2, linq_var2);
+                                    // p
+                                    Variable linq_var2 = new Variable(linq_var1.Name, linq_var1.TypeVar, linq_var2_domain);
+                                    var_tbl.Add(linq_var1, linq_var2);
 
-                                // 右辺の dim に i0 - p を代入します。
-                                subst_tbl.Add(left_idxes[dim] as Reference, sub2);
+                                    lnq_vars.Add(linq_var2);
 
-                                left_idxes[dim] = sub2;
+                                    Debug.Assert(left_idxes[dim] is Reference);
 
-                                lnq_idxes.Add(app);
+                                    // i0 - p
+                                    Apply sub2 = Sub(for_var2, linq_var2);
+
+                                    // 右辺の dim に i0 - p を代入します。
+                                    subst_tbl.Add(left_idxes[dim] as Reference, sub2);
+
+                                    left_idxes[dim] = sub2;
+
+                                    lnq_idxes.Add(app);
+                                }
+                                else if (app.Args[0].IsMul()) {
+                                    // 最初の引数が乗算の場合
+
+                                    Apply mul = app.Args[0] as Apply;
+
+                                    // 最初の引数はforeachのループ変数の参照
+                                    Debug.Assert(mul.Args[0] is Reference && mul.Args[0].AsReference().VarRef.ParentVar is ForEach);
+
+                                    // 乗算の最初の引数
+                                    Reference ref1 = mul.Args[0] as Reference;
+
+                                    // i
+                                    Variable for_var1 = (ref1).VarRef;
+
+                                    // 最初の引数はforeachのループ変数の参照
+                                    Debug.Assert(mul.Args[1] is Reference && mul.Args[1].AsReference().VarRef.Kind == FieldKind.DomainField);
+
+                                    Reference H = mul.Args[1] as Reference;
+
+                                    // i0 / H
+                                    Apply div = Div(for_var2, H.VarRef);
+
+                                    // 右辺の dim に i0 / H を代入します。
+                                    subst_tbl.Add(left_idxes[dim] as Reference, div);
+
+                                    left_idxes[dim] = div;
+                                }
+                                else {
+
+                                    throw new Exception();
+                                }
                             }
                         }
                         else {
@@ -422,7 +457,28 @@ namespace MkFn {
                             if (lnq0.Aggregate.VarRef == MaxFnc) {
                                 // 最大値の場合
 
-                                ret = new Apply(MaxPoolFnc, lnq0.Select.Clone(var_tbl));
+
+                                Variable max_var = (lnq0.Select as Reference).VarRef;
+
+                                Class max_idx_type = GetArrayType(IntClass, asn.Left.VarRef.TypeVar.DimCnt);
+
+                                Apply left_domain = asn.Left.VarRef.Domain as Apply;
+                                Apply max_idx_domain = new Apply(NewFnc, IntClass, left_domain.Args.Select(x => x.Clone()).ToArray());
+                                Variable max_idx = new Variable(IndexName(max_var), max_idx_type, max_idx_domain, FieldKind.CalculatedField);
+                                max_idx.ParentVar = fld.ParentVar;
+                                max_index_flds.Add(max_var, max_idx);
+
+                                Reference lnq_sel = lnq0.Select as Reference;
+                                Debug.Assert(lnq_sel == used_ref && lnq_sel.VarRef == fld);
+
+                                Reference lnq_sel_def_idxes = new Reference(lnq_sel.Name, lnq_sel.VarRef, def_idxes.Select(x => x.Clone()).ToArray());
+
+                                List<Term> max_args = new List<Term>();
+                                max_args.Add(lnq_sel_def_idxes);
+                                max_args.Add(asn.Left.Clone(var_tbl));
+                                max_args.Add(new Reference(max_idx.Name, max_idx, asn.Left.Indexes.Select(x => x.Clone(var_tbl)).ToArray()));
+
+                                ret = new Apply(MaxPoolFnc, max_args.ToArray());
                             }
                             else if (lnq0.Aggregate.VarRef == SumFnc || lnq0.Aggregate.VarRef == ProdFnc) {
                                 // 和か積の場合
@@ -614,8 +670,8 @@ namespace MkFn {
                 fld.Kind = FieldKind.CalculatedField;
             }
 
-            var range_vars = from x in All<Variable>(cls) where IsRange(x.Domain) from r in AllRefs(x.Domain) where r.VarRef != RangeFnc && r.VarRef.ParentVar == cls select r.VarRef;
-            var domain_fields = from fld in cls.Fields where IsNew(fld.Domain) from r in AllRefs(fld.Domain) where r.VarRef != NewFnc select r.VarRef;
+            var range_vars = from x in All<Variable>(cls) where IsRange(x.Domain) from r in AllRefs(x.Domain) where r.VarRef.ParentVar == cls select r.VarRef;
+            var domain_fields = from fld in cls.Fields where IsNew(fld.Domain) from r in AllRefs(fld.Domain) where r.VarRef.ParentVar == cls select r.VarRef;
             
             foreach (Variable fld in range_vars.Union(domain_fields).Distinct()) {
                 if(fld.TypeVar != IntClass) {
@@ -760,6 +816,8 @@ namespace MkFn {
 
                 delta_y_var = to_delta_fld[y_var];
 
+                max_index_flds = new Dictionary<Variable, Variable>();
+
                 // 逆伝播の代入文のリスト
                 List<Assignment> backward_asns = new List<Assignment>();
 
@@ -819,6 +877,11 @@ namespace MkFn {
                 // フィールドのリストにデルタ変数を追加します。
                 foreach(Variable delta_fld in to_delta_fld.Values) {
                     cls.AddField(delta_fld);
+                }
+
+                // フィールドのリストにMaxの添え字の変数を追加します。
+                foreach (Variable fld in max_index_flds.Values) {
+                    cls.AddField(fld);
                 }
 
                 created_flds = cls.Fields.Where(x => x != x_var && x != delta_y_var && (x.Kind == FieldKind.CalculatedField || x.Kind == FieldKind.ParameterField)).ToList();

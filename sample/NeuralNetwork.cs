@@ -141,18 +141,23 @@ public class ConvolutionalLayer : Layer {
     public double[,,] h;
     public double[] b;
 
-    public ConvolutionalLayer() {
-        x = new double[M, N];
-        y = new double[M, N, K];
+    public ConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
+        M = m_size;
+        N = n_size;
+        K = k_size;
+        H = h_size;
 
-        u = new double[M, N, K];
+        x = new double[M, N];
+        u = new double[M - H + 1, N - H + 1, K];
+        y = new double[M - H + 1, N - H + 1, K];
+
         h = new double[H, H, K];
         b = new double[K];
     }
 
 public override void Forward() {
-        foreach (int i in Range(M)) {
-            foreach (int j in Range(N)) {
+        foreach (int i in Range(M - H + 1)) {
+            foreach (int j in Range(N - H + 1)) {
                 foreach (int k in Range(K)) {
                     u[i, j, k] = (from p in Range(H) from q in Range(H) select x[i + p, j + q] * h[p, q, k]).Sum() + b[k];
                     y[i, j, k] = σ(u[i, j, k]);
@@ -163,29 +168,39 @@ public override void Forward() {
 }
 
 public class MaxPoolingLayer : Layer {
-    public int M;   // 行数
-    public int N;   // 列数
+    public int M;   // 入力行数
+    public int N;   // 入力列数
     public int K;   // フィルター数
-    public int H;
+    public int H;   // フィルターの幅
+    public int MH;  // 出力行数
+    public int NH;  // 出力列数
 
     public double[,,] x;
     public double[,,] y;
 
-    public MaxPoolingLayer() {
+    public MaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
+        M = m_size;
+        N = n_size;
+        K = k_size;
+        H = h_size;
+        MH = M / H;
+        NH = N / H;
+
         x = new double[M, N, K];
-        y = new double[M, N, K];
+        y = new double[MH, NH, K];
     }
 
     public override void Forward() {
-        foreach (int i in Range(M)) {
-            foreach (int j in Range(N)) {
+        foreach (int i in Range(MH)) {
+            foreach (int j in Range(NH)) {
                 foreach (int k in Range(K)) {
-                    y[i, j, k] = (from p in Range(H) from q in Range(H) select x[i + p, j + q, k]).Max();
+                    y[i, j, k] = (from p in Range(H) from q in Range(H) select x[i * H + p, j * H + q, k]).Max();
                 }
             }
         }
     }
 }
+
 
 public class RecurrentLayer : Layer {
     public int T;

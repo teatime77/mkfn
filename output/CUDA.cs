@@ -32,6 +32,9 @@ namespace MkFn {
         [ThreadStatic]
         List<Variable> calculated_flds;
 
+        [ThreadStatic]
+        Dictionary<Variable, Variable> max_index_flds;
+
         /*
             カーネル関数のソースコードを作ります。
         */
@@ -124,22 +127,29 @@ namespace MkFn {
         /*
             カーネル関数の名前を返します。
         */
-        string KernelName(bool is_forward, Variable va) {
+        public static string KernelName(bool is_forward, Variable va) {
             return (is_forward ? "forward_" : "backward_") + va.Name;
         }
 
         /*
             ストリーム変数の名前を返します。
         */
-        string StreamName(Variable va) {
+        public static string StreamName(Variable va) {
             return "_stream_" + va.Name;
         }
 
         /*
             イベント変数の名前を返します。
         */
-        string EventName(Variable va) {
+        public static string EventName(Variable va) {
             return "_event_" + va.Name;
+        }
+
+        /*
+            最大値の添え字の変数の名前を返します。
+        */
+        public static string IndexName(Variable va) {
+            return "※" + va.Name;
         }
 
         /*
@@ -155,8 +165,19 @@ namespace MkFn {
                 // 代入文の中で参照されているフィールド
                 List<Variable> flds = (from r in AllRefs(asn) where r.VarRef.IsField() select r.VarRef).ToList();
 
+
+                var linqs = All<LINQ>(asn.Right).Where(x => x.Aggregate.Name == "Max");
+                if (linqs.Any()) {
+                    LINQ linq = linqs.First();
+                    Variable idx = max_index_flds[(linq.Select as Reference).VarRef];
+                    if(!flds.Contains(idx)) {
+                        flds.Add(idx);
+                    }
+                }
+
+
                 // フィールドの定義域の中で参照されているフィールド
-                List<Variable> domain_vars = (from fld in flds where IsNew(fld.Domain) from t in fld.Domain.AsApply().Args select t.AsReference().VarRef).ToList();
+                List<Variable> domain_vars = (from fld in flds where IsNew(fld.Domain) from r in All<Reference>(fld.Domain) where r.VarRef.ParentVar == cls select r.VarRef).ToList();
 
                 // 代入文と定義域の中で参照されているフィールド
                 flds.AddRange(domain_vars);
@@ -199,6 +220,8 @@ namespace MkFn {
                     throw new Exception();
                 }
 
+                sw.WriteLine("#pragma omp parallel for");
+
                 // 代入先の添え字に対し
                 for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
                     Reference idx = asn.Left.Indexes[dim1] as Reference;
@@ -218,17 +241,19 @@ namespace MkFn {
                     }
                 }
 
+                int nest = asn.Left.Indexes.Length;
+
                 // ミニバッチ内のループの始まり
-                sw.WriteLine("{0}for (int _batch_idx = 0; _batch_idx < BatchSize; _batch_idx++) {{", Nest(2));
+                sw.WriteLine("{0}for (int _batch_idx = 0; _batch_idx < BatchSize; _batch_idx++) {{", Nest(nest + 1));
 
                 // 代入文のコードを書きます。
-                sw.WriteLine(StatementCode(asn, 3));
+                sw.WriteLine(StatementCode(asn, nest + 2));
 
                 // ミニバッチ内のループの終わり
-                sw.WriteLine("{0}}}", Nest(2));
+                sw.WriteLine("{0}}}", Nest(nest + 1));
 
                 // 代入先の添え字に対し
-                for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
+                for (int dim1 = asn.Left.Indexes.Length - 1; 0 <= dim1; dim1--) {
 
                     sw.WriteLine("{0}}}", Nest(dim1 + 1));
                 }
@@ -345,6 +370,7 @@ namespace MkFn {
             sw.WriteLine("void {0}::UpdateParameter_{1}(){{", cls.Name, kernel_idx);
             sw.WriteLine("\tint _count = {0};", ElementCountApply(flds[0]).Code());
 
+            sw.WriteLine("#pragma omp parallel for");
             sw.WriteLine("\tfor(int _idx = 0; _idx < _count; _idx++) {");
             sw.WriteLine("\t\tint offset = _idx * BatchSize;");
 
@@ -414,16 +440,17 @@ namespace MkFn {
 
                 sw.WriteLine("\t_chk(_MemcpyToSymbol(_BatchSize, BatchSize, sizeof(BatchSize)));");
                 sw.WriteLine("\t_chk(_MemcpyToSymbol(_LearningRate, LearningRate, sizeof(LearningRate)));");
+                sw.WriteLine("\t_chk(cudaDeviceSynchronize());");
             }
-
-            sw.WriteLine("\t_chk(cudaDeviceSynchronize());");
 
             foreach (int i in Range(dic.Keys.Count)) {
 
                 sw.WriteLine("\tUpdateParameter_{0}();", i);
             }
 
-            sw.WriteLine("\t_chk(cudaDeviceSynchronize());");
+            if (OutputLanguage == Language.CUDA) {
+                sw.WriteLine("\t_chk(cudaDeviceSynchronize());");
+            }
 
             sw.WriteLine("}");
 
@@ -453,7 +480,7 @@ namespace MkFn {
             ASCII文字列に変換します。
         */
         string ASCII(string s) {
-            return s.Replace("δ", "delta_").Replace("σ", "sigmoid").Replace("ι", "i").Replace("std::", "");
+            return s.Replace("δ", "delta_").Replace("σ", "sigmoid").Replace("ι", "i").Replace("std::", "").Replace("※", "_idx_");
         }
 
         /*
@@ -477,7 +504,7 @@ namespace MkFn {
             sw.WriteLine(header);
 
             sw.WriteLine("\t{0};", FunctionHeader(cls, constructor, false));
-            sw.WriteLine("\t~{0}();", cls.Name);
+            sw.WriteLine("\tvirtual ~{0}();", cls.Name);
             sw.WriteLine("\tvirtual void Forward() override;");
             sw.WriteLine("\tvirtual void Backward() override;");
             sw.WriteLine("\tvirtual void Allocate() override;");
@@ -581,7 +608,7 @@ namespace MkFn {
                 // CUDAのイベント変数を削除します。
                 sw.WriteLine(string.Join("", from fld in created_flds.Intersect(calculated_flds) select "\t_chk(cudaEventDestroy(" + EventName(fld) + "));\r\n"));
             }
-            sw.WriteLine(string.Join("", from fld in created_flds where fld.Kind == FieldKind.ParameterField select "\tdelete[] " + fld.Name + ";\r\n"));
+            sw.WriteLine(string.Join("", from fld in created_flds where fld.Kind == FieldKind.ParameterField select "\t_Free(" + fld.Name + ");\r\n"));
             sw.WriteLine("}");
 
             // 配列の領域の確保を作ります。
@@ -662,7 +689,7 @@ namespace MkFn {
             }
 
             //!!!!!!!!!! デバッグ環境用 !!!!!!!!!!
-            if (output_language == Language.CUDA && Directory.Exists(@"Z:\")) {
+            if (Directory.Exists(@"Z:\")) {
 
                 src_dir = @"Z:\prj\mkfn\src\" + lang_str;
             }
