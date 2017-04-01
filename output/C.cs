@@ -181,7 +181,17 @@ namespace MkFn {
 
                     Assignment asn = stmt as Assignment;
 
-                    sw.WriteLine( Nest(nest) + asn.Left.ToString() + " = " + asn.Right.ToString() + ";");
+                    string asn_opr;
+                    if(asn.Left.VarRef == delta_y_var) {
+
+                        asn_opr = " += ";
+                    }
+                    else {
+
+                        asn_opr = " = ";
+                    }
+
+                    sw.WriteLine( Nest(nest) + asn.Left.ToString() + asn_opr + asn.Right.ToString() + ";");
                 }
                 else {
                     // return文の場合

@@ -204,8 +204,8 @@ public class MaxPoolingLayer : Layer {
 
 public class RecurrentLayer : Layer {
     public int T;
-    public int Y;
     public int X;
+    public int Y;
 
     public double[,] x;
     public double[,] y;
@@ -217,7 +217,11 @@ public class RecurrentLayer : Layer {
 
     public double[,] u;
 
-    public RecurrentLayer() {
+    public RecurrentLayer(int t_size, int x_size, int y_size) {
+        T = t_size;
+        X = x_size;
+        Y = y_size;
+
         x = new double[T, X];
         y = new double[T, Y];
         win = new double[Y, X];
