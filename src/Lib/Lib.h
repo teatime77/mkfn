@@ -4,6 +4,7 @@ class Layer {
 public:
 	int BatchSize;
 	float LearningRate;
+	int t;
 
 	Layer() {
 	}
@@ -16,14 +17,19 @@ public:
 	virtual void Free() = 0;
 	virtual void UpdateParameter() = 0;
 	virtual void SetInput(void* src) = 0;
-	virtual void* GetInput() = 0;
-	virtual void* GetOutput() = 0;
+	virtual void* GetInput(int t = 0) = 0;
+	virtual void* GetOutput(int t = 0) = 0;
+	virtual void SetIputDelta(void* src) = 0;
 	virtual void SetOutputDelta(void* src) = 0;
-	virtual void* GetOutputDelta() = 0;
-	virtual void* GetInputDelta() = 0;
+	virtual void* GetOutputDelta(int t = 0) = 0;
+	virtual void** GetOutputDeltaPtr() = 0;
+	virtual void* GetInputDelta(int t = 0) = 0;
 
 	virtual int GetInputCount() = 0;
 	virtual int GetOutputCount() = 0;
+	virtual int GetTimeCount() = 0;
+	virtual int GetTimeInputCount() = 0;
+	virtual int GetTimeOutputCount() = 0;
 
 #ifdef __CUDACC__
 	virtual void SetInputStream(cudaStream_t src) = 0;
@@ -42,6 +48,8 @@ public:
 
 void InitLog();
 void Log(wchar_t *szFormat, ...);
+void LogA(char *szFormat, ...);
+double UniformRandom();
 float NormalRand();
 
 template <class T> inline void SetNormalRand(T* &x, int size) {

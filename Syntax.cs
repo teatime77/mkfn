@@ -656,16 +656,33 @@ namespace MkFn {
             else {
                 string idx;
 
-                if(MkFn.OutputLanguage == Language.CUDA || MkFn.OutputLanguage == Language.CPP) {
+                if (MkFn.OutputLanguage == Language.CUDA || MkFn.OutputLanguage == Language.CPP) {
 
                     idx = MkFn.OffsetFromIndexes(this);
+
+
+                    string str = Name + "[" + idx + "]";
+
+                    if (MkFn.Singleton.t_var != null && Indexes.Any(x => MkFn.Is_t_plus(x))) {
+
+                        return "(t + 1 < T ? " + str + " : 0)";
+                    }
+                    else if (MkFn.Singleton.t_var != null && Indexes.Any(x => MkFn.Is_t_minus(x))) {
+
+                        return "(0 <= t - 1 ? " + str + " : 0)";
+                    }
+                    else {
+
+                        return str;
+                    }
                 }
                 else {
 
                     idx = string.Join(", ", from x in Indexes select x.ToString());
+
+                    return Name + "[" + idx + "]";
                 }
 
-                return Name + "[" + idx + "]";
             }
         }
 

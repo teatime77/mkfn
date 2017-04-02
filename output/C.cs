@@ -49,6 +49,17 @@ namespace MkFn {
             if (stmt is Assignment || stmt is Return) {
                 // 代入文かreturnの場合
 
+                sw.WriteLine("");
+
+                Dictionary<LINQ, string> linq_value = LinqValue;
+                LinqValue = null;
+                Language lang_save = OutputLanguage;
+                OutputLanguage = Language.CS;
+                sw.WriteLine(Nest(nest) + "// " + stmt.ToString());
+
+                LinqValue = linq_value;
+                OutputLanguage = lang_save;
+
                 // すべてのLINQのリスト
                 List<LINQ> lnks = new List<LINQ>();
                 MkFn.Traverse(stmt,
@@ -66,9 +77,6 @@ namespace MkFn {
                     string tmp_name = string.Format("_wk{0}", TmpCnt);
                     MkFn.LinqValue.Add(lnq, tmp_name);
                 }
-
-                sw.WriteLine("");
-                sw.WriteLine(Nest(nest) + "// " + stmt.ToString());
 
                 foreach (LINQ lnq in lnks) {
 

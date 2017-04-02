@@ -21,7 +21,10 @@ namespace MkFn {
         Variable delta_y_var;
 
         [ThreadStatic]
-        Variable t_var;
+        public Variable t_var;
+
+        [ThreadStatic]
+        Variable T_var;
 
         [ThreadStatic]
         Dictionary<Variable, Variable> to_delta_fld;
@@ -43,6 +46,11 @@ namespace MkFn {
             // カーネル関数の引数
             string args = string.Join(", ", from x in flds select x.Code());
 
+            if (t_var != null) {
+
+                args += ", " + t_var.Code();
+            }
+
             // カーネル関数のヘッダー行
             sw.WriteLine("__global__ static void {0}({1}){{", kernel_name, args);
 
@@ -63,8 +71,11 @@ namespace MkFn {
                     break;
                 }
 
-                // 代入先の添え字をthreadIdxとblockIdxから計算します。
-                sw.WriteLine("\tint {0} = {1};", asn.Left.Indexes[dim1].ToString(), idx);
+                if (! Is_t(asn.Left.Indexes[dim1])) {
+
+                    // 代入先の添え字をthreadIdxとblockIdxから計算します。
+                    sw.WriteLine("\tint {0} = {1};", asn.Left.Indexes[dim1].ToString(), idx);
+                }
             }
 
             // カーネル関数の本体のコードを書きます。
@@ -100,7 +111,10 @@ namespace MkFn {
                     dst = "blocks_z";
                     break;
                 }
-                sw.WriteLine("\t{0} = {1};", dst, sz);
+                if (!Is_T(domain.Args[dim1])) {
+
+                    sw.WriteLine("\t{0} = {1};", dst, sz);
+                }
             }
 
             sw.WriteLine("\tdim3 threadsPerBlock = dim3(BatchSize);");
@@ -116,7 +130,13 @@ namespace MkFn {
             }
 
             // addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
-            sw.WriteLine("\t{0}<<<blocksPerGrid, threadsPerBlock, 0, {1}>>>({2});", kernel_name, StreamName(asn.Left.VarRef), string.Join(", ", from x in flds select x.Name));
+            string args = string.Join(", ", from x in flds select x.Name);
+            if (t_var != null) {
+
+                args += ", " + t_var.Name;
+            }
+
+            sw.WriteLine("\t{0}<<<blocksPerGrid, threadsPerBlock, 0, {1}>>>({2});", kernel_name, StreamName(asn.Left.VarRef), args);
 
             // カーネル関数の実行終了のイベントを記録します。
             sw.WriteLine("\t_chk(cudaEventRecord({0}, {1}));", EventName(asn.Left.VarRef), StreamName(asn.Left.VarRef));
@@ -226,18 +246,21 @@ namespace MkFn {
                 for (int dim1 = 0; dim1 < asn.Left.Indexes.Length; dim1++) {
                     Reference idx = asn.Left.Indexes[dim1] as Reference;
 
-                    if (!IsRange(idx.VarRef.Domain)) {
-                        throw new Exception();
-                    }
-                    Apply range = idx.VarRef.Domain as Apply;
+                    if (! Is_t(idx)) {
 
-                    if(range.Args.Length == 1) {
+                        if (!IsRange(idx.VarRef.Domain)) {
+                            throw new Exception();
+                        }
+                        Apply range = idx.VarRef.Domain as Apply;
 
-                        sw.WriteLine("{0}for (int {1} = 0; {1} < {2}; {1}++) {{", Nest(dim1 + 1), idx.Name, range.Args[0].ToString());
-                    }
-                    else {
+                        if (range.Args.Length == 1) {
 
-                        sw.WriteLine("{0}for (int {1} = {2}; {1} < {3}; {1}++) {{", Nest(dim1 + 1), idx.Name, range.Args[0], range.Args[1]);
+                            sw.WriteLine("{0}for (int {1} = 0; {1} < {2}; {1}++) {{", Nest(dim1 + 1), idx.Name, range.Args[0].ToString());
+                        }
+                        else {
+
+                            sw.WriteLine("{0}for (int {1} = {2}; {1} < {3}; {1}++) {{", Nest(dim1 + 1), idx.Name, range.Args[0], range.Args[1]);
+                        }
                     }
                 }
 
@@ -255,7 +278,10 @@ namespace MkFn {
                 // 代入先の添え字に対し
                 for (int dim1 = asn.Left.Indexes.Length - 1; 0 <= dim1; dim1--) {
 
-                    sw.WriteLine("{0}}}", Nest(dim1 + 1));
+                    if (!Is_t(asn.Left.Indexes[dim1])) {
+
+                        sw.WriteLine("{0}}}", Nest(dim1 + 1));
+                    }
                 }
             }
             sw.WriteLine("}");
@@ -368,7 +394,7 @@ namespace MkFn {
         void CppMakeUpdateParameter(Class cls, StringWriter sw, int kernel_idx, List<Variable> flds) {
             sw.WriteLine("");
             sw.WriteLine("void {0}::UpdateParameter_{1}(){{", cls.Name, kernel_idx);
-            sw.WriteLine("\tint _count = {0};", ElementCountApply(flds[0]).Code());
+            sw.WriteLine("\tint _count = {0};", ElementCount(flds[0]).Code());
 
             sw.WriteLine("#pragma omp parallel for");
             sw.WriteLine("\tfor(int _idx = 0; _idx < _count; _idx++) {");
@@ -460,7 +486,7 @@ namespace MkFn {
         /*
           要素の数の計算式を返します。
         */
-        Term ElementCountApply(Variable va) {
+        Term ElementCount(Variable va) {
             if (!IsNew(va.Domain)) {
                 throw new Exception();
             }
@@ -476,11 +502,75 @@ namespace MkFn {
             }
         }
 
+
+        /*
+          各時刻の要素の数の計算式を返します。
+        */
+        Term TimeElementCount(Variable va) {
+            if (!IsNew(va.Domain)) {
+                throw new Exception();
+            }
+
+            Apply domain = va.Domain as Apply;
+            if (domain.Args[0] is Reference && (domain.Args[0] as Reference).VarRef == T_var) {
+
+                if (domain.Args.Length == 2) {
+
+                    return domain.Args[1];
+                }
+                else {
+
+                    Apply mul = Mul(domain.Args.Skip(1).Select(x => x.Clone()).ToArray());
+
+                    return mul;
+                }
+            }
+            else {
+
+                if (domain.Args.Length == 1) {
+
+                    return domain.Args[0];
+                }
+                else {
+
+                    return Mul(domain.Clone().Args);
+                }
+            }
+        }
+
         /*
             ASCII文字列に変換します。
         */
         string ASCII(string s) {
             return s.Replace("δ", "delta_").Replace("σ", "sigmoid").Replace("ι", "i").Replace("std::", "").Replace("※", "_idx_");
+        }
+
+        /*
+            指定したフィールドの位置を返します。
+        */
+        string GetFieldAddress(Variable fld) {
+            if (!IsNew(fld.Domain)) {
+                return fld.Name;
+            }
+
+            Apply domain = fld.Domain as Apply;
+            if (domain.Args[0] is Reference && (domain.Args[0] as Reference).VarRef == T_var) {
+
+                if (domain.Args.Length == 2) {
+
+                    return fld.Name + " + t * " + domain.Args[1].Code() + " * BatchSize";
+                }
+                else {
+
+                    Apply mul = Mul(domain.Args.Skip(1).Select(x => x.Clone()).ToArray());
+
+                    return fld.Name + " + t * " + mul.Code() + " * BatchSize";
+                }
+            }
+            else {
+
+                return fld.Name;
+            }
         }
 
         /*
@@ -512,17 +602,22 @@ namespace MkFn {
 
             sw.WriteLine("");
             sw.WriteLine("\tvirtual void SetInput (void* src) override {{ {0} = ({1}*)src; }}", x_var.Name, x_var.TypeVar.Name);
-            sw.WriteLine("\tvirtual void* GetInput()  override {{ return {0}; }}", x_var.Name);
-            sw.WriteLine("\tvirtual void* GetOutput() override {{ return {0}; }}", y_var.Name);
+            sw.WriteLine("\tvirtual void* GetInput(int t = 0)  override {{ return {0}; }}", GetFieldAddress(x_var));
+            sw.WriteLine("\tvirtual void* GetOutput(int t = 0) override {{ return {0}; }}", GetFieldAddress(y_var));
 
+            sw.WriteLine("\tvirtual void SetIputDelta   (void* src) override {{ {0} = ({1}*)src; }}", delta_x_var.Name, delta_x_var.TypeVar.Name);
             sw.WriteLine("\tvirtual void SetOutputDelta (void* src) override {{ {0} = ({1}*)src; }}", delta_y_var.Name, delta_y_var.TypeVar.Name);
-            sw.WriteLine("\tvirtual void* GetOutputDelta() override {{ return {0}; }}", delta_y_var.Name);
-            sw.WriteLine("\tvirtual void* GetInputDelta()  override {{ return {0}; }}", delta_x_var.Name);
+            sw.WriteLine("\tvirtual void* GetOutputDelta(int t = 0) override {{ return {0}; }}", GetFieldAddress(delta_y_var));
+            sw.WriteLine("\tvirtual void** GetOutputDeltaPtr() override {{ return (void**)&{0}; }}", delta_y_var.Name);
+            sw.WriteLine("\tvirtual void* GetInputDelta (int t = 0) override {{ return {0}; }}", GetFieldAddress(delta_x_var));
 
             // 入力と出力の数
             sw.WriteLine("");
-            sw.WriteLine("\tvirtual int GetInputCount()  override {{ return {0}; }}", ElementCountApply(x_var).Code());
-            sw.WriteLine("\tvirtual int GetOutputCount() override {{ return {0}; }}", ElementCountApply(y_var).Code());
+            sw.WriteLine("\tvirtual int GetInputCount()  override {{ return {0}; }}", ElementCount(x_var).Code());
+            sw.WriteLine("\tvirtual int GetOutputCount() override {{ return {0}; }}", ElementCount(y_var).Code());
+            sw.WriteLine("\tvirtual int GetTimeCount()       override {{ return {0}; }}", (T_var != null ? T_var.Name : "0"));
+            sw.WriteLine("\tvirtual int GetTimeInputCount()  override {{ return {0}; }}", TimeElementCount(x_var).Code());
+            sw.WriteLine("\tvirtual int GetTimeOutputCount() override {{ return {0}; }}", TimeElementCount(y_var).Code());
 
             if (OutputLanguage == Language.CUDA) {
 
@@ -582,7 +677,7 @@ namespace MkFn {
                     break;
 
                 case FieldKind.ParameterField:
-                    sw.WriteLine("\tSetNormalRand({0}, {1});", fld.Name, ElementCountApply(fld).Code());
+                    sw.WriteLine("\tSetNormalRand({0}, {1});", fld.Name, ElementCount(fld).Code());
                     break;
                 }
             }
@@ -614,7 +709,7 @@ namespace MkFn {
             // 配列の領域の確保を作ります。
             sw.WriteLine("");
             sw.WriteLine("void {0}::Allocate(){{", cls.Name);
-            sw.Write(string.Join("", from fld in created_flds where fld.Kind != FieldKind.ParameterField select string.Format("\t_chk(_Malloc({0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCountApply(fld).Code(), fld.TypeVar.Name)));
+            sw.Write(string.Join("", from fld in created_flds where fld.Kind != FieldKind.ParameterField select string.Format("\t_chk(_Malloc({0}, BatchSize * {1} * sizeof({2}))); \r\n", fld.Name, ElementCount(fld).Code(), fld.TypeVar.Name)));
             sw.WriteLine("}");
 
             // 配列の領域の解放を作ります。

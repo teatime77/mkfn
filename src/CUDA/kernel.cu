@@ -3,12 +3,18 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
+#include <cmath>
 #include <vector>
+#include <typeinfo.h> 
 #include "../Lib/Lib.h"
 #include "MkFn.h"
 #include "FullyConnectedLayer.h"
 #include "ConvolutionalLayer.h"
 #include "MaxPoolingLayer.h"
+#include "RecurrentLayer.h"
+#include "LSTMLayer.h"
 #include "../Lib/Network.h"
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);

@@ -782,6 +782,13 @@ namespace MkFn {
                     t_var = t_vars.First();
                 }
 
+                // 時間Tのフィールド
+                T_var = null;
+                var T_vars = cls.Fields.Where(fld => fld.Name == "T");
+                if (T_vars.Any()) {
+                    T_var = T_vars.First();
+                }
+
                 // 順伝播の代入文のリスト
                 List<Assignment> forward_asns = All<Assignment>(top_for).ToList();
 

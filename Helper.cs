@@ -20,6 +20,73 @@ namespace MkFn {
             return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.RangeFnc;
         }
 
+        /*
+            tならtrueを返します。
+        */
+        public static bool Is_t(object obj) {
+            if(obj is Variable) {
+
+                return (obj as Variable).Name == "t";
+            }
+            else if (obj is Reference) {
+
+                return (obj as Reference).Name == "t";
+            }
+
+            return false;
+        }
+
+        /*
+            Tならtrueを返します。
+        */
+        public static bool Is_T(object obj) {
+            if (obj is Variable) {
+
+                return (obj as Variable).Name == "T";
+            }
+            else if (obj is Reference) {
+
+                return (obj as Reference).Name == "T";
+            }
+
+            return false;
+        }
+
+        /*
+            t+1ならtrueを返します。
+        */
+        public static bool Is_t_plus(Term t) {
+            if( t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.AddFnc) {
+                Apply app = t as Apply;
+
+                if(app.Args.Length == 2 && app.Args[0] is Reference && (app.Args[0] as Reference).Name == MkFn.Singleton.t_var.Name) {
+                    if (app.Args[1] is Number && app.Args[1].Value == 1) {
+
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /*
+            t-1ならtrueを返します。
+        */
+        public static bool Is_t_minus(Term t) {
+            if (t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.AddFnc) {
+                Apply app = t as Apply;
+
+                if (app.Args.Length == 2 && app.Args[0] is Reference && (app.Args[0] as Reference).Name == MkFn.Singleton.t_var.Name) {
+                    if (app.Args[1] is Number && app.Args[1].Value == -1) {
+
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
 
         Apply Range(Term start, Term end) {
             return new Apply(RangeFnc, start, end);
