@@ -10,11 +10,13 @@
 #include <random>
 #include <vector>
 #include <assert.h> 
+#include <sys/stat.h>
 #include "windows.h"
 
 #define _CRT_SECURE_NO_WARNINGS
 #pragma warning(disable:4996)
 
+wchar_t DataDir[_MAX_PATH];
 FILE* fpLog;
 
 UCHAR* ReadBinaryFile(wchar_t* mnist_dir, wchar_t* file_name) {
@@ -191,13 +193,37 @@ void SimpleRandDemo(int n){
 
 
 /*
-	ログファイルを初期化します。
+	初期処理をします。
 */
-void InitLog() {
+void Init() {
+	wchar_t tmp_path[_MAX_PATH];
 	wchar_t log_path[_MAX_PATH];
 
-	_wgetcwd(log_path, _MAX_PATH);
-	wcscat(log_path, L"\\LOG.txt");
+	// 現在の作業ディレクトリを取得します。
+	_wgetcwd(tmp_path, _MAX_PATH);
+
+	// データディレクトリのパスを探します。
+	while (true){
+		struct _stat	buffer;
+
+		// データディレクトリのパスをセットします。
+		swprintf(DataDir, _MAX_PATH, L"%ls\\data", tmp_path);
+
+		if (_wstat(DataDir, &buffer) == 0) {
+			// ディレクトリが存在する場合
+
+			break;
+		}
+		else{
+			// ディレクトリが存在しない場合
+
+			// ディレクトリをさかのぼります。
+			*wcsrchr(tmp_path, L'\\') = 0;
+		}
+	}
+
+	// ログファイルのパスをセットします。
+	swprintf(log_path, _MAX_PATH, L"%ls\\LOG.txt", DataDir);
 
 	fpLog = _wfopen(log_path, L"wb");
 }

@@ -56,5 +56,8 @@
     <ClCompile Include="..\Lib\Lib.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\Lib\Text.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

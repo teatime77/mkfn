@@ -12,7 +12,6 @@
 
 UCHAR* ReadBinaryFile(wchar_t* mnist_dir, wchar_t* file_name);
 int BytesToInt(UCHAR* v, int offset);
-int* RandomSampling(int all_count, int sample_count);
 
 extern FILE* fpLog;
 
@@ -21,6 +20,11 @@ enum NetworkType {
 	CNN,
 	RNN,
 	LSTM,
+};
+
+enum LossFunction {
+	SquareError,
+	SoftMax,
 };
 
 template<class T>
@@ -44,6 +48,7 @@ public:
 	int MiniBatchIdx;
 	T CostSum;
 	int CostCount;
+	int UpdateMiniBatchCount;
 
 	std::vector<Layer*> Layers;
 	Layer* FirstLayer;
@@ -52,10 +57,8 @@ public:
 	void ReadMNIST() {
 		wchar_t mnist_dir[_MAX_PATH];
 
-		_wgetcwd(mnist_dir, _MAX_PATH);
+		swprintf(mnist_dir, _MAX_PATH, L"%ls\\MNIST", DataDir);
 
-		*wcsrchr(mnist_dir, L'\\') = 0;
-		wcscat(mnist_dir, L"\\Lib\\MNIST");
 		wprintf(mnist_dir);
 
 		UCHAR	*buf;
@@ -100,6 +103,28 @@ public:
 		free(buf);
 	}
 
+	void CharToOneHotX(wchar_t* char_tbl, T* batch_X, int Time, int one_hot_size, int batch_size, wchar_t* text) {
+		for (int t = 0; t < Time; t++) {
+			for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+				wchar_t ch1 = text[batch_idx * (Time + 1 + 1) + t];
+				int  idx1 = char_tbl[ch1];
+				if (idx1 < one_hot_size) {
+					batch_X[(t * one_hot_size + idx1) * batch_size + batch_idx] = 1;
+				}
+			}
+		}
+	}
+
+	void CharToOneHotY(wchar_t* char_tbl, T* batch_Y, int Time, int one_hot_size, int batch_size, wchar_t* text, int t) {
+		for (int batch_idx = 0; batch_idx < batch_size; batch_idx++) {
+			wchar_t ch2 = text[batch_idx * (Time + 1 + 1) + t + 1];
+			int  idx2 = char_tbl[ch2];
+			if (idx2 < one_hot_size) {
+				batch_Y[idx2 * batch_size + batch_idx] = 1;
+			}
+		}
+	}
+
 	void SetBatchData(T* X, T* batch_X, T* batch_Y, UCHAR* label, int batch_size, int* idxes) {
 		memset(batch_Y, 0, RangeLen * batch_size * sizeof(T));
 
@@ -138,8 +163,45 @@ public:
 			sum += cd * cd;
 		}
 
-		return (T)(sum / 2);
+		return (T)(sum / size);
 	}
+
+
+	/*
+	損失関数の微分
+	*/
+	T SoftMax(T* cost_derivative, T* last_y, T* batch_Y, T* exp_work, int range_len, int batch_size, int batch_idx) {
+		T max_val = -10000;
+		for (int i = 0; i < range_len; i++) {
+			int k = i * batch_size + batch_idx;
+
+			if (max_val < last_y[k]) {
+				max_val = last_y[k];
+			}
+		}
+
+		T sum = 0;
+		for (int i = 0; i < range_len; i++) {
+			int k = i * batch_size + batch_idx;
+
+			T  d = exp(last_y[k] - max_val);
+			sum += d;
+			exp_work[k] = d;
+		}
+
+		T cost_sum = 0;
+		for (int i = 0; i < range_len; i++) {
+			int k = i * batch_size + batch_idx;
+
+			T y = exp_work[k] / sum;
+			cost_derivative[k] = y - batch_Y[k];
+
+			cost_sum += batch_Y[k] * log(y);
+		}
+
+		return - cost_sum;
+	}
+
 
 	/*
 		C++版とCUDA版の計算結果の違いをダンプファイルに書いて比較します。	
@@ -255,19 +317,22 @@ public:
 	/*
 	ミニバッチごとにパラメータを更新します。
 	*/
-	void RNNUpdateMiniBatch(T* batch_X, T* batch_Y, T* last_y, T* cost_derivative) {
-		int X = FirstLayer->GetTimeInputCount();
+	void RNNUpdateMiniBatch(T* batch_X, T* batch_Y, T* last_y, T* cost_derivative, T* exp_work, wchar_t* char_tbl, wchar_t* char_tbl_inv, wchar_t* text) {
+		wchar_t	input[100];
+//		wchar_t	input2[100];
+		wchar_t	output[100];
+
 		int Time = FirstLayer->GetTimeCount();
 
-		FullyConnectedLayer* fc = (FullyConnectedLayer*)Layers[0];
+		FullyConnectedLayer* fc = (FullyConnectedLayer*)Layers[1];
 
+/*
 		//-------------------------------------------------- テストデータを計算します。
-
 		T* px = batch_X;
 		for (int t = 0; t < Time; t++) {
 			for (int ix = 0; ix < X; ix++) {
 				for (int batch_idx = 0; batch_idx < TrainBatchSize; batch_idx++) {
-					*px = sin(ix * (M_PI / 2));// +0.1f * UniformRandom();
+					*px = sin(ix * (M_PI / Time));// +0.1f * UniformRandom();
 
 					px++;
 				}
@@ -277,11 +342,12 @@ public:
 		T* py = batch_Y;
 		for (int iy = 0; iy < fc->Y; iy++) {
 			for (int batch_idx = 0; batch_idx < TrainBatchSize; batch_idx++) {
-				*py = sin(iy * (M_PI / 2));// +0.1f * UniformRandom();
+				*py = sin(iy * (M_PI / Time));// +0.1f * UniformRandom();
 
 				py++;
 			}
 		}
+*/
 
 		//-------------------------------------------------- 入力をセットします。
 
@@ -294,6 +360,10 @@ public:
 
 		// 順方向の時刻
 		for (int t = 0; t < Time; t++) {
+
+			memset(batch_Y, 0, RangeLen  * TrainBatchSize * sizeof(T));
+			CharToOneHotY(char_tbl, batch_Y, Time, RangeLen, TrainBatchSize, text, t);
+
 			FirstLayer->t = t;
 
 			//-------------------------------------------------- レイヤーの入出力を結合します。
@@ -324,12 +394,83 @@ public:
 			T* last_y_ptr = (T*)LastLayer->GetOutput();
 #endif
 
-			//-------------------------------------------------- 損失関数を計算します。
+#if 0
 			CostDerivative(cost_derivative, last_y_ptr, batch_Y, last_y_len);
 
 			T cost = Cost(cost_derivative, last_y_len);
+#else
+			T cost = 0;
+			for (int batch_idx = 0; batch_idx < TrainBatchSize; batch_idx++) {
+				T cost2 = SoftMax(cost_derivative, last_y_ptr, batch_Y, exp_work, RangeLen, TrainBatchSize, batch_idx);
+/*
+				if (MiniBatchIdx % 100 == 0 && batch_idx == TrainBatchSize - 1) {
+					for (int i = 0; i < RangeLen; i++) {
+						int k = i * TrainBatchSize + batch_idx;
+						T sv = last_y_ptr[k];
+
+						T dy = 0.0001;
+						last_y_ptr[k] += dy;
+
+						T cost3 = SoftMax(cost_derivative, last_y_ptr, batch_Y, exp_work, RangeLen, TrainBatchSize, batch_idx);
+						Log(L"diff: %.16e  δ:%.16e", cost2, cost3, cost3 - cost2, dy * cost_derivative[k]);
+
+						last_y_ptr[k] = sv;
+					}
+				}
+*/
+
+
+				cost += cost2;
+			}
+			cost /= TrainBatchSize;
+
+#endif
+			//-------------------------------------------------- 損失関数を計算します。
 			CostSum += cost;
 			CostCount++;
+
+
+			if (UpdateMiniBatchCount % 141 == 0) {//MiniBatchIdx
+				int batch_idx = UpdateMiniBatchCount % TrainBatchSize;
+				T max_val = -10000;
+				int max_idx = 0;
+				for (int i = 0; i < RangeLen; i++) {
+					T val = last_y_ptr[i * TrainBatchSize + batch_idx];
+					if (max_val < val) {
+
+						max_val = val;
+						max_idx = i;
+					}
+				}
+				output[t] = char_tbl_inv[max_idx];
+
+				max_val = -10000;
+				max_idx = 0;
+				for (int i = 0; i < RangeLen; i++) {
+					T val = batch_Y[i * TrainBatchSize + batch_idx];
+					if (max_val < val) {
+
+						max_val = val;
+						max_idx = i;
+					}
+				}
+//				input2[t] = char_tbl_inv[max_idx];
+
+
+				input[t] = text[batch_idx * (Time + 1 + 1) + t];
+
+				if (t == Time - 1) {
+					input[t + 1] = 0;
+//					input2[t + 1] = 0;
+					output[t + 1] = 0;
+
+					//Log(L"IN2: %ls", input2);
+					Log(L"IN : %ls", input);
+					Log(L"OUT: %ls", output);
+
+					Log(L"epock : %d  cost : %f", EpochIdx, CostSum / CostCount);
+				}
+			}
 
 			//-------------------------------------------------- δyをセットします。
 #ifdef __CUDACC__
@@ -394,52 +535,80 @@ public:
 		RNN用SGD
 	*/
 	void RNNSGD() {
-		int Y = FirstLayer->GetTimeOutputCount();
-		int Time = FirstLayer->GetTimeCount();
-
-		TrainCnt = 1000;
-		TestCnt = 10;
-		DomainLen = FirstLayer->GetInputCount();
-		RangeLen = LastLayer->GetOutputCount();
-
-		int train_batch_cnt = TrainCnt / TrainBatchSize;
-
-		T* train_batch_X = new T[DomainLen * TrainBatchSize];
-		T* train_batch_Y = new T[RangeLen * TrainBatchSize];
-		T* train_last_Y = new T[RangeLen * TrainBatchSize];
-
-		T* cost_derivative = new T[RangeLen * TrainBatchSize];
+		wchar_t	char_tbl[CHAR_COUNT];
+		wchar_t	char_tbl_inv[CHAR_COUNT];
+		ReadCharTable(char_tbl, char_tbl_inv);
 
 		CostSum = 0;
 		CostCount = 0;
-		for (EpochIdx = 0; EpochIdx < EpochSize; EpochIdx++) {
+		UpdateMiniBatchCount = 0;
+		while (true){
 
-			// すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
-			AllocateConnectLayers(TrainBatchSize);
+			for (EpochIdx = 0; EpochIdx < EpochSize; EpochIdx++) {
+				int time_len = EpochIdx + 5;
+				int line_len = time_len + 1;
 
-			void** delta_y_ptr = FirstLayer->GetOutputDeltaPtr();
-			size_t delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
+				InitText(TrainBatchSize, line_len, TrainCnt, char_tbl, char_tbl_inv);
+				if (TrainCnt == 0) {
+					break;
+				}
+
+				FirstLayer->SetTimeCount(time_len);
+				int X = FirstLayer->GetTimeInputCount();
+				int Y = FirstLayer->GetTimeOutputCount();
+				int Time = FirstLayer->GetTimeCount();
+
+				DomainLen = FirstLayer->GetInputCount();
+				RangeLen = LastLayer->GetOutputCount();
+
+				int train_batch_cnt = TrainCnt / TrainBatchSize;
+
+				T* train_batch_X = new T[DomainLen * TrainBatchSize];
+				T* train_batch_Y = new T[RangeLen * TrainBatchSize];
+				T* train_last_Y = new T[RangeLen * TrainBatchSize];
+
+				T* cost_derivative = new T[RangeLen * TrainBatchSize];
+				T* exp_work = new T[RangeLen * TrainBatchSize];
+
+				// すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
+				AllocateConnectLayers(TrainBatchSize);
+
+				void** delta_y_ptr = FirstLayer->GetOutputDeltaPtr();
+				size_t delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
 #ifdef __CUDACC__
-			cudaMalloc(delta_y_ptr, delta_y_sz);
+				cudaMalloc(delta_y_ptr, delta_y_sz);
 #else
-			*delta_y_ptr = malloc(delta_y_sz);
+				*delta_y_ptr = malloc(delta_y_sz);
 #endif
-			assert(*delta_y_ptr != 0);
+				assert(*delta_y_ptr != 0);
 
-			for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt; MiniBatchIdx++) {
-				RNNUpdateMiniBatch(train_batch_X, train_batch_Y, train_last_Y, cost_derivative);
+				for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt; ) {//MiniBatchIdx++
+
+					wchar_t* text = ReadText(TrainBatchSize, line_len, MiniBatchIdx);
+
+					memset(train_batch_X, 0, DomainLen * TrainBatchSize * sizeof(T));
+					CharToOneHotX(char_tbl, train_batch_X, Time, X, TrainBatchSize, text);
+
+					RNNUpdateMiniBatch(train_batch_X, train_batch_Y, train_last_Y, cost_derivative, exp_work, char_tbl, char_tbl_inv, text);
+					UpdateMiniBatchCount++;
+
+					if (MiniBatchIdx % 100 == 0) {
+						//Log(L"epock : %d   mini batch: %d  cost : %f", EpochIdx, MiniBatchIdx, CostSum / CostCount);
+					}
+				}
+
+				FreeLayers();
+				_chk(_Free(*delta_y_ptr));
+
+				//Log(L"epock : %d  cost : %f", EpochIdx, CostSum / CostCount);
+
+				delete[] train_batch_X;
+				delete[] train_batch_Y;
+				delete[] train_last_Y;
+				delete[] cost_derivative;
+				delete[] exp_work;
 			}
-
-			FreeLayers();
-			_chk(_Free(*delta_y_ptr));
-
-			Log(L"epock : %d  cost : %f", EpochIdx, CostSum / CostCount);
 		}
-
-		delete[] train_batch_X;
-		delete[] train_batch_Y;
-		delete[] train_last_Y;
-		delete[] cost_derivative;
 	}
 
 
@@ -647,8 +816,8 @@ public:
 
 
 void NetworkTest() {
-	// ログファイルを初期化します。
-	InitLog();
+	// 初期処理をします。
+	Init();
 
 #ifdef __CUDACC__
 	_chk(cudaSetDevice(0));
@@ -656,16 +825,17 @@ void NetworkTest() {
 
 	Network<double> *net = new Network<double>();
 	net->EpochSize = 100;
-	net->TrainBatchSize = 10;
 	net->TestBatchSize = 20;
 
+	float learning_rate = 1.0f;
 	for (int run_idx = 0; ; run_idx++) {
 		net->Type = NetworkType::Simple;
-		net->Type = NetworkType::RNN;
 		net->Type = NetworkType::CNN;
+		net->Type = NetworkType::RNN;
 		net->Type = NetworkType::LSTM;
 		switch (net->Type) {
 		case NetworkType::Simple:
+			net->TrainBatchSize = 10;
 			net->ReadMNIST();
 			net->Layers = std::vector<Layer*>{
 				new FullyConnectedLayer(28 * 28, 30),
@@ -674,6 +844,7 @@ void NetworkTest() {
 			break;
 
 		case NetworkType::CNN:
+			net->TrainBatchSize = 10;
 			net->ReadMNIST();
 			net->Layers = std::vector<Layer*>{
 				//new ConvolutionalLayer(28, 28, 20, 5),
@@ -687,22 +858,30 @@ void NetworkTest() {
 			break;
 
 		case NetworkType::RNN:
+			learning_rate = 0.1f;
+			net->TrainBatchSize = 7;
 			net->Layers = std::vector<Layer*>{
-				new RecurrentLayer(5, 2, 10),
-				new FullyConnectedLayer(10, 2)
+				//new RecurrentLayer(5, 2, 10),
+				//new FullyConnectedLayer(10, 2)
+				new RecurrentLayer(20, 28, 100),
+				new FullyConnectedLayer(10, 28)
 			};
 			break;
 
 		case NetworkType::LSTM:
+			learning_rate = 0.1f;
+			net->TrainBatchSize = 7;
 			net->Layers = std::vector<Layer*>{
-				new LSTMLayer(5, 2, 10),
-				new FullyConnectedLayer(10, 2)
+				//new LSTMLayer(50, 2000, 100),
+				//new LSTMLayer(20, 1000, 100),
+				new LSTMLayer(20, 28, 100),
+				new FullyConnectedLayer(100, 28)
 			};
 			break;
 		}
 
 		for (size_t i = 0; i < net->Layers.size(); i++) {
-			net->Layers[i]->LearningRate = 1.0f / net->TrainBatchSize;//3.0f
+			net->Layers[i]->LearningRate = learning_rate / net->TrainBatchSize;//3.0f
 		}
 
 		net->DeepLearning();

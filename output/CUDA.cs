@@ -619,6 +619,11 @@ namespace MkFn {
             sw.WriteLine("\tvirtual int GetTimeInputCount()  override {{ return {0}; }}", TimeElementCount(x_var).Code());
             sw.WriteLine("\tvirtual int GetTimeOutputCount() override {{ return {0}; }}", TimeElementCount(y_var).Code());
 
+            if (T_var != null) {
+
+                sw.WriteLine("\tvirtual void SetTimeCount(int time_count) override {{ {0} = time_count; }}", T_var.Name);
+            }
+
             if (OutputLanguage == Language.CUDA) {
 
                 // ストリーム変数の取得と設定
