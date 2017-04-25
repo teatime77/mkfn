@@ -9,6 +9,10 @@
 #define _CRT_SECURE_NO_WARNINGS
 #pragma warning(disable:4996)
 
+extern "C" DllExport void DeviceSynchronize();
+extern "C" DllExport void DeviceInit();
+extern "C" DllExport void* DeviceMalloc(size_t size);
+extern "C" DllExport void DeviceFree(void* p);
 
 UCHAR* ReadBinaryFile(wchar_t* mnist_dir, wchar_t* file_name);
 int BytesToInt(UCHAR* v, int offset);
@@ -205,7 +209,6 @@ public:
 
 	/*
 		C++版とCUDA版の計算結果の違いをダンプファイルに書いて比較します。	
-	*/
 	void Dmp(wchar_t* msg, T* p, int sz) {
 		if (0 <= sz) return;
 		wchar_t base_dir[_MAX_PATH];
@@ -249,6 +252,7 @@ public:
 
 		fclose(fp);
 	}
+	*/
 
 	/*
 		ミニバッチごとにパラメータを更新します。
@@ -256,12 +260,7 @@ public:
 	void UpdateMiniBatch(T* batch_X, T* batch_Y, T* last_y, T* cost_derivative) {
 		//-------------------------------------------------- 入力をセットします。
 
-#ifdef __CUDACC__
-		_chk(cudaMemcpy(FirstLayer->GetInput(), batch_X, DomainLen * TrainBatchSize * sizeof(T), cudaMemcpyHostToDevice));
-		_chk(cudaDeviceSynchronize());
-#else
-		FirstLayer->SetInput(batch_X);
-#endif
+		FirstLayer->SetInputData(batch_X, DomainLen * TrainBatchSize * sizeof(T));
 
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->Forward();
@@ -269,13 +268,7 @@ public:
 
 		//-------------------------------------------------- 出力を得ます。
 		int last_y_len = TrainBatchSize * RangeLen;
-#ifdef __CUDACC__
-		_chk(cudaDeviceSynchronize());
-		_chk(cudaMemcpy(last_y, LastLayer->GetOutput(), last_y_len * sizeof(T), cudaMemcpyDeviceToHost));
-		T* last_y_ptr = last_y;
-#else
-		T* last_y_ptr = (T*)LastLayer->GetOutput();
-#endif
+		T* last_y_ptr = (T*)LastLayer->GetOutputData(last_y, last_y_len * sizeof(T));
 
 		//-------------------------------------------------- 損失関数を計算します。
 		CostDerivative(cost_derivative, last_y_ptr, batch_Y, last_y_len);
@@ -283,19 +276,12 @@ public:
 		T cost = Cost(cost_derivative, last_y_len);
 
 		//-------------------------------------------------- δyをセットします。
-#ifdef __CUDACC__
-		_chk(cudaMemcpy(LastLayer->GetOutputDelta(), cost_derivative, last_y_len * sizeof(T), cudaMemcpyHostToDevice));
-		_chk(cudaDeviceSynchronize());
-#else
-		LastLayer->SetOutputDelta(cost_derivative);
-#endif
+		LastLayer->SetOutputDeltaData(cost_derivative, last_y_len * sizeof(T));
 
 		for (int i = (int)Layers.size() - 1; 0 <= i; i--) {
 			Layers[i]->Backward();
 		}
-#ifdef __CUDACC__
-		_chk(cudaDeviceSynchronize());
-#endif
+		DeviceSynchronize();
 
 		for (int i = (int)Layers.size() - 1; 0 <= i; i--) {
 			Layers[i]->UpdateParameter();
@@ -305,13 +291,11 @@ public:
 		Dmp(L"y0", (T*)Layers[0]->GetOutput(), TrainBatchSize * Layers[0]->GetOutputCount());
 		ConvolutionalLayer* cl = (ConvolutionalLayer*)FirstLayer;
 		Dmp(L"h", cl->h, cl->H * cl->H * cl->K);
-		FullyConnectedLayer* fc = (FullyConnectedLayer*)Layers[3];
+		FullyConnectedLayerF* fc = (FullyConnectedLayerF*)Layers[3];
 		Dmp(L"fc3-w", fc->w, fc->Y * fc->X);
 */
 
-#ifdef __CUDACC__
-		_chk(cudaDeviceSynchronize());
-#endif
+		DeviceSynchronize();
 	}
 
 	/*
@@ -324,9 +308,9 @@ public:
 
 		int Time = FirstLayer->GetTimeCount();
 
-		FullyConnectedLayer* fc = (FullyConnectedLayer*)Layers[1];
-
 /*
+		FullyConnectedLayerCudaF* fc = (FullyConnectedLayerCudaF*)Layers[1];
+
 		//-------------------------------------------------- テストデータを計算します。
 		T* px = batch_X;
 		for (int t = 0; t < Time; t++) {
@@ -350,13 +334,7 @@ public:
 */
 
 		//-------------------------------------------------- 入力をセットします。
-
-#ifdef __CUDACC__
-		_chk(cudaMemcpy(FirstLayer->GetInput(), batch_X, DomainLen * TrainBatchSize * sizeof(T), cudaMemcpyHostToDevice));
-		_chk(cudaDeviceSynchronize());
-#else
-		FirstLayer->SetInput(batch_X);
-#endif
+		FirstLayer->SetInputData(batch_X, DomainLen * TrainBatchSize * sizeof(T));
 
 		// 順方向の時刻
 		for (int t = 0; t < Time; t++) {
@@ -386,13 +364,7 @@ public:
 
 			//-------------------------------------------------- 出力を得ます。
 			int last_y_len = TrainBatchSize * RangeLen;
-#ifdef __CUDACC__
-			_chk(cudaDeviceSynchronize());
-			_chk(cudaMemcpy(last_y, LastLayer->GetOutput(), last_y_len * sizeof(T), cudaMemcpyDeviceToHost));
-			T* last_y_ptr = last_y;
-#else
-			T* last_y_ptr = (T*)LastLayer->GetOutput();
-#endif
+			T* last_y_ptr = (T*)LastLayer->GetOutputData(last_y, last_y_len * sizeof(T));
 
 #if 0
 			CostDerivative(cost_derivative, last_y_ptr, batch_Y, last_y_len);
@@ -473,12 +445,7 @@ public:
 			}
 
 			//-------------------------------------------------- δyをセットします。
-#ifdef __CUDACC__
-			_chk(cudaMemcpy(LastLayer->GetOutputDelta(), cost_derivative, last_y_len * sizeof(T), cudaMemcpyHostToDevice));
-			_chk(cudaDeviceSynchronize());
-#else
-			LastLayer->SetOutputDelta(cost_derivative);
-#endif
+			LastLayer->SetOutputDeltaData(cost_derivative, last_y_len * sizeof(T));
 
 			//-------------------------------------------------- 逆伝播
 			// RNN以外のレイヤーの逆伝播をします。
@@ -486,7 +453,7 @@ public:
 				void* input_delta_save = 0;
 
 				// 現在のレイヤーの出力のデルタは、次のレイヤーの入力のデルタにします。(逆伝播)
-				if (typeid(*Layers[i - 1]) == typeid(RecurrentLayer) || typeid(*Layers[i - 1]) == typeid(LSTMLayer)) {
+				if (Layers[i - 1]->GetTimeCount() != 0) {
 
 					input_delta_save = Layers[i]->GetInputDelta(t);
 					Layers[i]->SetIputDelta(Layers[i - 1]->GetOutputDelta(t));
@@ -521,13 +488,11 @@ public:
 		Dmp(L"y0", (T*)Layers[0]->GetOutput(), TrainBatchSize * Layers[0]->GetOutputCount());
 		ConvolutionalLayer* cl = (ConvolutionalLayer*)FirstLayer;
 		Dmp(L"h", cl->h, cl->H * cl->H * cl->K);
-		FullyConnectedLayer* fc = (FullyConnectedLayer*)Layers[3];
+		FullyConnectedLayerF* fc = (FullyConnectedLayerF*)Layers[3];
 		Dmp(L"fc3-w", fc->w, fc->Y * fc->X);
 		*/
 
-#ifdef __CUDACC__
-		_chk(cudaDeviceSynchronize());
-#endif
+		DeviceSynchronize();
 	}
 
 
@@ -575,11 +540,8 @@ public:
 
 				void** delta_y_ptr = FirstLayer->GetOutputDeltaPtr();
 				size_t delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
-#ifdef __CUDACC__
-				cudaMalloc(delta_y_ptr, delta_y_sz);
-#else
-				*delta_y_ptr = malloc(delta_y_sz);
-#endif
+
+				*delta_y_ptr = DeviceMalloc(delta_y_sz);
 				assert(*delta_y_ptr != 0);
 
 				for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt; ) {//MiniBatchIdx++
@@ -598,7 +560,7 @@ public:
 				}
 
 				FreeLayers();
-				_chk(_Free(*delta_y_ptr));
+				DeviceFree(*delta_y_ptr);
 
 				//Log(L"epock : %d  cost : %f", EpochIdx, CostSum / CostCount);
 
@@ -639,25 +601,13 @@ public:
 	}
 
 	int Evaluate(T* batch_X, T* batch_Y, T* last_y, int batch_size, UCHAR* arg_max, UCHAR* label) {
-#ifdef __CUDACC__
-		_chk(cudaMemcpy(FirstLayer->GetInput(), batch_X, batch_size * DomainLen * sizeof(T), cudaMemcpyHostToDevice));
-		_chk(cudaDeviceSynchronize());
-#else
-		FirstLayer->SetInput(batch_X);
-#endif
+		FirstLayer->SetInputData(batch_X, batch_size * DomainLen * sizeof(T));
 
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->Forward();
 		}
 
-#ifdef __CUDACC__
-		_chk(cudaDeviceSynchronize());
-		_chk(cudaMemcpy(last_y, LastLayer->GetOutput(), batch_size * RangeLen * sizeof(T), cudaMemcpyDeviceToHost));
-		_chk(cudaDeviceSynchronize());
-		T* last_y_ptr = last_y;
-#else
-		T* last_y_ptr = (T*)LastLayer->GetOutput();
-#endif
+		T* last_y_ptr = (T*)LastLayer->GetOutputData(last_y, batch_size * RangeLen * sizeof(T));
 
 		int eq_cnt = ArgMax(last_y_ptr, batch_size, arg_max, label);
 
@@ -668,15 +618,16 @@ public:
 	すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
 	*/
 	void AllocateConnectLayers(int batch_size) {
-#ifdef __CUDACC__
-		void* p;
-		
-		_chk(cudaMalloc(&p, batch_size * DomainLen * sizeof(T)));
-		FirstLayer->SetInput(p);
+		if (FirstLayer->IsGPU()) {
 
-		_chk(cudaMalloc(&p, batch_size * RangeLen * sizeof(T)));
-		LastLayer->SetOutputDelta(p);
-#endif
+			void* p;
+
+			p = DeviceMalloc(batch_size * DomainLen * sizeof(T));
+			FirstLayer->SetInput(p);
+
+			p = DeviceMalloc(batch_size * RangeLen * sizeof(T));
+			LastLayer->SetOutputDelta(p);
+		}
 
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->BatchSize = batch_size;
@@ -686,7 +637,7 @@ public:
 		// レイヤーの入出力を結合します。
 		for (size_t i = 0; i + 1 < Layers.size(); i++) {
 
-			if (typeid(*Layers[i]) != typeid(RecurrentLayer) && typeid(*Layers[i]) != typeid(LSTMLayer)) {
+			if (Layers[i]->GetTimeCount() == 0) {
 				assert(Layers[i]->GetOutputCount() == Layers[i + 1]->GetInputCount());
 
 				// 次のレイヤーの入力は、現在のレイヤーの出力にします。(順伝播)
@@ -696,20 +647,7 @@ public:
 				Layers[i]->SetOutputDelta(Layers[i + 1]->GetInputDelta());
 			}
 
-#ifdef __CUDACC__
-			// 次のレイヤーの入力のストリームは、現在のレイヤーの出力のストリームにします。(順伝播)
-			Layers[i + 1]->SetInputStream(Layers[i]->GetOutputStream());
-
-			// 現在のレイヤーの出力のデルタのストリームは、次のレイヤーの入力のデルタのストリームにします。(逆伝播)
-			Layers[i]->SetOutputDeltaStream(Layers[i + 1]->GetInputDeltaStream());
-
-			// 次のレイヤーの入力のイベントは、現在のレイヤーの出力のイベントにします。(順伝播)
-			Layers[i + 1]->SetInputEvent(Layers[i]->GetOutputEvent());
-
-			// 現在のレイヤーの出力のデルタのイベントは、次のレイヤーの入力のデルタのイベントにします。(逆伝播)
-			Layers[i]->SetOutputDeltaEvent(Layers[i + 1]->GetInputDeltaEvent());
-
-#endif
+			Layers[i]->ConnectLayer(Layers[i + 1]);
 		}
 	}
 
@@ -721,10 +659,10 @@ public:
 			Layers[i]->Free();
 		}
 
-#ifdef __CUDACC__
-		_chk(cudaFree(FirstLayer->GetInput()));
-		_chk(cudaFree(LastLayer->GetOutputDelta()));
-#endif
+		if (FirstLayer->IsGPU()) {
+			DeviceFree(FirstLayer->GetInput());
+			DeviceFree(LastLayer->GetOutputDelta());
+		}
 	}
 
 	/*
@@ -819,27 +757,25 @@ void NetworkTest() {
 	// 初期処理をします。
 	Init();
 
-#ifdef __CUDACC__
-	_chk(cudaSetDevice(0));
-#endif
+	DeviceInit();
 
-	Network<double> *net = new Network<double>();
+	Network<float> *net = new Network<float>();
 	net->EpochSize = 100;
 	net->TestBatchSize = 20;
 
 	float learning_rate = 1.0f;
 	for (int run_idx = 0; ; run_idx++) {
 		net->Type = NetworkType::Simple;
-		net->Type = NetworkType::CNN;
 		net->Type = NetworkType::RNN;
+		net->Type = NetworkType::CNN;
 		net->Type = NetworkType::LSTM;
 		switch (net->Type) {
 		case NetworkType::Simple:
 			net->TrainBatchSize = 10;
 			net->ReadMNIST();
 			net->Layers = std::vector<Layer*>{
-				new FullyConnectedLayer(28 * 28, 30),
-				new FullyConnectedLayer(30, 10)
+				MakeFullyConnectedLayer(28 * 28, 30),
+				MakeFullyConnectedLayer(30, 10)
 			};
 			break;
 
@@ -849,11 +785,11 @@ void NetworkTest() {
 			net->Layers = std::vector<Layer*>{
 				//new ConvolutionalLayer(28, 28, 20, 5),
 				//new MaxPoolingLayer(24, 24, 20, 2),
-				//new FullyConnectedLayer(12 * 12 * 20, 100),
-				new ConvolutionalLayer(28, 28, 5, 5),
-				new MaxPoolingLayer(24, 24, 5, 2),
-				new FullyConnectedLayer(12 * 12 * 5, 100),
-				new FullyConnectedLayer(100, 10)
+				//new FullyConnectedLayerF(12 * 12 * 20, 100),
+				MakeConvolutionalLayer(28, 28, 5, 5),
+				MakeMaxPoolingLayer(24, 24, 5, 2),
+				MakeFullyConnectedLayer(12 * 12 * 5, 100),
+				MakeFullyConnectedLayer(100, 10)
 			};
 			break;
 
@@ -862,9 +798,9 @@ void NetworkTest() {
 			net->TrainBatchSize = 7;
 			net->Layers = std::vector<Layer*>{
 				//new RecurrentLayer(5, 2, 10),
-				//new FullyConnectedLayer(10, 2)
-				new RecurrentLayer(20, 28, 100),
-				new FullyConnectedLayer(10, 28)
+				//new FullyConnectedLayerF(10, 2)
+				MakeRecurrentLayer(20, 28, 100),
+				MakeFullyConnectedLayer(10, 28)
 			};
 			break;
 
@@ -874,8 +810,8 @@ void NetworkTest() {
 			net->Layers = std::vector<Layer*>{
 				//new LSTMLayer(50, 2000, 100),
 				//new LSTMLayer(20, 1000, 100),
-				new LSTMLayer(20, 28, 100),
-				new FullyConnectedLayer(100, 28)
+				MakeLSTMLayer(20, 28, 100),
+				MakeFullyConnectedLayer(100, 28)
 			};
 			break;
 		}

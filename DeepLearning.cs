@@ -19,6 +19,15 @@ namespace MkFn {
     }
 
     /*
+        浮動小数点数の精度
+    */
+    public enum FloatPrecision {
+        Half,
+        Float,
+        Double,
+    }
+
+    /*
         伝播先の情報
     */
     public class Propagation {

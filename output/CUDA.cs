@@ -576,10 +576,11 @@ namespace MkFn {
         /*
         ヘッダファイルのコードを作ります。
         */
-        string MakeHeaderFile(Class cls, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, int n_parameter_update) {
+        string MakeHeaderFile(Class cls, Function constructor, List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, int n_parameter_update, Language output_language) {
             StringWriter sw = new StringWriter();
 
-            string header = "class " + cls.Name + " : public Layer {\r\npublic:\r\n" +
+            string super_class = (output_language == Language.CUDA ? "LayerCuda" : "Layer");
+            string header = "class DllExport " + cls.Name + " : public " + super_class + " {\r\npublic:\r\n" +
                 string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld));
 
             if(OutputLanguage == Language.CUDA) {
@@ -724,12 +725,28 @@ namespace MkFn {
             sw.WriteLine("}");
         }
 
+        string OutputVariation(string s, Class cls, FloatPrecision float_precision, string class_suffix) {
+            s = s.Replace(cls.Name, cls.Name + class_suffix);
+
+            switch (float_precision) {
+            case FloatPrecision.Half:
+                s = s.Replace("float", "half");
+                break;
+
+            case FloatPrecision.Double:
+                s = s.Replace("float", "double");
+                break;
+            }
+
+            return s;
+        }
+
         /*
             ソースコードを作ります。
         */
         void MakeSourceCode(Class cls,
             Dictionary<Assignment, List<Assignment>> forward_depend, Dictionary<Assignment, List<Assignment>> backward_depend,
-            List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, Language output_language) {
+            List<Assignment> sorted_forward_asns, List<Assignment> sorted_backward_asns, Language output_language, FloatPrecision float_precision) {
 
             MkFn.LinqValue = new Dictionary<LINQ, string>();
             OutputLanguage = output_language;
@@ -746,7 +763,11 @@ namespace MkFn {
             sw.WriteLine("#include <stdio.h>");
             sw.WriteLine("#include <FLOAT.h>");
             sw.WriteLine("#include \"MkFn.h\"");
-            sw.WriteLine("#include \"../Lib/Lib.h\"");
+            sw.WriteLine("#include \"../../Lib/Lib.h\"");
+            if(output_language == Language.CUDA) {
+                sw.WriteLine("#include \"LibCuda.h\"");
+            }
+
             sw.WriteLine("#include \"{0}.h\"", cls.Name);
 
 
@@ -780,9 +801,44 @@ namespace MkFn {
             // パラメータ更新のカーネル関数とカーネル起動関数を作ります。
             int n_parameter_update = MakeUpdateParameter(cls, sw);
 
-            string lang_str = output_language.ToString();
-            lang_str = lang_str.Substring(lang_str.IndexOf('.') + 1);
-            string src_dir = HomeDir + "\\src\\" + lang_str;
+
+            sw.WriteLine("");
+            sw.WriteLine("extern \"C\" DllExport Layer* Make{0}({1}){{", cls.Name, string.Join(", ", from v in constructor.Params select VariableCode(v)));
+            sw.WriteLine("\treturn new {0}({1});", cls.Name, string.Join(", ", constructor.Params.Select(x => x.Name)));
+            sw.WriteLine("}");
+
+            string layer_str = "";
+            string class_suffix = "";
+
+            switch (output_language) {
+            case Language.CPP:
+                class_suffix = "";
+                layer_str = "Layer";
+                break;
+
+            case Language.CUDA:
+                class_suffix = "Cuda";
+                layer_str = "LayerCUDA";
+                break;
+            }
+
+            switch (float_precision) {
+            case FloatPrecision.Half:
+                class_suffix += "H";
+                break;
+            case FloatPrecision.Float:
+                class_suffix += "F";
+                break;
+            case FloatPrecision.Double:
+                class_suffix += "D";
+                break;
+            }
+
+
+            string class_name = cls.Name + class_suffix;
+
+
+            string src_dir = HomeDir + "\\src\\Layer\\" + layer_str;
             if (!Directory.Exists(src_dir)) {
 
                 Directory.CreateDirectory(src_dir);
@@ -791,16 +847,18 @@ namespace MkFn {
             //!!!!!!!!!! デバッグ環境用 !!!!!!!!!!
             if (Directory.Exists(@"Z:\")) {
 
-                src_dir = @"Z:\prj\mkfn\src\" + lang_str;
+                src_dir = @"Z:\prj\mkfn\src\" + layer_str;
             }
 
             // ヘッダファイルのコードを作ります。
-            string header_code = MakeHeaderFile(cls, constructor, sorted_forward_asns, sorted_backward_asns, n_parameter_update);
-            File.WriteAllText(src_dir + "\\" + cls.Name + ".h", ASCII(header_code), Encoding.UTF8);
+            string header_code = MakeHeaderFile(cls, constructor, sorted_forward_asns, sorted_backward_asns, n_parameter_update, output_language);
+            header_code = OutputVariation(header_code, cls, float_precision, class_suffix);
+            File.WriteAllText(src_dir + "\\" + class_name + ".h", ASCII(header_code), Encoding.UTF8);
 
             // 実装のコードをファイルに書きます。
             string ext = (output_language == Language.CUDA ? ".cu" : ".cpp");
-            File.WriteAllText(src_dir + "\\" + cls.Name + ext, ASCII(sw.ToString()), Encoding.UTF8);
+            string body_code = OutputVariation(sw.ToString(), cls, float_precision, class_suffix);
+            File.WriteAllText(src_dir + "\\" + class_name + ext, ASCII(body_code), Encoding.UTF8);
 
             MkFn.LinqValue = null;
         }
@@ -819,10 +877,12 @@ namespace MkFn {
             sorted_backward_asns = SortAssignment(backward_asns, backward_depend);
 
             // CUDAのソースコードを作ります。
-            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CUDA);
+            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CUDA, FloatPrecision.Float);
+            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CUDA, FloatPrecision.Double);
 
             // C++のソースコードを作ります。
-            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CPP);
+            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CPP, FloatPrecision.Float);
+            MakeSourceCode(cls, forward_depend, backward_depend, sorted_forward_asns, sorted_backward_asns, Language.CPP, FloatPrecision.Double);
         }
     }
 }

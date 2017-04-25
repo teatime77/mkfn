@@ -1,6 +1,12 @@
 #pragma once
 
-class Layer {
+#ifdef _WINDLL
+#define DllExport	__declspec( dllexport )
+#else
+#define DllExport	__declspec( dllimport )
+#endif
+
+class DllExport Layer {
 public:
 	int BatchSize;
 	float LearningRate;
@@ -25,6 +31,20 @@ public:
 	virtual void** GetOutputDeltaPtr() = 0;
 	virtual void* GetInputDelta(int t = 0) = 0;
 
+	virtual void SetInputData(void* src, int size) {
+		SetInput(src);
+	}
+
+	virtual void SetOutputDeltaData(void* src, int size) {
+		SetOutputDelta(src);
+	}
+
+	virtual void* GetOutputData(void* dst, int size) {
+		return GetOutput();
+	}
+
+	virtual void ConnectLayer(Layer* next_layer) {}
+
 	virtual int GetInputCount() = 0;
 	virtual int GetOutputCount() = 0;
 	virtual int GetTimeCount() = 0;
@@ -32,19 +52,7 @@ public:
 	virtual int GetTimeOutputCount() = 0;
 	virtual void SetTimeCount(int time_count){}
 
-#ifdef __CUDACC__
-	virtual void SetInputStream(cudaStream_t src) = 0;
-	virtual cudaStream_t GetOutputStream() = 0;
-
-	virtual void SetOutputDeltaStream(cudaStream_t src) = 0;
-	virtual cudaStream_t GetInputDeltaStream() = 0;
-
-	virtual void SetInputEvent(cudaEvent_t src) = 0;
-	virtual cudaEvent_t GetOutputEvent() = 0;
-
-	virtual void SetOutputDeltaEvent(cudaEvent_t src) = 0;
-	virtual cudaEvent_t GetInputDeltaEvent() = 0;
-#endif
+	virtual bool IsGPU() { return false; }
 };
 
 #define CHAR_COUNT  0xFFFFu
@@ -64,6 +72,7 @@ void InitText(int batch_size, int line_len, int& train_cnt, wchar_t* char_tbl, w
 wchar_t* ReadText(int batch_size, int line_len, int mini_batch_idx);
 void ClearText();
 
+/*
 template <class T> inline void SetNormalRand(T* &x, int size) {
 	T* wk = (T*)malloc(size * sizeof(T));
 
@@ -80,3 +89,5 @@ template <class T> inline void SetNormalRand(T* &x, int size) {
 	x = wk;
 #endif
 }
+*/
+

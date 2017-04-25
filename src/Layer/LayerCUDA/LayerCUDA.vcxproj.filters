@@ -1,0 +1,102 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="RecurrentLayerCudaD.cu">
+      <Filter>src\D</Filter>
+    </CudaCompile>
+    <CudaCompile Include="MaxPoolingLayerCudaD.cu">
+      <Filter>src\D</Filter>
+    </CudaCompile>
+    <CudaCompile Include="LSTMLayerCudaD.cu">
+      <Filter>src\D</Filter>
+    </CudaCompile>
+    <CudaCompile Include="FullyConnectedLayerCudaD.cu">
+      <Filter>src\D</Filter>
+    </CudaCompile>
+    <CudaCompile Include="ConvolutionalLayerCudaD.cu">
+      <Filter>src\D</Filter>
+    </CudaCompile>
+    <CudaCompile Include="ConvolutionalLayerCudaF.cu">
+      <Filter>src\F</Filter>
+    </CudaCompile>
+    <CudaCompile Include="FullyConnectedLayerCudaF.cu">
+      <Filter>src\F</Filter>
+    </CudaCompile>
+    <CudaCompile Include="LSTMLayerCudaF.cu">
+      <Filter>src\F</Filter>
+    </CudaCompile>
+    <CudaCompile Include="MaxPoolingLayerCudaF.cu">
+      <Filter>src\F</Filter>
+    </CudaCompile>
+    <CudaCompile Include="RecurrentLayerCudaF.cu">
+      <Filter>src\F</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{2f074778-5519-43bd-9996-4250e93404f3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc">
+      <UniqueIdentifier>{b144a0fe-c1be-4fa5-9c03-0e1fa9135849}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\D">
+      <UniqueIdentifier>{531af83f-9ffa-45d7-be38-fc1fd80fdc61}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\F">
+      <UniqueIdentifier>{354cb486-2359-40ea-9871-814288d2c709}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\D">
+      <UniqueIdentifier>{b25be6f7-29f7-43fc-b6a8-54496ccf6c71}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="inc\F">
+      <UniqueIdentifier>{e4e167d6-6ff5-418a-bbb0-e2097b6ddf08}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ConvolutionalLayerCudaD.h">
+      <Filter>inc\D</Filter>
+    </ClInclude>
+    <ClInclude Include="FullyConnectedLayerCudaD.h">
+      <Filter>inc\D</Filter>
+    </ClInclude>
+    <ClInclude Include="LSTMLayerCudaD.h">
+      <Filter>inc\D</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPoolingLayerCudaD.h">
+      <Filter>inc\D</Filter>
+    </ClInclude>
+    <ClInclude Include="RecurrentLayerCudaD.h">
+      <Filter>inc\D</Filter>
+    </ClInclude>
+    <ClInclude Include="MkFn.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Lib\Lib.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="ConvolutionalLayerCudaF.h">
+      <Filter>inc\F</Filter>
+    </ClInclude>
+    <ClInclude Include="FullyConnectedLayerCudaF.h">
+      <Filter>inc\F</Filter>
+    </ClInclude>
+    <ClInclude Include="LSTMLayerCudaF.h">
+      <Filter>inc\F</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPoolingLayerCudaF.h">
+      <Filter>inc\F</Filter>
+    </ClInclude>
+    <ClInclude Include="RecurrentLayerCudaF.h">
+      <Filter>inc\F</Filter>
+    </ClInclude>
+    <ClInclude Include="LibCuda.h">
+      <Filter>inc</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Lib\Lib.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

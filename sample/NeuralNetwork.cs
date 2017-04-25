@@ -3,20 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 
 public abstract class Layer {
-    public static double e_;
-    public double E;    // 損失関数
-
+    public static float e_;
+    public float E;    // 損失関数
+    
     public abstract void Forward();
 
     public int[] Range(int n) {
         return null;
     }
 
-    public double σ(double z) {
-        return 1.0 / (1.0 + exp(-z));
+    public float σ(float z) {
+        return (float)(1.0 / (1.0 + exp(-z)));
     }
 
-    public double σ_prime(double z) {
+    public float σ_prime(float z) {
         return σ(z) * (1 - σ(z));
     }
 
@@ -28,71 +28,71 @@ public abstract class Layer {
         return 0;
     }
 
-    public double tanh(double x) {
+    public float tanh(float x) {
         return 0;
     }
 
-    public double tanh_prime(double x) {
+    public float tanh_prime(float x) {
         return 0;
     }
 
-    public double log(double x) {
+    public float log(float x) {
         return 0;
     }
 
-    public double pow(double x, double y) {
+    public float pow(float x, float y) {
         return 0;
     }
 
-    public double exp(double x) {
+    public float exp(float x) {
         return 0;
     }
 
-    public double sqrt(double x) {
+    public float sqrt(float x) {
         return 0;
     }
 
-    public double[] Row(double[,] m, int i) {
+    public float[] Row(float[,] m, int i) {
         return null;
     }
 
-    public double[] Row(double[,,] a, int t, int i) {
+    public float[] Row(float[,,] a, int t, int i) {
         return null;
     }
 
-    public double[] Col(double[,] m, int j) {
+    public float[] Col(float[,] m, int j) {
         return null;
     }
 
-    public double[,] Mat(double[,,] a, int i) {
+    public float[,] Mat(float[,,] a, int i) {
         return null;
     }
 
-    public double oneplus(double x) {
-        return 1 + log(1.0 + pow(e_, x));
+    public float oneplus(float x) {
+        return (float)(1 + log(1.0f + pow(e_, x)));
     }
 
-    public double softmax(double[] x, int i) {
+    public float softmax(float[] x, int i) {
         return pow(e_, x[i]) / (from xj in x select pow(e_, xj)).Sum();
     }
 
-    public double Length(double[] u) {
+    public float Length(float[] u) {
         return sqrt((from i in Indexes(u) select u[i] * u[i]).Sum());
     }
 
-    public double Dot(double[] u, double[] v) {
+    public float Dot(float[] u, float[] v) {
         return (from i in Indexes(u) select u[i] * v[i]).Sum();
     }
 
-    public double C(double[,] M, double[] k, double β, int i) {
+    public float C(float[,] M, float[] k, float β, int i) {
         return exp(D(k, Row(M, i)) * β) / (from j in Indexes(M) select exp(D(k, Row(M, j)) * β)).Sum();
     }
 
-    public double D(double[] u, double[] v) {
+    public float D(float[] u, float[] v) {
         return Dot(u, v) / (Length(u) * Length(v));
     }
 
-    public double Prod(object a) {
+    public float Prod(object a) {
         return 0;
     }
 }
@@ -101,23 +101,23 @@ public class FullyConnectedLayer : Layer {
     public int X;
     public int Y;
 
-    public double[] x;
-    public double[] y;
+    public float[] x;
+    public float[] y;
 
-    public double[,] w;
-    public double[] b;
-    public double[] u;
+    public float[,] w;
+    public float[] b;
+    public float[] u;
 
     public FullyConnectedLayer(int x_size, int y_size) {
         X = x_size;
         Y = y_size;
 
-        x = new double[X];
-        y = new double[Y];
+        x = new float[X];
+        y = new float[Y];
 
-        w = new double[Y, X];
-        b = new double[Y];
-        u = new double[Y];
+        w = new float[Y, X];
+        b = new float[Y];
+        u = new float[Y];
     }
 
 public override void Forward() {
@@ -134,12 +134,12 @@ public class ConvolutionalLayer : Layer {
     public int K;   // フィルター数
     public int H;
 
-    public double[,] x;
-    public double[,,] y;
+    public float[,] x;
+    public float[,,] y;
 
-    public double[,,] u;
-    public double[,,] h;
-    public double[] b;
+    public float[,,] u;
+    public float[,,] h;
+    public float[] b;
 
     public ConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
         M = m_size;
@@ -147,12 +147,12 @@ public class ConvolutionalLayer : Layer {
         K = k_size;
         H = h_size;
 
-        x = new double[M, N];
-        u = new double[M - H + 1, N - H + 1, K];
-        y = new double[M - H + 1, N - H + 1, K];
+        x = new float[M, N];
+        u = new float[M - H + 1, N - H + 1, K];
+        y = new float[M - H + 1, N - H + 1, K];
 
-        h = new double[H, H, K];
-        b = new double[K];
+        h = new float[H, H, K];
+        b = new float[K];
     }
 
 public override void Forward() {
@@ -175,8 +175,8 @@ public class MaxPoolingLayer : Layer {
     public int MH;  // 出力行数
     public int NH;  // 出力列数
 
-    public double[,,] x;
-    public double[,,] y;
+    public float[,,] x;
+    public float[,,] y;
 
     public MaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
         M = m_size;
@@ -186,8 +186,8 @@ public class MaxPoolingLayer : Layer {
         MH = M / H;
         NH = N / H;
 
-        x = new double[M, N, K];
-        y = new double[MH, NH, K];
+        x = new float[M, N, K];
+        y = new float[MH, NH, K];
     }
 
     public override void Forward() {
@@ -207,27 +207,27 @@ public class RecurrentLayer : Layer {
     public int X;
     public int Y;
 
-    public double[,] x;
-    public double[,] y;
+    public float[,] x;
+    public float[,] y;
 
-    public double[,] win;
-    public double[,] w;
+    public float[,] win;
+    public float[,] w;
 
-    public double[] b;
+    public float[] b;
 
-    public double[,] u;
+    public float[,] u;
 
     public RecurrentLayer(int t_size, int x_size, int y_size) {
         T = t_size;
         X = x_size;
         Y = y_size;
 
-        x = new double[T, X];
-        y = new double[T, Y];
-        win = new double[Y, X];
-        w = new double[Y, Y];
-        b = new double[Y];
-        u = new double[T, Y];
+        x = new float[T, X];
+        y = new float[T, Y];
+        win = new float[Y, X];
+        w = new float[Y, Y];
+        b = new float[Y];
+        u = new float[T, Y];
     }
 
     public override void Forward() {
@@ -246,65 +246,65 @@ public class LSTMLayer : Layer {
     public int X;
     public int Y;
 
-    public double[,] x;
-    public double[,] y;
+    public float[,] x;
+    public float[,] y;
 
-    public double[,] wIin;
-    public double[,] wFin;
-    public double[,] wOin;
-    public double[,] win;
+    public float[,] wIin;
+    public float[,] wFin;
+    public float[,] wOin;
+    public float[,] win;
 
-    public double[,] wIr;
-    public double[,] wFr;
-    public double[,] wOr;
-    public double[,] wr;
+    public float[,] wIr;
+    public float[,] wFr;
+    public float[,] wOr;
+    public float[,] wr;
 
-    public double[] wI;
-    public double[] wF;
-    public double[] wO;
+    public float[] wI;
+    public float[] wF;
+    public float[] wO;
 
-    public double[] bO;
-    public double[] bF;
-    public double[] bI;
-    public double[] b;
+    public float[] bO;
+    public float[] bF;
+    public float[] bI;
+    public float[] b;
 
-    public double[,] u;
-    public double[,] s;
+    public float[,] u;
+    public float[,] s;
 
-    public double[,] uI;
-    public double[,] uF;
-    public double[,] uO;
+    public float[,] uI;
+    public float[,] uF;
+    public float[,] uO;
 
     public LSTMLayer(int t_size, int x_size, int y_size) {
         T = t_size;
         X = x_size;
         Y = y_size;
-        x = new double[T, X];
-        y = new double[T, Y];
+        x = new float[T, X];
+        y = new float[T, Y];
 
-        wIin = new double[Y, X];
-        wFin = new double[Y, X];
-        wOin = new double[Y, X];
-        win = new double[Y, X];
+        wIin = new float[Y, X];
+        wFin = new float[Y, X];
+        wOin = new float[Y, X];
+        win = new float[Y, X];
 
-        wIr = new double[Y, Y];
-        wFr = new double[Y, Y];
-        wOr = new double[Y, Y];
-        wr = new double[Y, Y];
+        wIr = new float[Y, Y];
+        wFr = new float[Y, Y];
+        wOr = new float[Y, Y];
+        wr = new float[Y, Y];
 
-        wI = new double[Y];
-        wF = new double[Y];
-        wO = new double[Y];
-        bO = new double[Y];
-        bF = new double[Y];
-        bI = new double[Y];
-        b = new double[Y];
+        wI = new float[Y];
+        wF = new float[Y];
+        wO = new float[Y];
+        bO = new float[Y];
+        bF = new float[Y];
+        bI = new float[Y];
+        b = new float[Y];
 
-        u = new double[T, Y];
-        s = new double[T, Y];
-        uI = new double[T, Y];
-        uF = new double[T, Y];
-        uO = new double[T, Y];
+        u = new float[T, Y];
+        s = new float[T, Y];
+        uI = new float[T, Y];
+        uF = new float[T, Y];
+        uO = new float[T, Y];
     }
 
     public override void Forward() {
@@ -332,118 +332,118 @@ public class DNC : Layer {
      public static int χ2hl;        // χ+h+hの長さ
 
     // LSTM
-    public double[,] χ;     // input vector
-    public double[,] χ2h;     // input vector + h + h
-    public double[,] gin;   // input gate
-    public double[,] gfo;   // forget gate
-    public double[,] s;     // state
-    public double[,] o;     // output gate
-    public double[,] h;     // hidden
+    public float[,] χ;     // input vector
+    public float[,] χ2h;     // input vector + h + h
+    public float[,] gin;   // input gate
+    public float[,] gfo;   // forget gate
+    public float[,] s;     // state
+    public float[,] o;     // output gate
+    public float[,] h;     // hidden
 
-    public double[,] Wi;    // weight : input gate
-    public double[,] Wf;    // weight : forget gate
-    public double[,] Ws;    // weight : state
-    public double[,] Wo;    // weight : output gate
+    public float[,] Wi;    // weight : input gate
+    public float[,] Wf;    // weight : forget gate
+    public float[,] Ws;    // weight : state
+    public float[,] Wo;    // weight : output gate
 
-    public double[] bi;     // bias : input gate
-    public double[] bf;     // bias : forget gate
-    public double[] bs;     // bias : state
-    public double[] bo;     // bias : output gate
+    public float[] bi;     // bias : input gate
+    public float[] bf;     // bias : forget gate
+    public float[] bs;     // bias : state
+    public float[] bo;     // bias : output gate
 
 
-    public double[,] x = new double[T, X];     // input vector RX
-    public double[,] y = new double[T, Y];     // output vector RX
-    public double[,] v;     // output vector RX
-    public double[,] z;     // target vector
-    public double[,,] M;    // memory matrix
+    public float[,] x = new float[T, X];     // input vector RX
+    public float[,] y = new float[T, Y];     // output vector RX
+    public float[,] v;     // output vector RX
+    public float[,] z;     // target vector
+    public float[,,] M;    // memory matrix
 
-    public double[,,] kr;   // read key
-    public double[,,] r;  // read vector
-    public double[,] βr; // read strength
+    public float[,,] kr;   // read key
+    public float[,,] r;  // read vector
+    public float[,] βr; // read strength
 
-    public double[,] kw;   // write key
-    public double[] βw; // write strength
+    public float[,] kw;   // write key
+    public float[] βw; // write strength
 
-    public double[,] e;   // erase vector
-    public double[,] ν;   // write vector
+    public float[,] e;   // erase vector
+    public float[,] ν;   // write vector
 
-    public double[,] gf; // free gate
-    public double[] ga; // allocation gate
-    public double[] gw; // write gate
+    public float[,] gf; // free gate
+    public float[] ga; // allocation gate
+    public float[] gw; // write gate
 
-    public double[,] ψ; // memory retention vector
-    public double[,] u; // memory usage vector
+    public float[,] ψ; // memory retention vector
+    public float[,] u; // memory usage vector
     public int[,] φ;    // indices of slots sorted by usage
-    public double[,] a; // allocation weighting
-    public double[,] cw;    // write content weighting
-    public double[,] ww;    // write weighting
-    public double[,] p;     // precedence weighting
-    //public double[,] E;     // matrix of ones
-    public double[,,] L;     // temporal link matrix
-    public double[,,] f;     // forward weighting
-    public double[,,] b;     // backward weighting
-    public double[,,] cr;    // read content weighting
-    public double[,,] wr;    // read weighting
-    public double[,] π1;     // read mode
-    public double[,] π2;     // read mode
-    public double[,] π3;     // read mode
-    public double[,,] Wr;   // read key weights
+    public float[,] a; // allocation weighting
+    public float[,] cw;    // write content weighting
+    public float[,] ww;    // write weighting
+    public float[,] p;     // precedence weighting
+    //public float[,] E;     // matrix of ones
+    public float[,,] L;     // temporal link matrix
+    public float[,,] f;     // forward weighting
+    public float[,,] b;     // backward weighting
+    public float[,,] cr;    // read content weighting
+    public float[,,] wr;    // read weighting
+    public float[,] π1;     // read mode
+    public float[,] π2;     // read mode
+    public float[,] π3;     // read mode
+    public float[,,] Wr;   // read key weights
 
     public DNC() {
         // LSTM
         χl = X + R * W;
-        χ = new double[T, χl];
-        gin = new double[T, Y];
-        gfo = new double[T, Y];
-        s = new double[T, Y];
-        o = new double[T, Y];
-        h = new double[T, Y];
+        χ = new float[T, χl];
+        gin = new float[T, Y];
+        gfo = new float[T, Y];
+        s = new float[T, Y];
+        o = new float[T, Y];
+        h = new float[T, Y];
 
         χ2hl = χl + Y + Y;
-        χ2h = new double[T, χ2hl];
-        Wi = new double[Y, χ2hl];
-        Wf = new double[Y, χ2hl];
-        Ws = new double[Y, χ2hl];
-        Wo = new double[Y, χ2hl];
+        χ2h = new float[T, χ2hl];
+        Wi = new float[Y, χ2hl];
+        Wf = new float[Y, χ2hl];
+        Ws = new float[Y, χ2hl];
+        Wo = new float[Y, χ2hl];
 
-        bi = new double[Y];
-        bf = new double[Y];
-        bs = new double[Y];
-        bo = new double[Y];
+        bi = new float[Y];
+        bf = new float[Y];
+        bs = new float[Y];
+        bo = new float[Y];
 
-        v = new double[T, Y];
-        z = new double[T, Y];
-        M = new double[T, N, W];
+        v = new float[T, Y];
+        z = new float[T, Y];
+        M = new float[T, N, W];
 
-        kr = new double[T, R, W];
-        r = new double[T, R, W];
-        βr = new double[T, R];
+        kr = new float[T, R, W];
+        r = new float[T, R, W];
+        βr = new float[T, R];
 
-        kw = new double[T, W];
-        βw = new double[T];
+        kw = new float[T, W];
+        βw = new float[T];
 
-        e = new double[T, W];
-        ν = new double[T, W];
-        gf = new double[T, R];
-        ga = new double[T];
-        gw = new double[T];
-        ψ = new double[T, N];
-        u = new double[T, N];
+        e = new float[T, W];
+        ν = new float[T, W];
+        gf = new float[T, R];
+        ga = new float[T];
+        gw = new float[T];
+        ψ = new float[T, N];
+        u = new float[T, N];
         φ = new int[T, N];
-        a = new double[T, N];
-        cw = new double[T, N];
-        ww = new double[T, N];
-        p = new double[T, N];
-        //E = new double[N, W];
-        L = new double[T, N, N];
-        f = new double[T, R, N];
-        b = new double[T, R, N];
-        cr = new double[T, R, N];
-        wr = new double[T, R, N];
-        π1 = new double[T, R];
-        π2 = new double[T, R];
-        π3 = new double[T, R];
-        Wr = new double[R, W, Y];
+        a = new float[T, N];
+        cw = new float[T, N];
+        ww = new float[T, N];
+        p = new float[T, N];
+        //E = new float[N, W];
+        L = new float[T, N, N];
+        f = new float[T, R, N];
+        b = new float[T, R, N];
+        cr = new float[T, R, N];
+        wr = new float[T, R, N];
+        π1 = new float[T, R];
+        π2 = new float[T, R];
+        π3 = new float[T, R];
+        Wr = new float[R, W, Y];
     }
 
     public override void Forward() {

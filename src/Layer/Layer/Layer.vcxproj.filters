@@ -1,0 +1,120 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ソース ファイル">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="ヘッダー ファイル">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="リソース ファイル">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="ソース ファイル\F">
+      <UniqueIdentifier>{ae82c19e-3110-410d-8994-c540d10b9f53}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\F">
+      <UniqueIdentifier>{66386f3b-ec94-42c5-b49f-f90761ebcd70}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\D">
+      <UniqueIdentifier>{8294677f-c1c7-4881-b2b1-b150e75410ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\D">
+      <UniqueIdentifier>{b878ae41-a7b6-4402-830e-77085e6c9bf0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="ReadMe.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="ConvolutionalLayerF.h">
+      <Filter>ヘッダー ファイル\F</Filter>
+    </ClInclude>
+    <ClInclude Include="FullyConnectedLayerF.h">
+      <Filter>ヘッダー ファイル\F</Filter>
+    </ClInclude>
+    <ClInclude Include="LSTMLayerF.h">
+      <Filter>ヘッダー ファイル\F</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPoolingLayerF.h">
+      <Filter>ヘッダー ファイル\F</Filter>
+    </ClInclude>
+    <ClInclude Include="RecurrentLayerF.h">
+      <Filter>ヘッダー ファイル\F</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Lib\Lib.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="ConvolutionalLayerD.h">
+      <Filter>ヘッダー ファイル\D</Filter>
+    </ClInclude>
+    <ClInclude Include="FullyConnectedLayerD.h">
+      <Filter>ヘッダー ファイル\D</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPoolingLayerD.h">
+      <Filter>ヘッダー ファイル\D</Filter>
+    </ClInclude>
+    <ClInclude Include="RecurrentLayerD.h">
+      <Filter>ヘッダー ファイル\D</Filter>
+    </ClInclude>
+    <ClInclude Include="mkfn.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Layer.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="dllmain.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="RecurrentLayerF.cpp">
+      <Filter>ソース ファイル\F</Filter>
+    </ClCompile>
+    <ClCompile Include="MaxPoolingLayerF.cpp">
+      <Filter>ソース ファイル\F</Filter>
+    </ClCompile>
+    <ClCompile Include="LSTMLayerF.cpp">
+      <Filter>ソース ファイル\F</Filter>
+    </ClCompile>
+    <ClCompile Include="FullyConnectedLayerF.cpp">
+      <Filter>ソース ファイル\F</Filter>
+    </ClCompile>
+    <ClCompile Include="ConvolutionalLayerF.cpp">
+      <Filter>ソース ファイル\F</Filter>
+    </ClCompile>
+    <ClCompile Include="MkFn.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Lib\Lib.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="RecurrentLayerD.cpp">
+      <Filter>ソース ファイル\D</Filter>
+    </ClCompile>
+    <ClCompile Include="MaxPoolingLayerD.cpp">
+      <Filter>ソース ファイル\D</Filter>
+    </ClCompile>
+    <ClCompile Include="LSTMLayerD.cpp">
+      <Filter>ソース ファイル\D</Filter>
+    </ClCompile>
+    <ClCompile Include="FullyConnectedLayerD.cpp">
+      <Filter>ソース ファイル\D</Filter>
+    </ClCompile>
+    <ClCompile Include="ConvolutionalLayerD.cpp">
+      <Filter>ソース ファイル\D</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

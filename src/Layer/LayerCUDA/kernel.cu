@@ -1,21 +1,11 @@
-
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-
+#include <cuda_runtime.h>
+#include <device_launch_parameters.h>
+#include <stdlib.h>
 #include <stdio.h>
-#define _USE_MATH_DEFINES
-#include <math.h>
-#include <cmath>
-#include <vector>
-#include <typeinfo.h> 
-#include "../Lib/Lib.h"
+#include <FLOAT.h>
 #include "MkFn.h"
-#include "FullyConnectedLayer.h"
-#include "ConvolutionalLayer.h"
-#include "MaxPoolingLayer.h"
-#include "RecurrentLayer.h"
-#include "LSTMLayer.h"
-#include "../Lib/Network.h"
+#include "../../Lib/Lib.h"
+#include "LibCuda.h"
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
@@ -26,9 +16,8 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 }
 
 
-int main(){
-	NetworkTest();
-
+extern "C" __declspec(dllexport) int LayerTest()
+{
     const int arraySize = 5;
     const int a[arraySize] = { 1, 2, 3, 4, 5 };
     const int b[arraySize] = { 10, 20, 30, 40, 50 };
@@ -134,3 +123,24 @@ Error:
     
     return cudaStatus;
 }
+
+extern "C" DllExport void DeviceSynchronize() {
+	_chk(cudaDeviceSynchronize());
+}
+
+extern "C" DllExport void DeviceInit() {
+	_chk(cudaSetDevice(0));
+}
+
+extern "C" DllExport void* DeviceMalloc(size_t size) {
+	void* p = 0;
+
+	_chk(cudaMalloc(&p, size));
+
+	return p;
+}
+
+extern "C" DllExport void DeviceFree(void* p) {
+	_chk(cudaFree(p));
+}
+

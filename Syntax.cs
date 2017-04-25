@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace MkFn {
     /*
@@ -490,6 +491,11 @@ namespace MkFn {
 
             case TokenSubType.Float:
                 float f;
+
+                if (text.Last() == 'f') {
+
+                    text = text.Substring(0, text.Length - 1);
+                }
                 if (!float.TryParse(text, out f)) {
                     throw new SyntaxException();
                 }
@@ -708,6 +714,8 @@ namespace MkFn {
 
         // 引数
         public Term[] Args;
+
+        public Class Cast;
 
         public Apply(Reference function, Term[] args) {
             Function = function;

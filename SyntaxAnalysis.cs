@@ -246,6 +246,19 @@ namespace MkFn {
             else if (CurrentToken.Text == "(") {
 
                 GetToken("(");
+                if (SimpleTypes.Any(x => x.Name == CurrentToken.Text)) {
+                    // キャストの場合
+
+                    Class type = ReadType();
+
+                    GetToken(")");
+
+                    Apply app = Expression() as Apply;
+
+                    app.Cast = type;
+
+                    return app;
+                }
                 Term term = Expression();
                 GetToken(")");
 
