@@ -609,7 +609,6 @@ namespace MkFn {
             sw.WriteLine("\tvirtual void SetIputDelta   (void* src) override {{ {0} = ({1}*)src; }}", delta_x_var.Name, delta_x_var.TypeVar.Name);
             sw.WriteLine("\tvirtual void SetOutputDelta (void* src) override {{ {0} = ({1}*)src; }}", delta_y_var.Name, delta_y_var.TypeVar.Name);
             sw.WriteLine("\tvirtual void* GetOutputDelta(int t = 0) override {{ return {0}; }}", GetFieldAddress(delta_y_var));
-            sw.WriteLine("\tvirtual void** GetOutputDeltaPtr() override {{ return (void**)&{0}; }}", delta_y_var.Name);
             sw.WriteLine("\tvirtual void* GetInputDelta (int t = 0) override {{ return {0}; }}", GetFieldAddress(delta_x_var));
 
             // 入力と出力の数

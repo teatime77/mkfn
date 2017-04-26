@@ -12,11 +12,9 @@ public:
 		_chk(cudaDeviceSynchronize());
 	}
 
-	virtual void* GetOutputData(void* dst, int size) {
+	virtual void GetOutputData(void* dst, int size) {
 		_chk(cudaDeviceSynchronize());
 		_chk(cudaMemcpy(dst, GetOutput(), size, cudaMemcpyDeviceToHost));
-
-		return dst;
 	}
 
 	virtual void SetInputStream(cudaStream_t src) = 0;

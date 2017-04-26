@@ -144,3 +144,10 @@ extern "C" DllExport void DeviceFree(void* p) {
 	_chk(cudaFree(p));
 }
 
+extern "C" DllExport void MemcpyDeviceToHost(void* dst, void* src, size_t size) {
+	_chk(cudaMemcpy(dst, src, size, cudaMemcpyDeviceToHost));
+}
+
+extern "C" DllExport void MemcpyHostToDevice(void* dst, void* src, size_t size) {
+	_chk(cudaMemcpy(dst, src, size, cudaMemcpyHostToDevice));
+}

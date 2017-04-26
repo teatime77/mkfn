@@ -15,7 +15,7 @@ public:
 	Layer() {
 	}
 
-	virtual ~Layer() {};
+	virtual ~Layer() {}
 
 	virtual void Forward() = 0;
 	virtual void Backward() = 0;
@@ -28,19 +28,18 @@ public:
 	virtual void SetIputDelta(void* src) = 0;
 	virtual void SetOutputDelta(void* src) = 0;
 	virtual void* GetOutputDelta(int t = 0) = 0;
-	virtual void** GetOutputDeltaPtr() = 0;
 	virtual void* GetInputDelta(int t = 0) = 0;
 
 	virtual void SetInputData(void* src, int size) {
-		SetInput(src);
+		memcpy(GetInput(), src, size);
 	}
 
 	virtual void SetOutputDeltaData(void* src, int size) {
-		SetOutputDelta(src);
+		memcpy(GetOutputDelta(), src, size);
 	}
 
-	virtual void* GetOutputData(void* dst, int size) {
-		return GetOutput();
+	virtual void GetOutputData(void* dst, int size) {
+		memcpy(dst, GetOutput(), size);
 	}
 
 	virtual void ConnectLayer(Layer* next_layer) {}

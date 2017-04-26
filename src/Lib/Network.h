@@ -268,10 +268,10 @@ public:
 
 		//-------------------------------------------------- 出力を得ます。
 		int last_y_len = TrainBatchSize * RangeLen;
-		T* last_y_ptr = (T*)LastLayer->GetOutputData(last_y, last_y_len * sizeof(T));
+		LastLayer->GetOutputData(last_y, last_y_len * sizeof(T));
 
 		//-------------------------------------------------- 損失関数を計算します。
-		CostDerivative(cost_derivative, last_y_ptr, batch_Y, last_y_len);
+		CostDerivative(cost_derivative, last_y, batch_Y, last_y_len);
 
 		T cost = Cost(cost_derivative, last_y_len);
 
@@ -364,29 +364,29 @@ public:
 
 			//-------------------------------------------------- 出力を得ます。
 			int last_y_len = TrainBatchSize * RangeLen;
-			T* last_y_ptr = (T*)LastLayer->GetOutputData(last_y, last_y_len * sizeof(T));
+			LastLayer->GetOutputData(last_y, last_y_len * sizeof(T));
 
 #if 0
-			CostDerivative(cost_derivative, last_y_ptr, batch_Y, last_y_len);
+			CostDerivative(cost_derivative, last_y, batch_Y, last_y_len);
 
 			T cost = Cost(cost_derivative, last_y_len);
 #else
 			T cost = 0;
 			for (int batch_idx = 0; batch_idx < TrainBatchSize; batch_idx++) {
-				T cost2 = SoftMax(cost_derivative, last_y_ptr, batch_Y, exp_work, RangeLen, TrainBatchSize, batch_idx);
+				T cost2 = SoftMax(cost_derivative, last_y, batch_Y, exp_work, RangeLen, TrainBatchSize, batch_idx);
 /*
 				if (MiniBatchIdx % 100 == 0 && batch_idx == TrainBatchSize - 1) {
 					for (int i = 0; i < RangeLen; i++) {
 						int k = i * TrainBatchSize + batch_idx;
-						T sv = last_y_ptr[k];
+						T sv = last_y[k];
 
 						T dy = 0.0001;
-						last_y_ptr[k] += dy;
+						last_y[k] += dy;
 
-						T cost3 = SoftMax(cost_derivative, last_y_ptr, batch_Y, exp_work, RangeLen, TrainBatchSize, batch_idx);
+						T cost3 = SoftMax(cost_derivative, last_y, batch_Y, exp_work, RangeLen, TrainBatchSize, batch_idx);
 						Log(L"diff: %.16e  δ:%.16e", cost2, cost3, cost3 - cost2, dy * cost_derivative[k]);
 
-						last_y_ptr[k] = sv;
+						last_y[k] = sv;
 					}
 				}
 */
@@ -407,7 +407,7 @@ public:
 				T max_val = -10000;
 				int max_idx = 0;
 				for (int i = 0; i < RangeLen; i++) {
-					T val = last_y_ptr[i * TrainBatchSize + batch_idx];
+					T val = last_y[i * TrainBatchSize + batch_idx];
 					if (max_val < val) {
 
 						max_val = val;
@@ -538,11 +538,10 @@ public:
 				// すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
 				AllocateConnectLayers(TrainBatchSize);
 
-				void** delta_y_ptr = FirstLayer->GetOutputDeltaPtr();
 				size_t delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
+				void* out_delta_y = DeviceMalloc(delta_y_sz);
 
-				*delta_y_ptr = DeviceMalloc(delta_y_sz);
-				assert(*delta_y_ptr != 0);
+				FirstLayer->SetOutputDelta(out_delta_y);
 
 				for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt; ) {//MiniBatchIdx++
 
@@ -560,7 +559,7 @@ public:
 				}
 
 				FreeLayers();
-				DeviceFree(*delta_y_ptr);
+				DeviceFree(out_delta_y);
 
 				//Log(L"epock : %d  cost : %f", EpochIdx, CostSum / CostCount);
 
@@ -607,9 +606,9 @@ public:
 			Layers[i]->Forward();
 		}
 
-		T* last_y_ptr = (T*)LastLayer->GetOutputData(last_y, batch_size * RangeLen * sizeof(T));
+		LastLayer->GetOutputData(last_y, batch_size * RangeLen * sizeof(T));
 
-		int eq_cnt = ArgMax(last_y_ptr, batch_size, arg_max, label);
+		int eq_cnt = ArgMax(last_y, batch_size, arg_max, label);
 
 		return eq_cnt;
 	}
@@ -618,16 +617,13 @@ public:
 	すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
 	*/
 	void AllocateConnectLayers(int batch_size) {
-		if (FirstLayer->IsGPU()) {
+		void* p;
 
-			void* p;
+		p = DeviceMalloc(batch_size * DomainLen * sizeof(T));
+		FirstLayer->SetInput(p);
 
-			p = DeviceMalloc(batch_size * DomainLen * sizeof(T));
-			FirstLayer->SetInput(p);
-
-			p = DeviceMalloc(batch_size * RangeLen * sizeof(T));
-			LastLayer->SetOutputDelta(p);
-		}
+		p = DeviceMalloc(batch_size * RangeLen * sizeof(T));
+		LastLayer->SetOutputDelta(p);
 
 		for (size_t i = 0; i < Layers.size(); i++) {
 			Layers[i]->BatchSize = batch_size;
@@ -659,10 +655,8 @@ public:
 			Layers[i]->Free();
 		}
 
-		if (FirstLayer->IsGPU()) {
-			DeviceFree(FirstLayer->GetInput());
-			DeviceFree(LastLayer->GetOutputDelta());
-		}
+		DeviceFree(FirstLayer->GetInput());
+		DeviceFree(LastLayer->GetOutputDelta());
 	}
 
 	/*
