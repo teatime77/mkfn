@@ -149,5 +149,18 @@ extern "C" DllExport void SetTimeCount(PLayer layer, int time_count) {
 }
 
 extern "C" DllExport bool IsGPU(PLayer layer) { 
-	return ((Layer*)layer)->IsGPU();
+	//return ((Layer*)layer)->IsGPU();
+	bool b = ((Layer*)layer)->IsGPU();
+	return b;
+}
+
+extern "C" DllExport void Add(float* a, int n, float* b) {
+	for (int i = 0; i < 10; i++) {
+		b[i] = a[i] + n;
+	}
+}
+
+
+extern "C" DllExport int two(int n) {
+	return n * 2;
 }
