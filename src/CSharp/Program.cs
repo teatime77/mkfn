@@ -19,6 +19,7 @@ namespace CSTest {
 
 
     public abstract class Network {
+        public Device Dev;
         public string DataDir;
 
         public NetworkType Type;
@@ -36,9 +37,9 @@ namespace CSTest {
         public int CostCount;
         public int UpdateMiniBatchCount;
 
-        public List<LayerF> Layers;
-        public LayerF FirstLayer;
-        public LayerF LastLayer;
+        public List<Layer> Layers;
+        public Layer FirstLayer;
+        public Layer LastLayer;
 
         public Network(){
             string dir = Assembly.GetExecutingAssembly().Location;
@@ -116,46 +117,6 @@ namespace CSTest {
         }
     }
 
-    public class Device {
-        static bool IsCuda = true;
-
-        public static void Synchronize() {
-            if (IsCuda) {
-                Cuda.DeviceSynchronize();
-            }
-            else {
-                DLL.DeviceSynchronize();
-            }
-        }
-
-        public static void Init() {
-            if (IsCuda) {
-                Cuda.DeviceInit();
-            }
-            else {
-                DLL.DeviceInit();
-            }
-        }
-
-        public static IntPtr Malloc(long size) {
-            if (IsCuda) {
-                return Cuda.DeviceMalloc(size);
-            }
-            else {
-                return DLL.DeviceMalloc(size);
-            }
-        }
-
-        public static void Free(IntPtr p) {
-            if (IsCuda) {
-                Cuda.DeviceFree(p);
-            }
-            else {
-                DLL.DeviceFree(p);
-            }
-        }
-    }
-
     class Program {
         static void Init() {
 
@@ -165,11 +126,15 @@ namespace CSTest {
             // 初期処理をします。
             Init();
 
-            Device.Init();
+            Device dev = new Device();
+            dev.DeviceInit();
 
             NetworkF net = new NetworkF();
+            net.Dev = dev;
             net.EpochSize = 100;
             net.TestBatchSize = 20;
+
+            LayerFactoryF factory = new LayerFactoryF();
 
             float learning_rate = 1.0f;
             for (int run_idx = 0; ; run_idx++) {
@@ -181,45 +146,45 @@ namespace CSTest {
                 case NetworkType.Simple:
                     net.TrainBatchSize = 10;
                     net.ReadMNIST();
-                    net.Layers = new List<LayerF>(){
-                        LayerNET.LayerF.MakeFullyConnectedLayerF(28 * 28, 30),
-                        LayerNET.LayerF.MakeFullyConnectedLayerF(30, 10)
+                    net.Layers = new List<Layer>(){
+                        factory.MakeFullyConnectedLayer(28 * 28, 30),
+                        factory.MakeFullyConnectedLayer(30, 10)
                     };
                     break;
 
                 case NetworkType.CNN:
                     net.TrainBatchSize = 10;
                     net.ReadMNIST();
-                    net.Layers = new List<LayerF>(){
+                    net.Layers = new List<Layer>(){
                         //new ConvolutionalLayer(28, 28, 20, 5),
                         //new MaxPoolingLayer(24, 24, 20, 2),
                         //new FullyConnectedLayerF(12 * 12 * 20, 100),
-                        LayerNET.LayerF.MakeConvolutionalLayerCudaF(28, 28, 5, 5),
-                        LayerNET.LayerF.MakeMaxPoolingLayerCudaF(24, 24, 5, 2),
-                        LayerNET.LayerF.MakeFullyConnectedLayerCudaF(12 * 12 * 5, 100),
-                        LayerNET.LayerF.MakeFullyConnectedLayerCudaF(100, 10)
+                        factory.MakeConvolutionalLayer(28, 28, 5, 5),
+                        factory.MakeMaxPoolingLayer(24, 24, 5, 2),
+                        factory.MakeFullyConnectedLayer(12 * 12 * 5, 100),
+                        factory.MakeFullyConnectedLayer(100, 10)
                     };
                     break;
 
                 case NetworkType.RNN:
                     learning_rate = 0.1f;
                     net.TrainBatchSize = 7;
-                    net.Layers = new List<LayerF>(){
+                    net.Layers = new List<Layer>(){
                         //new RecurrentLayer(5, 2, 10),
                         //new FullyConnectedLayerF(10, 2)
-                        LayerNET.LayerF.MakeRecurrentLayerF(20, 28, 100),
-                        LayerNET.LayerF.MakeFullyConnectedLayerF(10, 28)
+                        factory.MakeRecurrentLayer(20, 28, 100),
+                        factory.MakeFullyConnectedLayer(10, 28)
                     };
                     break;
 
                 case NetworkType.LSTM:
                     learning_rate = 0.1f;
                     net.TrainBatchSize = 7;
-                    net.Layers = new List<LayerF>(){
+                    net.Layers = new List<Layer>(){
                         //new LSTMLayer(50, 2000, 100),
                         //new LSTMLayer(20, 1000, 100),
-                        LayerNET.LayerF.MakeLSTMLayerCudaF(20, 28, 100),
-                        LayerNET.LayerF.MakeFullyConnectedLayerCudaF(100, 28)
+                        factory.MakeLSTMLayer(20, 28, 100),
+                        factory.MakeFullyConnectedLayer(100, 28)
                     };
                     break;
                 }

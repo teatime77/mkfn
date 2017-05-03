@@ -61,10 +61,10 @@ namespace CSTest {
         すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
         */
         void AllocateConnectLayers(int batch_size) {
-            IntPtr p = Device.Malloc(batch_size * DomainLen * sizeof(float));
+            IntPtr p = Dev.DeviceMalloc(batch_size * DomainLen * sizeof(float));
             FirstLayer.SetInput(p);
 
-            p = Device.Malloc(batch_size * RangeLen * sizeof(float));
+            p = Dev.DeviceMalloc(batch_size * RangeLen * sizeof(float));
             LastLayer.SetOutputDelta(p);
 
             for (int i = 0; i < Layers.Count; i++) {
@@ -177,7 +177,7 @@ namespace CSTest {
         unsafe void UpdateMiniBatch(float[] batch_X, float[] batch_Y, float[] last_y, float[] cost_derivative) {
             //-------------------------------------------------- 入力をセットします。
 
-            FirstLayer.SetInputData(batch_X, DomainLen * TrainBatchSize * sizeof(float));
+            FirstLayer.SetInputData(ref batch_X, DomainLen * TrainBatchSize * sizeof(float));
 
             for (int i = 0; i < Layers.Count; i++) {
                 Layers[i].Forward();
@@ -186,7 +186,7 @@ namespace CSTest {
             //-------------------------------------------------- 出力を得ます。
             int last_y_len = TrainBatchSize * RangeLen;
 
-            LastLayer.GetOutputData(last_y, last_y_len * sizeof(float));
+            LastLayer.GetOutputData(ref last_y, last_y_len * sizeof(float));
 
             //-------------------------------------------------- 損失関数を計算します。
             CostDerivative(cost_derivative, last_y, batch_Y, last_y_len);
@@ -194,12 +194,12 @@ namespace CSTest {
             float cost = Cost(cost_derivative, last_y_len);
 
             //-------------------------------------------------- δyをセットします。
-            LastLayer.SetOutputDeltaData(cost_derivative, last_y_len * sizeof(float));
+            LastLayer.SetOutputDeltaData(ref cost_derivative, last_y_len * sizeof(float));
 
             for (int i = (int)Layers.Count - 1; 0 <= i; i--) {
                 Layers[i].Backward();
             }
-            Device.Synchronize();
+            Dev.DeviceSynchronize();
 
             for (int i = (int)Layers.Count - 1; 0 <= i; i--) {
                 Layers[i].UpdateParameter();
@@ -213,7 +213,7 @@ namespace CSTest {
                     Dmp("fc3-w", fc.w, fc.Y * fc.X);
             */
 
-            Device.Synchronize();
+            Dev.DeviceSynchronize();
         }
 
 
@@ -244,13 +244,13 @@ namespace CSTest {
         }
 
         int Evaluate(float[] batch_X, float[] batch_Y, float[] last_y, int batch_size, byte[] arg_max, byte[] label) {
-            FirstLayer.SetInputData(batch_X, batch_size * DomainLen * sizeof(float));
+            FirstLayer.SetInputData(ref batch_X, batch_size * DomainLen * sizeof(float));
 
             for (int i = 0; i < Layers.Count; i++) {
                 Layers[i].Forward();
             }
 
-            LastLayer.GetOutputData(last_y, batch_size * RangeLen * sizeof(float));
+            LastLayer.GetOutputData(ref last_y, batch_size * RangeLen * sizeof(float));
 
             int eq_cnt = ArgMax(last_y, batch_size, arg_max, label);
 
@@ -266,8 +266,8 @@ namespace CSTest {
                 Layers[i].Free();
             }
 
-            Device.Free(FirstLayer.GetInput());
-            Device.Free(LastLayer.GetOutputDelta());
+            Dev.DeviceFree(FirstLayer.GetInput());
+            Dev.DeviceFree(LastLayer.GetOutputDelta());
         }
 
         /*
@@ -468,7 +468,7 @@ namespace CSTest {
 
 
             //-------------------------------------------------- 入力をセットします。
-            FirstLayer.SetInputData(batch_X, DomainLen * TrainBatchSize * sizeof(float));
+            FirstLayer.SetInputData(ref batch_X, DomainLen * TrainBatchSize * sizeof(float));
 
             // 順方向の時刻
             for (int t = 0; t < Time; t++) {
@@ -498,7 +498,7 @@ namespace CSTest {
 
                 //-------------------------------------------------- 出力を得ます。
                 int last_y_len = TrainBatchSize * RangeLen;
-                LastLayer.GetOutputData(last_y, last_y_len * sizeof(float));
+                LastLayer.GetOutputData(ref last_y, last_y_len * sizeof(float));
 
                 float cost = 0;
                 for (int batch_idx = 0; batch_idx < TrainBatchSize; batch_idx++) {
@@ -573,7 +573,7 @@ namespace CSTest {
                 }
 
                 //-------------------------------------------------- δyをセットします。
-                LastLayer.SetOutputDeltaData(cost_derivative, last_y_len * sizeof(float));
+                LastLayer.SetOutputDeltaData(ref cost_derivative, last_y_len * sizeof(float));
 
                 //-------------------------------------------------- 逆伝播
                 // RNN以外のレイヤーの逆伝播をします。
@@ -620,7 +620,7 @@ namespace CSTest {
             Dmp("fc3-w", fc.w, fc.Y * fc.X);
             */
 
-            Device.Synchronize();
+            Dev.DeviceSynchronize();
         }
 
 
@@ -668,7 +668,7 @@ namespace CSTest {
                     AllocateConnectLayers(TrainBatchSize);
 
                     int delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
-                    IntPtr out_delta_y = Device.Malloc(delta_y_sz);
+                    IntPtr out_delta_y = Dev.DeviceMalloc(delta_y_sz);
 
                     FirstLayer.SetOutputDelta(out_delta_y);
 
@@ -689,7 +689,7 @@ namespace CSTest {
                     }
 
                     FreeLayers();
-                    Device.Free(out_delta_y);
+                    Dev.DeviceFree(out_delta_y);
 
                     //Log("epock : %d  cost : %f", EpochIdx, CostSum / CostCount);
                 }

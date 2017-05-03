@@ -17,48 +17,9 @@ Public Enum NetworkType
     LSTM
 End Enum
 
-
-Public Class Device
-    Public Shared IsCuda As Boolean = True
-
-    Public Shared Sub Synchronize()
-        If IsCuda Then
-            Cuda.DeviceSynchronize()
-
-        Else
-            DLL.DeviceSynchronize()
-        End If
-    End Sub
-
-    Public Shared Sub Init()
-        If IsCuda Then
-            Cuda.DeviceInit()
-
-        Else
-            DLL.DeviceInit()
-        End If
-    End Sub
-
-    Public Shared Function Malloc(size As Long) As IntPtr
-        If IsCuda Then
-            Return Cuda.DeviceMalloc(size)
-
-        Else
-            Return DLL.DeviceMalloc(size)
-        End If
-    End Function
-
-    Public Shared Sub Free(p As IntPtr)
-        If IsCuda Then
-            Cuda.DeviceFree(p)
-
-        Else
-            DLL.DeviceFree(p)
-        End If
-    End Sub
-End Class
-
 Module Module1
+    Dim Dev As Device
+
     Dim CharToCharIdx(CHAR_COUNT) As UShort
     Dim CharIdxToChar(CHAR_COUNT) As Char
 
@@ -83,9 +44,9 @@ Module Module1
     Public CostCount As Integer
     Public UpdateMiniBatchCount As Integer
 
-    Public Layers As List(Of LayerF)
-    Public FirstLayer As LayerF
-    Public LastLayer As LayerF
+    Public Layers As List(Of Layer)
+    Public FirstLayer As Layer
+    Public LastLayer As Layer
 
 
     Dim TrainX() As Single
@@ -164,10 +125,13 @@ Module Module1
     Sub NetworkTest()
         SetDataDir()
 
-        Device.Init()
+        Dev = New Device
+        Dev.DeviceInit()
 
         EpochSize = 100
         TestBatchSize = 20
+
+        Dim factory As LayerFactoryF = New LayerFactoryF()
 
         Dim learning_rate As Single = 1.0F
         For run_idx As Integer = 0 To Integer.MaxValue
@@ -180,35 +144,35 @@ Module Module1
                 Case NetworkType.Simple
                     TrainBatchSize = 10
                     ReadMNIST()
-                    Layers = New List(Of LayerF) From {
-                        LayerNET.LayerF.MakeFullyConnectedLayerF(28 * 28, 30),
-                        LayerNET.LayerF.MakeFullyConnectedLayerF(30, 10)
+                    Layers = New List(Of Layer) From {
+                        factory.MakeFullyConnectedLayer(28 * 28, 30),
+                        factory.MakeFullyConnectedLayer(30, 10)
                     }
 
                 Case NetworkType.CNN
                     TrainBatchSize = 10
                     ReadMNIST()
-                    Layers = New List(Of LayerF) From {
-                        LayerNET.LayerF.MakeConvolutionalLayerCudaF(28, 28, 5, 5),
-                        LayerNET.LayerF.MakeMaxPoolingLayerCudaF(24, 24, 5, 2),
-                        LayerNET.LayerF.MakeFullyConnectedLayerCudaF(12 * 12 * 5, 100),
-                        LayerNET.LayerF.MakeFullyConnectedLayerCudaF(100, 10)
+                    Layers = New List(Of Layer) From {
+                        factory.MakeConvolutionalLayer(28, 28, 5, 5),
+                        factory.MakeMaxPoolingLayer(24, 24, 5, 2),
+                        factory.MakeFullyConnectedLayer(12 * 12 * 5, 100),
+                        factory.MakeFullyConnectedLayer(100, 10)
                     }
 
                 Case NetworkType.RNN
                     learning_rate = 0.1F
                     TrainBatchSize = 7
-                    Layers = New List(Of LayerF) From {
-                        LayerNET.LayerF.MakeRecurrentLayerF(20, 28, 100),
-                        LayerNET.LayerF.MakeFullyConnectedLayerF(10, 28)
+                    Layers = New List(Of Layer) From {
+                        factory.MakeRecurrentLayer(20, 28, 100),
+                        factory.MakeFullyConnectedLayer(10, 28)
                     }
 
                 Case NetworkType.LSTM
                     learning_rate = 0.1F
                     TrainBatchSize = 7
-                    Layers = New List(Of LayerF) From {
-                        LayerNET.LayerF.MakeLSTMLayerCudaF(20, 28, 100),
-                        LayerNET.LayerF.MakeFullyConnectedLayerCudaF(100, 28)
+                    Layers = New List(Of Layer) From {
+                        factory.MakeLSTMLayer(20, 28, 100),
+                        factory.MakeFullyConnectedLayer(100, 28)
                     }
             End Select
 
@@ -260,10 +224,10 @@ Module Module1
 
     ' すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
     Sub AllocateConnectLayers(batch_size As Integer)
-        Dim p As IntPtr = Device.Malloc(batch_size * DomainLen * Marshal.SizeOf(Of Single))
+        Dim p As IntPtr = Dev.DeviceMalloc(batch_size * DomainLen * Marshal.SizeOf(Of Single))
         FirstLayer.SetInput(p)
 
-        p = Device.Malloc(batch_size * RangeLen * Marshal.SizeOf(Of Single))
+        p = Dev.DeviceMalloc(batch_size * RangeLen * Marshal.SizeOf(Of Single))
         LastLayer.SetOutputDelta(p)
 
         For i = 0 To Layers.Count - 1
@@ -394,13 +358,13 @@ Module Module1
         For i = Layers.Count - 1 To 0 Step -1
             Layers(i).Backward()
         Next
-        Device.Synchronize()
+        Dev.DeviceSynchronize()
 
         For i = Layers.Count - 1 To 0 Step -1
             Layers(i).UpdateParameter()
         Next
 
-        Device.Synchronize()
+        Dev.DeviceSynchronize()
     End Sub
 
 
@@ -452,8 +416,8 @@ Module Module1
             Layers(i).Free()
         Next
 
-        Device.Free(FirstLayer.GetInput())
-        Device.Free(LastLayer.GetOutputDelta())
+        Dev.DeviceFree(FirstLayer.GetInput())
+        Dev.DeviceFree(LastLayer.GetOutputDelta())
     End Sub
 
 
@@ -780,7 +744,7 @@ Module Module1
         'Dmp("fc3-w", fc.w, fc.Y * fc.X)
 
 
-        Device.Synchronize()
+        Dev.DeviceSynchronize()
     End Sub
 
 
@@ -825,7 +789,7 @@ Module Module1
                 AllocateConnectLayers(TrainBatchSize)
 
                 Dim delta_y_sz As Integer = TrainBatchSize * Time * Y * Marshal.SizeOf(Of Double)
-                Dim out_delta_y As IntPtr = Device.Malloc(delta_y_sz)
+                Dim out_delta_y As IntPtr = Dev.DeviceMalloc(delta_y_sz)
 
                 FirstLayer.SetOutputDelta(out_delta_y)
 
@@ -849,7 +813,7 @@ Module Module1
                 End While
 
                 FreeLayers()
-                Device.Free(out_delta_y)
+                Dev.DeviceFree(out_delta_y)
 
                 'Log("epock : %d  cost : %f", EpochIdx, CostSum / CostCount)
             Next

@@ -242,77 +242,198 @@ namespace LayerNET{
         public static extern void MemcpyHostToDevice(IntPtr dst, IntPtr src, long size);
     }
 
-    public class Layer {
-        public static void DeviceSynchronize() {
+    [ComVisible(true)]
+    public interface IDevice {
+        void DeviceSynchronize();
+        void DeviceInit();
+        IntPtr DeviceMalloc(long size);
+        void DeviceFree(IntPtr p);
+    }
+
+    [ClassInterface(ClassInterfaceType.None)]
+    public class Device : IDevice {
+        public void DeviceSynchronize() {
             DLL.DeviceSynchronize();
         }
 
-        public static void DeviceInit() {
+        public void DeviceInit() {
             DLL.DeviceInit();
         }
 
-        public static IntPtr DeviceMalloc(long size) {
+        public IntPtr DeviceMalloc(long size) {
             return DLL.DeviceMalloc(size);
         }
 
-        public static void DeviceFree(IntPtr p) {
+        public void DeviceFree(IntPtr p) {
             DLL.DeviceFree(p);
         }
+    }
 
-        //----------------------------------------------------------------------------------------------------
+    [ClassInterface(ClassInterfaceType.None)]
+    public class DeviceCuda : IDevice {
+        public void DeviceSynchronize() {
+            Cuda.DeviceSynchronize();
+        }
 
-        public static Layer MakeFullyConnectedLayerD(int x_size, int y_size) {
+        public void DeviceInit() {
+            Cuda.DeviceInit();
+        }
+
+        public IntPtr DeviceMalloc(long size) {
+            return Cuda.DeviceMalloc(size);
+        }
+
+        public void DeviceFree(IntPtr p) {
+            Cuda.DeviceFree(p);
+        }
+    }
+
+    [ComVisible(true)]
+    public interface ILayerFactory {
+        Layer MakeFullyConnectedLayer(int x_size, int y_size);
+        Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size);
+        Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size);
+        Layer MakeRecurrentLayer(int t_size, int x_size, int y_size);
+        Layer MakeLSTMLayer(int t_size, int x_size, int y_size);
+    }
+
+    [ClassInterface(ClassInterfaceType.None)]
+    public class LayerFactoryF : ILayerFactory {
+        public Layer MakeFullyConnectedLayer(int x_size, int y_size) {
+            return new Layer(DLL.MakeFullyConnectedLayerF(x_size, y_size));
+        }
+
+        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
+            return new Layer(DLL.MakeConvolutionalLayerF(m_size, n_size, k_size, h_size));
+        }
+
+        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
+            return new Layer(DLL.MakeMaxPoolingLayerF(m_size, n_size, k_size, h_size));
+        }
+
+        public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
+            return new Layer(DLL.MakeRecurrentLayerF(t_size, x_size, y_size));
+        }
+
+        public Layer MakeLSTMLayer(int t_size, int x_size, int y_size) {
+            return new Layer(DLL.MakeLSTMLayerF(t_size, x_size, y_size));
+        }
+    }
+
+    [ClassInterface(ClassInterfaceType.None)]
+    public class LayerFactoryD : ILayerFactory {
+        public Layer MakeFullyConnectedLayer(int x_size, int y_size) {
             return new Layer(DLL.MakeFullyConnectedLayerD(x_size, y_size));
         }
 
-
-        public static Layer MakeConvolutionalLayerD(int m_size, int n_size, int k_size, int h_size) {
+        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
             return new Layer(DLL.MakeConvolutionalLayerD(m_size, n_size, k_size, h_size));
         }
 
-
-        public static Layer MakeMaxPoolingLayerD(int m_size, int n_size, int k_size, int h_size) {
+        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
             return new Layer(DLL.MakeMaxPoolingLayerD(m_size, n_size, k_size, h_size));
         }
 
-
-        public static Layer MakeRecurrentLayerD(int t_size, int x_size, int y_size) {
+        public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
             return new Layer(DLL.MakeRecurrentLayerD(t_size, x_size, y_size));
         }
 
-
-        public static Layer MakeLSTMLayerD(int t_size, int x_size, int y_size) {
+        public Layer MakeLSTMLayer(int t_size, int x_size, int y_size) {
             return new Layer(DLL.MakeLSTMLayerD(t_size, x_size, y_size));
         }
+    }
 
-        //----------------------------------------------------------------------------------------------------
+    [ClassInterface(ClassInterfaceType.None)]
+    public class LayerFactoryCudaF : ILayerFactory {
+        public Layer MakeFullyConnectedLayer(int x_size, int y_size) {
+            return new Layer(DLL.MakeFullyConnectedLayerCudaF(x_size, y_size));
+        }
 
-        public static Layer MakeFullyConnectedLayerCudaD(int x_size, int y_size) {
+        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
+            return new Layer(DLL.MakeConvolutionalLayerCudaF(m_size, n_size, k_size, h_size));
+        }
+
+        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
+            return new Layer(DLL.MakeMaxPoolingLayerCudaF(m_size, n_size, k_size, h_size));
+        }
+
+        public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
+            return new Layer(DLL.MakeRecurrentLayerCudaF(t_size, x_size, y_size));
+        }
+
+        public Layer MakeLSTMLayer(int t_size, int x_size, int y_size) {
+            return new Layer(DLL.MakeLSTMLayerCudaF(t_size, x_size, y_size));
+        }
+    }
+
+    [ClassInterface(ClassInterfaceType.None)]
+    public class LayerFactoryCudaD : ILayerFactory {
+        public Layer MakeFullyConnectedLayer(int x_size, int y_size) {
             return new Layer(DLL.MakeFullyConnectedLayerCudaD(x_size, y_size));
         }
 
-
-        public static Layer MakeConvolutionalLayerCudaD(int m_size, int n_size, int k_size, int h_size) {
+        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
             return new Layer(DLL.MakeConvolutionalLayerCudaD(m_size, n_size, k_size, h_size));
         }
 
-
-        public static Layer MakeMaxPoolingLayerCudaD(int m_size, int n_size, int k_size, int h_size) {
+        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
             return new Layer(DLL.MakeMaxPoolingLayerCudaD(m_size, n_size, k_size, h_size));
         }
 
-
-        public static Layer MakeRecurrentLayerCudaD(int t_size, int x_size, int y_size) {
+        public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
             return new Layer(DLL.MakeRecurrentLayerCudaD(t_size, x_size, y_size));
         }
 
-
-        public static Layer MakeLSTMLayerCudaD(int t_size, int x_size, int y_size) {
+        public Layer MakeLSTMLayer(int t_size, int x_size, int y_size) {
             return new Layer(DLL.MakeLSTMLayerCudaD(t_size, x_size, y_size));
         }
+    }
 
-        //----------------------------------------------------------------------------------------------------
+    [ComVisible(true)]
+    public interface ILayer {
+        int BatchSize {
+            get;
+            set;
+        }
 
+        float LearningRate {
+            get;
+            set;
+        }
+
+        int t {
+            get;
+            set;
+        }
+
+        void Destroy();
+        void Forward();
+        void Backward();
+        void Allocate();
+        void Free();
+        void UpdateParameter();
+        void ConnectLayer(Layer next_layer);
+        int GetInputCount();
+        int GetOutputCount();
+        int GetTimeCount();
+        int GetTimeInputCount();
+        int GetTimeOutputCount();
+        void SetTimeCount(int time_count);
+        bool IsGPU();
+        void SetInput(IntPtr src);
+        IntPtr GetInput(int t = 0);
+        IntPtr GetOutput(int t = 0);
+        void SetIputDelta(IntPtr src);
+        void SetOutputDelta(IntPtr src);
+        IntPtr GetOutputDelta(int t = 0);
+        IntPtr GetInputDelta(int t = 0);
+        void SetInputData(ref float[] src, int size);
+        void SetOutputDeltaData(ref float[] src, int size);
+        void GetOutputData(ref float[] dst, int size);
+    }
+
+    [ClassInterface(ClassInterfaceType.None)]
+    public class Layer : ILayer {
         protected IntPtr Handle;
 
         public Layer() {
@@ -336,6 +457,8 @@ namespace LayerNET{
             get { return DLL.Get_t(Handle); }
             set { DLL.Set_t(Handle, value); }
         }
+
+        //----------------------------------------------------------------------------------------------------
 
         public void Destroy() {
             DLL.DestroyLayer(Handle);
@@ -394,62 +517,6 @@ namespace LayerNET{
             bool b = DLL.IsGPU(Handle);
             return b;
         }
-    }
-
-    public class LayerF : Layer {
-        public LayerF(){
-        }
-
-        public LayerF(IntPtr h) : base(h) {
-        }
-
-        public static LayerF MakeFullyConnectedLayerF(int x_size, int y_size) {
-            return new LayerF(DLL.MakeFullyConnectedLayerF(x_size, y_size));
-        }
-
-        public static LayerF MakeConvolutionalLayerF(int m_size, int n_size, int k_size, int h_size) {
-            return new LayerF(DLL.MakeConvolutionalLayerF(m_size, n_size, k_size, h_size));
-        }
-
-
-        public static LayerF MakeMaxPoolingLayerF(int m_size, int n_size, int k_size, int h_size) {
-            return new LayerF(DLL.MakeMaxPoolingLayerF(m_size, n_size, k_size, h_size));
-        }
-
-
-        public static LayerF MakeRecurrentLayerF(int t_size, int x_size, int y_size) {
-            return new LayerF(DLL.MakeRecurrentLayerF(t_size, x_size, y_size));
-        }
-
-
-        public static LayerF MakeLSTMLayerF(int t_size, int x_size, int y_size) {
-            return new LayerF(DLL.MakeLSTMLayerF(t_size, x_size, y_size));
-        }
-
-        //----------------------------------------------------------------------------------------------------
-
-        public static LayerF MakeFullyConnectedLayerCudaF(int x_size, int y_size) {
-            return new LayerF(DLL.MakeFullyConnectedLayerCudaF(x_size, y_size));
-        }
-
-        public static LayerF MakeConvolutionalLayerCudaF(int m_size, int n_size, int k_size, int h_size) {
-            return new LayerF(DLL.MakeConvolutionalLayerCudaF(m_size, n_size, k_size, h_size));
-        }
-
-
-        public static LayerF MakeMaxPoolingLayerCudaF(int m_size, int n_size, int k_size, int h_size) {
-            return new LayerF(DLL.MakeMaxPoolingLayerCudaF(m_size, n_size, k_size, h_size));
-        }
-
-
-        public static LayerF MakeRecurrentLayerCudaF(int t_size, int x_size, int y_size) {
-            return new LayerF(DLL.MakeRecurrentLayerCudaF(t_size, x_size, y_size));
-        }
-
-
-        public static LayerF MakeLSTMLayerCudaF(int t_size, int x_size, int y_size) {
-            return new LayerF(DLL.MakeLSTMLayerCudaF(t_size, x_size, y_size));
-        }
 
         //----------------------------------------------------------------------------------------------------
 
@@ -481,11 +548,11 @@ namespace LayerNET{
             return DLL.GetInputDelta(Handle, t);
         }
 
-        unsafe public void SetInputData(float[] src, int size) {
+        unsafe public void SetInputData(ref float[] src, int size) {
             bool b = IsGPU();
             if (IsGPU()) {
 
-                fixed(float* p = src) {
+                fixed (float* p = src) {
                     Cuda.MemcpyHostToDevice(DLL.GetInput(Handle), new IntPtr(p), size);
                 }
             }
@@ -495,7 +562,7 @@ namespace LayerNET{
             }
         }
 
-        unsafe public void SetOutputDeltaData(float[] src, int size) {
+        unsafe public void SetOutputDeltaData(ref float[] src, int size) {
             if (IsGPU()) {
 
                 fixed (float* p = src) {
@@ -508,7 +575,7 @@ namespace LayerNET{
             }
         }
 
-        unsafe public void GetOutputData(float[] dst, int size) {
+        unsafe public void GetOutputData(ref float[] dst, int size) {
             if (IsGPU()) {
 
                 fixed (float* p = dst) {
