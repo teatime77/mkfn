@@ -132,6 +132,10 @@ extern "C" DllExport void DeviceInit() {
 	_chk(cudaSetDevice(0));
 }
 
+extern "C" DllExport void DeviceEnd() {
+	_chk(cudaDeviceReset());
+}
+
 extern "C" DllExport void* DeviceMalloc(size_t size) {
 	void* p = 0;
 

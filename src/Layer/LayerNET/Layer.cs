@@ -56,6 +56,9 @@ namespace LayerNET{
         public static extern void DeviceInit();
 
         [DllImport("Layer.Dll")]
+        public static extern void DeviceEnd();
+
+        [DllImport("Layer.Dll")]
         public static extern IntPtr DeviceMalloc(long size);
 
         [DllImport("Layer.Dll")]
@@ -150,7 +153,7 @@ namespace LayerNET{
 
 
         [DllImport("Layer.Dll")]
-        public static extern void DestroyLayer(IntPtr layer);
+        public static extern void Destroy(IntPtr layer);
 
         [DllImport("Layer.Dll")]
         public static extern void Forward(IntPtr layer);
@@ -230,6 +233,9 @@ namespace LayerNET{
         public static extern void DeviceInit();
 
         [DllImport("LayerCUDA.Dll")]
+        public static extern void DeviceEnd();
+
+        [DllImport("LayerCUDA.Dll")]
         public static extern IntPtr DeviceMalloc(long size);
 
         [DllImport("LayerCUDA.Dll")]
@@ -246,6 +252,7 @@ namespace LayerNET{
     public interface IDevice {
         void DeviceSynchronize();
         void DeviceInit();
+        void DeviceEnd();
         IntPtr DeviceMalloc(long size);
         void DeviceFree(IntPtr p);
     }
@@ -258,6 +265,10 @@ namespace LayerNET{
 
         public void DeviceInit() {
             DLL.DeviceInit();
+        }
+
+        public void DeviceEnd() {
+            DLL.DeviceEnd();
         }
 
         public IntPtr DeviceMalloc(long size) {
@@ -277,6 +288,10 @@ namespace LayerNET{
 
         public void DeviceInit() {
             Cuda.DeviceInit();
+        }
+
+        public void DeviceEnd() {
+            Cuda.DeviceEnd();
         }
 
         public IntPtr DeviceMalloc(long size) {
@@ -461,7 +476,7 @@ namespace LayerNET{
         //----------------------------------------------------------------------------------------------------
 
         public void Destroy() {
-            DLL.DestroyLayer(Handle);
+            DLL.Destroy(Handle);
         }
 
         public void Forward() {

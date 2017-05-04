@@ -14,6 +14,9 @@ extern "C" DllExport void DeviceSynchronize() {
 extern "C" DllExport void DeviceInit() {
 }
 
+extern "C" DllExport void DeviceEnd() {
+}
+
 extern "C" DllExport void* DeviceMalloc(size_t size) {
 	return malloc(size);
 }
