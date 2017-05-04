@@ -583,7 +583,7 @@ namespace MkFn {
             string header = "class DllExport " + cls.Name + " : public " + super_class + " {\r\npublic:\r\n" +
                 string.Join("", from fld in cls.Fields select Nest(1) + FieldCode(fld));
 
-            if(OutputLanguage == Language.CUDA) {
+            if (OutputLanguage == Language.CUDA) {
 
                 // CUDAのストリーム変数
                 header += string.Join("", from fld in calculated_flds select "\tcudaStream_t " + StreamName(fld) + ";\r\n");
@@ -593,6 +593,19 @@ namespace MkFn {
             }
 
             sw.WriteLine(header);
+
+            // フィールドのサイズ
+            sw.WriteLine(string.Join("\r\n", from fld in cls.Fields where fld.TypeVar.DimCnt != 0 select string.Format("\tint {0}_size_[{1}];", fld.Name, fld.TypeVar.DimCnt)));
+            sw.WriteLine("");
+
+            // フィールドの情報
+            sw.WriteLine("\tvirtual int GetFieldCount() override {{ return {0}; }}", cls.Fields.Count);
+            sw.WriteLine("\tvirtual void GetFieldName(int field_idx, wchar_t* name) override;");
+            sw.WriteLine("\tvirtual int GetFieldDimension(int field_idx) override;");
+            sw.WriteLine("\tvirtual int* GetFieldSize(int field_idx) override;");
+            sw.WriteLine("\tvirtual void GetFieldValue(int field_idx, void* dst) override;");
+            sw.WriteLine("\tvirtual void SetFieldValue(int field_idx, void* src) override;");
+            sw.WriteLine("");
 
             sw.WriteLine("\t{0};", FunctionHeader(cls, constructor, false));
             sw.WriteLine("\tvirtual ~{0}();", cls.Name);
@@ -741,6 +754,102 @@ namespace MkFn {
         }
 
         /*
+            フィールド情報のメソッドを作ります。
+        */
+        void MakeFieldInfoCode(Class cls, StringWriter sw) {
+
+            // フィールドの名前
+            sw.WriteLine("");
+            sw.WriteLine("void {0}::GetFieldName(int field_idx, wchar_t* name){{", cls.Name);
+            sw.WriteLine("\tswitch(field_idx){");
+            for(int i = 0; i < cls.Fields.Count; i++) {
+                sw.WriteLine("\t\tcase {0}: wcscpy(name, L\"{1}\"); break;", i, cls.Fields[i].Name);
+            }
+            sw.WriteLine("\t\tdefault: name[0] = 0; break;");
+            sw.WriteLine("\t}");
+            sw.WriteLine("}");
+            
+            // フィールドの次元
+            sw.WriteLine("");
+            sw.WriteLine("int {0}::GetFieldDimension(int field_idx){{", cls.Name);
+            sw.WriteLine("\tswitch(field_idx){");
+            for (int i = 0; i < cls.Fields.Count; i++) {
+                sw.WriteLine("\tcase {0}: return {1};", i, cls.Fields[i].TypeVar.DimCnt);
+            }
+            sw.WriteLine("\tdefault: return -1;");
+            sw.WriteLine("\t}");
+            sw.WriteLine("}");
+
+            // フィールドのサイズ
+            sw.WriteLine("");
+            sw.WriteLine("int* {0}::GetFieldSize(int field_idx){{", cls.Name);
+            sw.WriteLine("\tswitch(field_idx){");
+            for (int i = 0; i < cls.Fields.Count; i++) {
+                int dim_cnt = cls.Fields[i].TypeVar.DimCnt;
+                if (dim_cnt == 0) {
+
+                    sw.WriteLine("\tcase {0}: return 0;", i);
+                }
+                else {
+                    Variable fld = cls.Fields[i];
+                    if (!IsNew(fld.Domain)) {
+                        throw new Exception();
+                    }
+
+                    Apply domain = (fld.Domain as Apply).Clone();
+
+                    sw.WriteLine("\tcase {0}:",  i);
+                    for (int dim_idx = 0; dim_idx < dim_cnt; dim_idx++) {
+
+                        sw.WriteLine("\t\t{0}_size_[{1}] = {2};", fld.Name, dim_idx, domain.Args[dim_idx]);
+                    }
+                    sw.WriteLine("\t\treturn {0}_size_;", fld.Name);
+                }
+            }
+            sw.WriteLine("\tdefault: return 0;");
+            sw.WriteLine("\t}");
+            sw.WriteLine("}");
+
+            // フィールドの値の取得
+            sw.WriteLine("");
+            sw.WriteLine("void {0}::GetFieldValue(int field_idx, void* dst){{", cls.Name);
+            sw.WriteLine("\tint _cnt = GetFieldElementCount(field_idx);");
+            sw.WriteLine("\tswitch(field_idx){");
+            for (int i = 0; i < cls.Fields.Count; i++) {
+                Class tp = cls.Fields[i].TypeVar;
+                if (tp is ArrayType) {
+
+                    sw.WriteLine("\tcase {0}: memcpy(dst, {1}, _cnt * sizeof({2})); break;", i, cls.Fields[i].Name, (tp as ArrayType).ElementType);
+                }
+                else {
+
+                    sw.WriteLine("\tcase {0}: memcpy(dst, &{1}, _cnt * sizeof({2})); break;", i, cls.Fields[i].Name, tp);
+                }
+            }
+            sw.WriteLine("\t}");
+            sw.WriteLine("}");
+
+            // フィールドの値の設定
+            sw.WriteLine("");
+            sw.WriteLine("void {0}::SetFieldValue(int field_idx, void* src){{", cls.Name);
+            sw.WriteLine("\tint _cnt = GetFieldElementCount(field_idx);");
+            sw.WriteLine("\tswitch(field_idx){");
+            for (int i = 0; i < cls.Fields.Count; i++) {
+                Class tp = cls.Fields[i].TypeVar;
+                if (tp is ArrayType) {
+
+                    sw.WriteLine("\tcase {0}: memcpy({1}, src, _cnt * sizeof({2})); break;", i, cls.Fields[i].Name, (tp as ArrayType).ElementType);
+                }
+                else {
+
+                    sw.WriteLine("\tcase {0}: memcpy(&{1}, src, _cnt * sizeof({2})); break;", i, cls.Fields[i].Name, tp);
+                }
+            }
+            sw.WriteLine("\t}");
+            sw.WriteLine("}");
+        }
+
+        /*
             ソースコードを作ります。
         */
         void MakeSourceCode(Class cls,
@@ -775,6 +884,9 @@ namespace MkFn {
                 sw.WriteLine("__constant__ int _BatchSize;");
                 sw.WriteLine("__constant__ float _LearningRate;");
             }
+
+            // フィールド情報のメソッドを作ります。
+            MakeFieldInfoCode(cls, sw);
 
             // コンストラクター
             Function constructor = (from f in cls.Functions where f.IsConstructor() select f).First();

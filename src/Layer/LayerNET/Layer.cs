@@ -134,6 +134,31 @@ namespace LayerNET{
 
         //----------------------------------------------------------------------------------------------------
         [DllImport("Layer.Dll")]
+        public static extern int GetFieldCount(IntPtr layer);
+
+        [DllImport("Layer.Dll", CharSet = CharSet.Unicode)]
+        public static extern int GetFieldIndexByName(IntPtr layer, string name);
+
+        [DllImport("Layer.Dll", CharSet=CharSet.Unicode)]
+        public static extern void GetFieldName(IntPtr layer, int field_idx, StringBuilder name);
+
+        [DllImport("Layer.Dll")]
+        public static extern int GetFieldDimension(IntPtr layer, int field_idx);
+
+        [DllImport("Layer.Dll")]
+        public static extern IntPtr GetFieldSize(IntPtr layer, int field_idx);
+
+        [DllImport("Layer.Dll")]
+        public static extern int GetFieldElementCount(IntPtr layer, int field_idx);
+
+        [DllImport("Layer.Dll")]
+        public static extern void GetFieldValue(IntPtr layer, int field_idx, IntPtr dst);
+
+        [DllImport("Layer.Dll")]
+        public static extern void SetFieldValue(IntPtr layer, int field_idx, IntPtr src);
+
+
+        [DllImport("Layer.Dll")]
         public static extern int GetBatchSize(IntPtr layer);
 
         [DllImport("Layer.Dll")]
@@ -421,6 +446,15 @@ namespace LayerNET{
             set;
         }
 
+        int GetFieldCount();
+        int GetFieldIndexByName(string name);
+        string GetFieldName(int field_idx);
+        int GetFieldDimension(int field_idx);
+        int[] GetFieldSize(int field_idx);
+        int GetFieldElementCount(int field_idx);
+        void GetFieldValue(int field_idx, IntPtr dst);
+        void SetFieldValue(int field_idx, IntPtr src);
+
         void Destroy();
         void Forward();
         void Backward();
@@ -457,6 +491,56 @@ namespace LayerNET{
         public Layer(IntPtr h) {
             Handle = h;
         }
+
+
+        public int GetFieldCount() {
+            return DLL.GetFieldCount(Handle);
+        }
+
+        public int GetFieldIndexByName(string name) {
+            return DLL.GetFieldIndexByName(Handle, name);
+        }
+
+        public string GetFieldName(int field_idx) {
+            StringBuilder buf = new StringBuilder(256);
+            DLL.GetFieldName(Handle, field_idx, buf);
+
+            return buf.ToString();
+        }
+
+        public int GetFieldDimension(int field_idx) {
+            return DLL.GetFieldDimension(Handle, field_idx);
+        }
+
+        unsafe public int[] GetFieldSize(int field_idx) {
+            IntPtr  p = DLL.GetFieldSize(Handle, field_idx);
+            if(p.ToInt64() == 0) {
+                return new int[0];
+            }
+            int* size_ptr = (int*)p.ToPointer();
+            int dim_cnt = GetFieldDimension(field_idx);
+            int[] size = new int[dim_cnt];
+            for(int i = 0; i < dim_cnt; i++) {
+                size[i] = size_ptr[i];
+            }
+
+            return size;
+        }
+
+        public int GetFieldElementCount(int field_idx) {
+            return DLL.GetFieldElementCount(Handle, field_idx);
+        }
+
+        public void GetFieldValue(int field_idx, IntPtr dst) {
+            DLL.GetFieldValue(Handle, field_idx, dst);
+        }
+
+        public void SetFieldValue(int field_idx, IntPtr src) {
+            DLL.GetFieldValue(Handle, field_idx, src);
+        }
+
+
+
 
         public int BatchSize {
             get { return DLL.GetBatchSize(Handle); }

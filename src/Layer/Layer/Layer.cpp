@@ -33,6 +33,38 @@ extern "C" DllExport void DeviceFree(void* p) {
 #endif
 
 
+extern "C" DllExport  int GetFieldCount(PLayer layer) {
+	return ((Layer*)layer)->GetFieldCount();
+}
+
+extern "C" DllExport  void GetFieldName(PLayer layer, int field_idx, wchar_t* name) {
+	((Layer*)layer)->GetFieldName(field_idx, name);
+}
+
+extern "C" DllExport  int GetFieldDimension(PLayer layer, int field_idx) {
+	return ((Layer*)layer)->GetFieldDimension(field_idx);
+}
+
+extern "C" DllExport  int* GetFieldSize(PLayer layer, int field_idx) {
+	return ((Layer*)layer)->GetFieldSize(field_idx);
+}
+
+extern "C" DllExport  void GetFieldValue(PLayer layer, int field_idx, void* dst) {
+	return ((Layer*)layer)->GetFieldValue(field_idx, dst);
+}
+
+extern "C" DllExport  void SetFieldValue(PLayer layer, int field_idx, void* src) {
+	return ((Layer*)layer)->SetFieldValue(field_idx, src);
+}
+
+extern "C" DllExport  int GetFieldIndexByName(PLayer layer, wchar_t* name) {
+	return ((Layer*)layer)->GetFieldIndexByName( name);
+}
+
+extern "C" DllExport  int GetFieldElementCount(PLayer layer, int field_idx) {
+	return ((Layer*)layer)->GetFieldElementCount(field_idx);
+}
+
 extern "C" DllExport int GetBatchSize(PLayer layer) {
 	return ((Layer*)layer)->BatchSize;
 }

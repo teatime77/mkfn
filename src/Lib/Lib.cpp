@@ -13,7 +13,6 @@
 #include <sys/stat.h>
 #include "windows.h"
 
-#define _CRT_SECURE_NO_WARNINGS
 #pragma warning(disable:4996)
 
 wchar_t DataDir[_MAX_PATH];

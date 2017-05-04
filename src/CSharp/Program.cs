@@ -72,6 +72,7 @@ namespace CSTest {
             switch (Type) {
             case NetworkType.Simple:
             case NetworkType.CNN:
+                ReadMNIST();
                 SGD();
                 break;
 
@@ -145,7 +146,6 @@ namespace CSTest {
                 switch (net.Type) {
                 case NetworkType.Simple:
                     net.TrainBatchSize = 10;
-                    net.ReadMNIST();
                     net.Layers = new List<Layer>(){
                         factory.MakeFullyConnectedLayer(28 * 28, 30),
                         factory.MakeFullyConnectedLayer(30, 10)
@@ -154,7 +154,6 @@ namespace CSTest {
 
                 case NetworkType.CNN:
                     net.TrainBatchSize = 10;
-                    net.ReadMNIST();
                     net.Layers = new List<Layer>(){
                         //new ConvolutionalLayer(28, 28, 20, 5),
                         //new MaxPoolingLayer(24, 24, 20, 2),

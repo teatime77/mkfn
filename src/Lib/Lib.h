@@ -17,6 +17,38 @@ public:
 
 	virtual ~Layer() {}
 
+	virtual int GetFieldCount() = 0;
+	virtual void GetFieldName(int field_idx, wchar_t* name) = 0;
+	virtual int GetFieldDimension(int field_idx) = 0;
+	virtual int* GetFieldSize(int field_idx) = 0;
+	virtual void GetFieldValue(int field_idx, void* dst) = 0;
+	virtual void SetFieldValue(int field_idx, void* src) = 0;
+
+	virtual int GetFieldIndexByName(wchar_t* name) {
+		wchar_t	name2[256];
+		int cnt = GetFieldCount();
+		for (int i = 0; i < cnt; i++) {
+			GetFieldName(i, name2);
+			if (wcscmp(name, name2) == 0) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	virtual int GetFieldElementCount(int field_idx) {
+		int  dim_cnt = GetFieldDimension(field_idx);
+		if (dim_cnt == 0) {
+			return 1;
+		}
+		int  n = 0;
+		int* size = GetFieldSize(field_idx);
+		for (int i = 0; i < dim_cnt; i++) {
+			n += size[i];
+		}
+		return n;
+	}
+
 	virtual void Forward() = 0;
 	virtual void Backward() = 0;
 	virtual void Allocate() = 0;
