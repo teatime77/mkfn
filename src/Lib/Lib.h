@@ -41,10 +41,10 @@ public:
 		if (dim_cnt == 0) {
 			return 1;
 		}
-		int  n = 0;
 		int* size = GetFieldSize(field_idx);
-		for (int i = 0; i < dim_cnt; i++) {
-			n += size[i];
+		int  n = size[0];
+		for (int i = 1; i < dim_cnt; i++) {
+			n *= size[i];
 		}
 		return n;
 	}

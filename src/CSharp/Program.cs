@@ -19,6 +19,7 @@ namespace CSTest {
 
 
     public abstract class Network {
+        public LayerUtil Util;
         public Device Dev;
         public string DataDir;
 
@@ -42,6 +43,8 @@ namespace CSTest {
         public Layer LastLayer;
 
         public Network(){
+            Util = new LayerUtil();
+
             string dir = Assembly.GetExecutingAssembly().Location;
 
             while (true) {
@@ -139,10 +142,10 @@ namespace CSTest {
 
             float learning_rate = 1.0f;
             for (int run_idx = 0; ; run_idx++) {
-                net.Type = NetworkType.Simple;
                 net.Type = NetworkType.RNN;
-                net.Type = NetworkType.CNN;
                 net.Type = NetworkType.LSTM;
+                net.Type = NetworkType.CNN;
+                net.Type = NetworkType.Simple;
                 switch (net.Type) {
                 case NetworkType.Simple:
                     net.TrainBatchSize = 10;

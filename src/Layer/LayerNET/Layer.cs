@@ -4,8 +4,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Diagnostics;
 
-namespace LayerNET{
+namespace LayerNET {
     //public class Startup {
     //    public void Invoke() {
 
@@ -62,7 +65,7 @@ namespace LayerNET{
         public static extern IntPtr DeviceMalloc(long size);
 
         [DllImport("Layer.Dll")]
-        public static extern void DeviceFree(IntPtr p); 
+        public static extern void DeviceFree(IntPtr p);
 
         //----------------------------------------------------------------------------------------------------
 
@@ -139,7 +142,7 @@ namespace LayerNET{
         [DllImport("Layer.Dll", CharSet = CharSet.Unicode)]
         public static extern int GetFieldIndexByName(IntPtr layer, string name);
 
-        [DllImport("Layer.Dll", CharSet=CharSet.Unicode)]
+        [DllImport("Layer.Dll", CharSet = CharSet.Unicode)]
         public static extern void GetFieldName(IntPtr layer, int field_idx, StringBuilder name);
 
         [DllImport("Layer.Dll")]
@@ -187,34 +190,34 @@ namespace LayerNET{
         public static extern void Backward(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern void Allocate(IntPtr layer) ;
+        public static extern void Allocate(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern void Free(IntPtr layer) ;
+        public static extern void Free(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern void UpdateParameter(IntPtr layer) ;
+        public static extern void UpdateParameter(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern void SetInput(IntPtr layer, IntPtr src) ;
+        public static extern void SetInput(IntPtr layer, IntPtr src);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr GetInput(IntPtr layer, int t = 0) ;
+        public static extern IntPtr GetInput(IntPtr layer, int t = 0);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr GetOutput(IntPtr layer, int t = 0) ;
+        public static extern IntPtr GetOutput(IntPtr layer, int t = 0);
 
         [DllImport("Layer.Dll")]
-        public static extern void SetIputDelta(IntPtr layer, IntPtr src) ;
+        public static extern void SetIputDelta(IntPtr layer, IntPtr src);
 
         [DllImport("Layer.Dll")]
-        public static extern void SetOutputDelta(IntPtr layer, IntPtr src) ;
+        public static extern void SetOutputDelta(IntPtr layer, IntPtr src);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr GetOutputDelta(IntPtr layer, int t = 0) ;
+        public static extern IntPtr GetOutputDelta(IntPtr layer, int t = 0);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr GetInputDelta(IntPtr layer, int t = 0) ;
+        public static extern IntPtr GetInputDelta(IntPtr layer, int t = 0);
 
         [DllImport("Layer.Dll")]
         public static extern void SetInputData(IntPtr layer, IntPtr src, int size);
@@ -226,25 +229,25 @@ namespace LayerNET{
         public static extern void GetOutputData(IntPtr layer, IntPtr dst, int size);
 
         [DllImport("Layer.Dll")]
-        public static extern void ConnectLayer(IntPtr layer, IntPtr next_layer) ;
+        public static extern void ConnectLayer(IntPtr layer, IntPtr next_layer);
 
         [DllImport("Layer.Dll")]
-        public static extern int GetInputCount(IntPtr layer) ;
+        public static extern int GetInputCount(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern int GetOutputCount(IntPtr layer) ;
+        public static extern int GetOutputCount(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern int GetTimeCount(IntPtr layer) ;
+        public static extern int GetTimeCount(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern int GetTimeInputCount(IntPtr layer) ;
+        public static extern int GetTimeInputCount(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern int GetTimeOutputCount(IntPtr layer) ;
+        public static extern int GetTimeOutputCount(IntPtr layer);
 
         [DllImport("Layer.Dll")]
-        public static extern void SetTimeCount(IntPtr layer, int time_count) ;
+        public static extern void SetTimeCount(IntPtr layer, int time_count);
 
         [DllImport("Layer.Dll")]
         public static extern bool IsGPU(IntPtr layer);
@@ -271,6 +274,105 @@ namespace LayerNET{
 
         [DllImport("LayerCUDA.Dll")]
         public static extern void MemcpyHostToDevice(IntPtr dst, IntPtr src, long size);
+    }
+
+
+    [ComVisible(true)]
+    public interface ILayerUtil {
+        void SaveImage(string path, int with, int height, float[] buf);
+    }
+
+    [ClassInterface(ClassInterfaceType.None)]
+    public class LayerUtil : ILayerUtil {
+        unsafe public void SaveImage(string path, int with, int height, float min1, float max1, float* buf) {
+            Bitmap bmp = new Bitmap(with, height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+
+
+            float span = max1 - min1;
+            if (span != 0) {
+
+                float scale = 256 / span;
+
+                BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadWrite, bmp.PixelFormat);
+
+                byte[] vb = new byte[bmpData.Stride * height];
+                int src = 0, dst = 0;
+
+                for (int h = 0; h < height; h++) {
+                    for (int w = 0; w < with; w++) {
+                        int idx = dst + w * 3;
+
+                        float l = Math.Max(0, Math.Min(255, scale * (buf[src] - min1)));
+                        Debug.Assert(0 <= l && l <= 255);
+                        float r, g, b;
+                        if (l < 64) {
+                            r = 0;
+                            g = 255 * l / 64.0f;
+                            b = 255;
+
+                        }
+                        else if(l < 128) {
+                            r = 0;
+                            g = 255;
+                            b = 255 * (128 - l) / 64.0f;
+
+                        }
+                        else if (l < 192) {
+                            r = 255 * (l - 128) / 64.0f;
+                            g = 255;
+                            b = 0;
+
+                        }
+                        else {
+                            r = 255;
+                            g = 255 * (256 - l) / 64.0f;
+                            b = 0;
+                        }
+                        Debug.Assert(0 <= r && r <= 255);
+                        Debug.Assert(0 <= g && g <= 255);
+                        Debug.Assert(0 <= b && b <= 255);
+
+                        vb[idx] = (byte)b;
+                        vb[idx + 1] = (byte)g;
+                        vb[idx + 2] = (byte)r;
+
+                        src++;
+                    }
+
+                    dst += bmpData.Stride;
+                }
+
+                Marshal.Copy(vb, 0, bmpData.Scan0, vb.Length);
+
+                bmp.UnlockBits(bmpData);
+            }
+
+            bmp.Save(path);
+
+        }
+
+        unsafe public void SaveImage(string path, int with, int height, float[] buf) {
+            fixed (float* pf = buf) {
+                SaveImage(path, with, height, buf.Min(), buf.Max(), pf);
+            }
+        }
+
+        unsafe public void SaveImage(string path, float[,] buf) {
+            int h = buf.GetLength(0);
+            int w = buf.GetLength(1);
+            float min1 = float.MaxValue;
+            float max1 = -float.MaxValue;
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    min1 = Math.Min(min1, buf[y, x]);
+                    max1 = Math.Max(max1, buf[y, x]);
+                }
+            }
+
+            fixed (float* pf = buf) {
+                SaveImage(path, w, h, min1, max1, pf);
+            }
+        }
     }
 
     [ComVisible(true)]
@@ -454,6 +556,10 @@ namespace LayerNET{
         int GetFieldElementCount(int field_idx);
         void GetFieldValue(int field_idx, IntPtr dst);
         void SetFieldValue(int field_idx, IntPtr src);
+        void GetFieldValue(int field_idx, ref float[] dst);
+        void SetFieldValue(int field_idx, ref float[] src);
+        void GetFieldValue(int field_idx, ref float[,] dst);
+        void SetFieldValue(int field_idx, ref float[,] src);
 
         void Destroy();
         void Forward();
@@ -513,14 +619,14 @@ namespace LayerNET{
         }
 
         unsafe public int[] GetFieldSize(int field_idx) {
-            IntPtr  p = DLL.GetFieldSize(Handle, field_idx);
-            if(p.ToInt64() == 0) {
+            IntPtr p = DLL.GetFieldSize(Handle, field_idx);
+            if (p.ToInt64() == 0) {
                 return new int[0];
             }
             int* size_ptr = (int*)p.ToPointer();
             int dim_cnt = GetFieldDimension(field_idx);
             int[] size = new int[dim_cnt];
-            for(int i = 0; i < dim_cnt; i++) {
+            for (int i = 0; i < dim_cnt; i++) {
                 size[i] = size_ptr[i];
             }
 
@@ -539,8 +645,48 @@ namespace LayerNET{
             DLL.GetFieldValue(Handle, field_idx, src);
         }
 
+        void AllocFieldValue(int field_idx, out float[] data) {
+            int[] sz = GetFieldSize(field_idx);
 
+            data = new float[sz[0]];
+        }
 
+        void AllocFieldValue(int field_idx, out float[,] data) {
+            int[] sz = GetFieldSize(field_idx);
+
+            data = new float[sz[0], sz[1]];
+        }
+
+        unsafe public void GetFieldValue(int field_idx, ref float[] dst) {
+            if (dst == null) {
+                AllocFieldValue(field_idx, out dst);
+            }
+
+            fixed (float* pf = dst) {
+
+                IntPtr int_p = new IntPtr(pf);
+                DLL.GetFieldValue(Handle, field_idx, int_p);
+            }
+        }
+
+        public void SetFieldValue(int field_idx, ref float[] src) {
+
+        }
+
+        unsafe public void GetFieldValue(int field_idx, ref float[,] dst) {
+            if (dst == null) {
+                AllocFieldValue(field_idx, out dst);
+            }
+
+            fixed (float* pf = dst) {
+
+                IntPtr int_p = new IntPtr(pf);
+                DLL.GetFieldValue(Handle, field_idx, int_p);
+            }
+        }
+
+        public void SetFieldValue(int field_idx, ref float[,] src) {
+        }
 
         public int BatchSize {
             get { return DLL.GetBatchSize(Handle); }

@@ -10,9 +10,9 @@ using System.Diagnostics;
 namespace CSTest {
     public class NetworkF : Network {
         float[] TrainX;
-        float[] TrainY;
+        //float[] TrainY;
         float[] TestX;
-        float[] TestY;
+        //float[] TestY;
         float CostSum;
 
 
@@ -205,6 +205,26 @@ namespace CSTest {
                 Layers[i].UpdateParameter();
             }
 
+            if(MiniBatchIdx % 100 == 0) {
+
+                int iw = FirstLayer.GetFieldIndexByName("w");
+                int[] sz = FirstLayer.GetFieldSize(iw);
+                Debug.Assert(sz[1] == 28 * 28);
+                int cnt = FirstLayer.GetFieldElementCount(iw);
+                float[,] w = null;
+                FirstLayer.GetFieldValue(iw, ref w);
+                float[,] buf = new float[28, 28];
+                for (int i = 0; i < sz[0]; i++) {
+                    for (int y = 0; y < 28; y++) {
+                        for (int x = 0; x < 28; x++) {
+                            buf[y, x] = w[i, y * 28 + x];
+                        }
+                    }
+                    string path = string.Format("{0}\\img\\a{1}.png", DataDir, i);
+                    Util.SaveImage(path, buf);
+                }
+            }
+
             /*
                     Dmp("y0", (float[])Layers[0].GetOutput(), TrainBatchSize * Layers[0].GetOutputCount());
                     ConvolutionalLayer* cl = (ConvolutionalLayer*)FirstLayer;
@@ -350,7 +370,7 @@ namespace CSTest {
         }
 
 
-        static int LineIdx;
+        //static int LineIdx;
         static char[] CharBuf;
 
         void InitText(int batch_size, int line_len, out int train_cnt, char[] char_tbl, char[] char_tbl_inv) {
