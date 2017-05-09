@@ -279,14 +279,14 @@ namespace LayerNET {
 
     [ComVisible(true)]
     public interface ILayerUtil {
-        void SaveImage(string path, int with, int height, float[] buf);
+        void SaveImage(string path, int with, int height,ref float[] buf);
+        void SaveImage2(string path, ref float[,] buf);
     }
 
     [ClassInterface(ClassInterfaceType.None)]
     public class LayerUtil : ILayerUtil {
         unsafe public void SaveImage(string path, int with, int height, float min1, float max1, float* buf) {
             Bitmap bmp = new Bitmap(with, height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-
 
             float span = max1 - min1;
             if (span != 0) {
@@ -351,13 +351,13 @@ namespace LayerNET {
 
         }
 
-        unsafe public void SaveImage(string path, int with, int height, float[] buf) {
+        unsafe public void SaveImage(string path, int with, int height,ref float[] buf) {
             fixed (float* pf = buf) {
                 SaveImage(path, with, height, buf.Min(), buf.Max(), pf);
             }
         }
 
-        unsafe public void SaveImage(string path, float[,] buf) {
+        unsafe public void SaveImage2(string path, ref float[,] buf) {
             int h = buf.GetLength(0);
             int w = buf.GetLength(1);
             float min1 = float.MaxValue;
