@@ -9,6 +9,10 @@ using System.Drawing.Imaging;
 using System.Diagnostics;
 
 namespace LayerNET {
+    enum CopyDir {
+        Set,
+        Get
+    }
     //public class Startup {
     //    public void Invoke() {
 
@@ -583,12 +587,17 @@ namespace LayerNET {
         IntPtr GetOutputDelta(int t = 0);
         IntPtr GetInputDelta(int t = 0);
         void SetInputData(ref float[] src, int size);
+        void GetInputData(ref object app);
+        void SetInputData2(object app);
         void SetOutputDeltaData(ref float[] src, int size);
         void GetOutputData(ref float[] dst, int size);
     }
 
     [ClassInterface(ClassInterfaceType.None)]
     public class Layer : ILayer {
+        [DllImport("kernel32.dll")]
+        static extern void CopyMemory(IntPtr dst, IntPtr src, uint length);
+
         protected IntPtr Handle;
 
         public Layer() {
@@ -805,6 +814,124 @@ namespace LayerNET {
 
                 Marshal.Copy(src, 0, DLL.GetInput(Handle), size / sizeof(float));
             }
+        }
+
+        void CopyData(IntPtr dev, IntPtr app, uint size, CopyDir dir) {
+            if (IsGPU()) {
+
+                if(dir == CopyDir.Set) {
+
+                    Cuda.MemcpyHostToDevice(dev, app, size);
+                }
+                else {
+
+                    Cuda.MemcpyDeviceToHost(app, dev, size);
+                }
+            }
+            else {
+
+                if (dir == CopyDir.Set) {
+
+                    CopyMemory(dev, app, size);
+                }
+                else {
+
+                    CopyMemory(app, dev, size);
+                }
+            }
+        }
+
+        unsafe void CopyArrayData(IntPtr dev, object app, CopyDir dir) {
+            if(!(app is Array)) {
+
+                throw new Exception("SetInputData : 引数が配列でありません。");
+            }
+            Array arr = app as Array;
+
+            if(arr.GetType().GetElementType() == typeof(float)) {
+                switch (arr.Rank) {
+                case 1:
+                    fixed (float* p = (float[])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(float), dir);
+                    }
+                    break;
+
+                case 2:
+                    fixed (float* p = (float[,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(float), dir);
+                    }
+                    break;
+
+                case 3:
+                    fixed (float* p = (float[,,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(float), dir);
+                    }
+                    break;
+
+                case 4:
+                    fixed (float* p = (float[,,,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(float), dir);
+                    }
+                    break;
+
+                case 5:
+                    fixed (float* p = (float[,,,,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(float), dir);
+                    }
+                    break;
+
+                default:
+                    throw new Exception("SetInputData : 引数が配列の次元が5を超えています。");
+                }
+            }
+            else if (arr.GetType().GetElementType() == typeof(double)) {
+                switch (arr.Rank) {
+                case 1:
+                    fixed (double* p = (double[])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(double), dir);
+                    }
+                    break;
+
+                case 2:
+                    fixed (double* p = (double[,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(double), dir);
+                    }
+                    break;
+
+                case 3:
+                    fixed (double* p = (double[,,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(double), dir);
+                    }
+                    break;
+
+                case 4:
+                    fixed (double* p = (double[,,,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(double), dir);
+                    }
+                    break;
+
+                case 5:
+                    fixed (double* p = (double[,,,,])arr) {
+                        CopyData(dev, new IntPtr(p), (uint)arr.Length * sizeof(double), dir);
+                    }
+                    break;
+
+                default:
+                    throw new Exception("SetInputData : 引数が配列の次元が5を超えています。");
+                }
+            }
+            else {
+
+                throw new Exception("SetInputData : 引数の配列の要素型が不正です。");
+            }
+        }
+
+        unsafe public void SetInputData2(object app) {
+            CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Set);
+        }
+
+        unsafe public void GetInputData(ref object app) {
+            CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Get);
         }
 
         unsafe public void SetOutputDeltaData(ref float[] src, int size) {

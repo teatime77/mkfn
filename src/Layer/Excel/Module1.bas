@@ -1,4 +1,5 @@
 Attribute VB_Name = "Module1"
+Option Explicit
 
 Declare PtrSafe Function GetTickCount64 Lib "kernel32" () As LongLong
 
@@ -86,6 +87,8 @@ Const LONG_MAX As Long = 2147483647
     End Function
 
     Public Sub DeepLearning()
+        Dim i As Long
+        
         Set FirstLayer = Layers(0)
         Set LastLayer = Layers(UBound(Layers))
 
@@ -119,6 +122,8 @@ Const LONG_MAX As Long = 2147483647
 
     '  (0, all_count-1)の範囲から、sample_count個の整数を抜き出して、その配列を返します。
     Public Function RandomSampling(all_count As Long, sample_count As Long) As Long()
+        Dim i As Long
+        
         ReDim ret(sample_count - 1) As Long
 
         ReDim numbers(all_count - 1) As Long
@@ -176,7 +181,7 @@ End Sub
     Public Sub ReadMNIST()
         Dim mnist_dir As String: mnist_dir = DataDir + "\MNIST\"
 
-        Dim buf() As Byte
+        Dim buf() As Byte, i As Long
         
         buf = ReadAllBytes(mnist_dir + "train-images.idx3-ubyte")
 
@@ -221,6 +226,7 @@ End Sub
 
     ' すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
     Sub AllocateConnectLayers(batch_size As Long)
+        Dim i As Long
         Dim p As LongPtr: p = Dev.DeviceMalloc(batch_size * DomainLen * SizeOfSingle)
         FirstLayer.SetInput (p)
 
@@ -251,6 +257,7 @@ End Sub
 
 
     Sub SetBatchData(x() As Single, batch_X() As Single, batch_Y() As Single, label() As Byte, batch_size As Long, idxes() As Long)
+        Dim i As Long, batch_idx As Long, ix As Long
         Dim is_array As Boolean: is_array = IsArray2(idxes)
         
         For i = 0 To UBound(batch_Y)
@@ -275,6 +282,8 @@ End Sub
 
     ' 損失関数の微分
     Sub CostDerivative(cost_derivative() As Single, last_y() As Single, batch_Y() As Single, size As Long)
+        Dim i As Long
+        
         For i = 0 To size - 1
             cost_derivative(i) = last_y(i) - batch_Y(i)
         Next
@@ -282,6 +291,7 @@ End Sub
 
     ' 損失関数
     Function Cost(cost_derivative() As Single, size As Long) As Single
+        Dim i As Long
         Dim sum As Double: sum = 0
         For i = 0 To size - 1
             Dim cd As Single: cd = cost_derivative(i)
@@ -295,7 +305,7 @@ End Sub
 
     Function SoftMax(cost_derivative() As Single, last_y() As Single, batch_Y() As Single, exp_work() As Single, range_len As Long, batch_size As Long, ByVal batch_idx As Integer) As Single
         Dim max_val As Single: max_val = -10000
-        Dim k As Long
+        Dim k As Long, i As Long
         
         For i = 0 To range_len - 1
             k = i * batch_size + batch_idx
@@ -332,7 +342,37 @@ End Sub
 
     Sub UpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Single, cost_derivative() As Single)
         '-------------------------------------------------- 入力をセットします。
-        FirstLayer.SetInputData batch_X, CLng(DomainLen * TrainBatchSize * SizeOfSingle)
+        Dim i As Long
+        Dim batch_size As Long: batch_size = TrainBatchSize
+        
+        
+        
+        
+        
+        Dim xx() As Single, yy() As Single, batch_idx As Long, ix As Long
+        ReDim xx(DomainLen - 1, TrainBatchSize - 1)
+        ReDim yy(DomainLen - 1, TrainBatchSize - 1)
+        
+        For batch_idx = 0 To TrainBatchSize - 1
+            For ix = 0 To DomainLen - 1
+                xx(ix, batch_idx) = batch_X(ix * batch_size + batch_idx)
+            Next
+        Next
+        
+        FirstLayer.SetInputData2 xx
+        
+        FirstLayer.GetInputData yy
+        
+        For batch_idx = 0 To TrainBatchSize - 1
+            For ix = 0 To DomainLen - 1
+                Debug.Assert yy(ix, batch_idx) = batch_X(ix * batch_size + batch_idx)
+                If batch_X(ix * batch_size + batch_idx) <> 0 Then
+'                    Debug.Print yy(ix, batch_idx), batch_X(ix * batch_size + batch_idx)
+                End If
+            Next
+        Next
+        
+'        FirstLayer.SetInputData batch_X, CLng(DomainLen * TrainBatchSize * SizeOfSingle)
 
         For i = 0 To UBound(Layers)
             Layers(i).Forward
@@ -365,6 +405,7 @@ End Sub
 
 
     Function ArgMax(result_Y() As Single, batch_size As Long, arg_max() As Byte, label() As Byte) As Long
+        Dim batch_idx As Long, i As Long
         Dim eq_cnt As Long: eq_cnt = 0
 
         For batch_idx = 0 To batch_size - 1
@@ -393,6 +434,8 @@ End Sub
 
 
     Function Evaluate(batch_X() As Single, batch_Y() As Single, last_y() As Single, batch_size As Long, arg_max() As Byte, label() As Byte) As Long
+        Dim i As Long
+        
         FirstLayer.SetInputData batch_X, batch_size * DomainLen * SizeOfSingle
 
         For i = 0 To UBound(Layers)
@@ -408,6 +451,8 @@ End Sub
 
     ' すべてのレイヤーのメモリを解放します。
     Sub FreeLayers()
+        Dim i As Long
+        
         For i = 0 To UBound(Layers)
             Layers(i).Free
         Next
@@ -521,6 +566,7 @@ End Sub
     End Function
     
     Sub ReadCharTable()
+        Dim i As Long
         Dim char_path As String: char_path = DataDir + "\aozorabunko\char.txt"
 
         Dim buf As String: buf = ReadAllText(char_path) ' Encoding.Unicode
@@ -541,7 +587,7 @@ End Sub
     Function InitText(batch_size As Long, line_len As Long) As Long
         Dim text_path As String
         Dim line_NL_len As Long: line_NL_len = line_len + 1
-
+        Dim i As Long
 
         text_path = DataDir + "\aozorabunko\Line-" + Format(line_len) + ".txt"
         If dir(text_path, vbNormal) = "" Then
@@ -625,6 +671,8 @@ End Sub
     End Sub
 
     Sub CharToOneHotX(batch_X() As Single, Time As Long, one_hot_size As Long, batch_size As Long, text As String)
+        Dim t As Long, batch_idx As Long
+        
         For t = 0 To Time - 1
             For batch_idx = 0 To batch_size - 1
                 Dim ch1 As String: ch1 = Mid(text, 1 + batch_idx * (Time + 1 + 1) + t, 1)
@@ -637,6 +685,8 @@ End Sub
     End Sub
 
     Sub CharToOneHotY(batch_Y() As Single, Time As Long, one_hot_size As Long, batch_size As Long, text As String, ByVal t As Integer)
+        Dim batch_idx As Long
+        
         For batch_idx = 0 To batch_size - 1
             Dim ch2 As String: ch2 = Mid(text, 1 + batch_idx * (Time + 1 + 1) + t + 1, 1)
             Dim idx2 As Long: idx2 = CharToCharIdx(AscW2(ch2))
@@ -647,6 +697,8 @@ End Sub
     End Sub
 
     Sub SetZero(v() As Single)
+        Dim i As Long
+        
         For i = 0 To UBound(v)
             v(i) = 0
         Next
@@ -662,7 +714,7 @@ End Sub
         Dim val As Single
 
         Dim Time As Long: Time = FirstLayer.GetTimeCount()
-
+        Dim t As Long, i As Long
 
         '-------------------------------------------------- 入力をセットします。
         FirstLayer.SetInputData batch_X, DomainLen * TrainBatchSize * SizeOfSingle
@@ -745,9 +797,9 @@ End Sub
 
                 If t = Time - 1 Then
 
-                    Msg "IN : " + Left(input_text, t)
-                    Msg "OUT: " + Left(output_text, t)
-                    Msg "epock : " + Format(EpochIdx) + "  cost : " + Format(CostSum / CostCount)
+                    Debug.Print "IN : " + Left(input_text, t)
+                    Debug.Print "OUT: " + Left(output_text, t)
+                    Debug.Print "epock : " + Format(EpochIdx) + "  cost : " + Format(CostSum / CostCount)
                 End If
             End If
 
@@ -882,6 +934,8 @@ End Sub
     End Sub
 
 Public Sub NetworkTest()
+        Dim run_idx As Long, i As Long
+        
         Msg "開始しました。"
         
         StopNetworkTest = False
@@ -899,8 +953,8 @@ Public Sub NetworkTest()
         For run_idx = 0 To LONG_MAX
             NetType = NetworkType.Simple
             NetType = NetworkType.RNN
-            NetType = NetworkType.LSTM
             NetType = NetworkType.CNN
+            NetType = NetworkType.LSTM
 
             Select Case NetType
                 Case NetworkType.Simple
