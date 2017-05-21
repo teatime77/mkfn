@@ -588,9 +588,11 @@ namespace LayerNET {
         IntPtr GetInputDelta(int t = 0);
         void SetInputData(ref float[] src, int size);
         void GetInputData(ref object app);
-        void SetInputData2(object app);
+        void SetInputData2(ref object app);
         void SetOutputDeltaData(ref float[] src, int size);
+        void SetOutputDeltaData2(ref object app);
         void GetOutputData(ref float[] dst, int size);
+        void GetOutputData2(ref object app);
     }
 
     [ClassInterface(ClassInterfaceType.None)]
@@ -926,12 +928,20 @@ namespace LayerNET {
             }
         }
 
-        unsafe public void SetInputData2(object app) {
+        unsafe public void SetInputData2(ref object app) {
             CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Set);
         }
 
         unsafe public void GetInputData(ref object app) {
             CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Get);
+        }
+
+        unsafe public void GetOutputData2(ref object app) {
+            CopyArrayData(DLL.GetOutput(Handle), app, CopyDir.Get);
+        }
+
+        public void SetOutputDeltaData2(ref object app) {
+            CopyArrayData(DLL.GetOutputDelta(Handle), app, CopyDir.Set);
         }
 
         unsafe public void SetOutputDeltaData(ref float[] src, int size) {

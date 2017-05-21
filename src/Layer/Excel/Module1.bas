@@ -289,6 +289,17 @@ End Sub
         Next
     End Sub
 
+    Sub CostDerivative2(cost_derivative() As Single, last_y() As Single, batch_Y() As Single)
+        Dim i As Long, batch_idx As Long
+        
+        For i = 0 To UBound(last_y, 1)
+            For batch_idx = 0 To UBound(last_y, 2)
+                cost_derivative(i, batch_idx) = last_y(i, batch_idx) - batch_Y(i, batch_idx)
+            Next
+        Next
+    End Sub
+
+
     ' 損失関数
     Function Cost(cost_derivative() As Single, size As Long) As Single
         Dim i As Long
@@ -382,14 +393,49 @@ End Sub
         Dim last_y_len As Long: last_y_len = TrainBatchSize * RangeLen
 
         LastLayer.GetOutputData last_y, last_y_len * SizeOfSingle
+        
+        Dim last_y2() As Single
+        ReDim last_y2(RangeLen - 1, TrainBatchSize - 1)
+        LastLayer.GetOutputData2 last_y2
+        For batch_idx = 0 To TrainBatchSize - 1
+            For i = 0 To RangeLen - 1
+                Debug.Assert last_y2(i, batch_idx) = last_y(i * batch_size + batch_idx)
+                If last_y(i * batch_size + batch_idx) <> 0 Then
+'                    Debug.Print yy(i, batch_idx), last_y(i * batch_size + batch_idx)
+                End If
+            Next
+        Next
+        
 
         '-------------------------------------------------- 損失関数を計算します。
         CostDerivative cost_derivative, last_y, batch_Y, last_y_len
+        
+        
+        Dim cost_derivative2() As Single, batch_Y2() As Single
+        ReDim cost_derivative2(RangeLen - 1, TrainBatchSize - 1)
+        ReDim batch_Y2(RangeLen - 1, TrainBatchSize - 1)
+        
+        For batch_idx = 0 To TrainBatchSize - 1
+            For i = 0 To RangeLen - 1
+                batch_Y2(i, batch_idx) = batch_Y(i * batch_size + batch_idx)
+            Next
+        Next
+        
+        CostDerivative2 cost_derivative2, last_y2, batch_Y2
+        
+        For batch_idx = 0 To TrainBatchSize - 1
+            For i = 0 To RangeLen - 1
+                Debug.Assert cost_derivative2(i, batch_idx) = cost_derivative(i * batch_size + batch_idx)
+            Next
+        Next
+        
 
         Dim cost1 As Single: cost1 = Cost(cost_derivative, last_y_len)
 
         '-------------------------------------------------- δyをセットします。
-        LastLayer.SetOutputDeltaData cost_derivative, last_y_len * SizeOfSingle
+        
+        LastLayer.SetOutputDeltaData2 cost_derivative2
+'        LastLayer.SetOutputDeltaData cost_derivative, last_y_len * SizeOfSingle
 
         For i = UBound(Layers) To 0 Step -1
             Layers(i).Backward
@@ -953,8 +999,8 @@ Public Sub NetworkTest()
         For run_idx = 0 To LONG_MAX
             NetType = NetworkType.Simple
             NetType = NetworkType.RNN
-            NetType = NetworkType.CNN
             NetType = NetworkType.LSTM
+            NetType = NetworkType.CNN
 
             Select Case NetType
                 Case NetworkType.Simple
