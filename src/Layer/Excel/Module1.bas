@@ -181,7 +181,7 @@ End Sub
     Public Sub ReadMNIST()
         Dim mnist_dir As String: mnist_dir = DataDir + "\MNIST\"
 
-        Dim buf() As Byte, i As Long
+        Dim buf() As Byte, i As Long, j As Long, idx As Long
         
         buf = ReadAllBytes(mnist_dir + "train-images.idx3-ubyte")
 
@@ -192,10 +192,13 @@ End Sub
         DomainLen = img_h * img_w
         RangeLen = 10
 
-        Dim sz As Long: sz = TrainCnt * DomainLen
-        ReDim TrainX(sz - 1)
-        For i = 0 To sz - 1
-            TrainX(i) = buf(16 + i) / 256!
+        ReDim TrainX(TrainCnt - 1, DomainLen - 1)
+        idx = 0
+        For i = 0 To TrainCnt - 1
+            For j = 0 To DomainLen - 1
+                TrainX(i, j) = buf(16 + idx) / 256!
+                idx = idx + 1
+            Next
         Next
 
 
@@ -209,10 +212,14 @@ End Sub
 
         buf = ReadAllBytes(mnist_dir + "t10k-images.idx3-ubyte")
         TestCnt = BytesToInt(buf, 4)
-        Dim test_sz As Long: test_sz = TestCnt * img_h * img_w
-        ReDim TestX(test_sz - 1)
-        For i = 0 To test_sz - 1
-            TestX(i) = buf(16 + i) / 256!
+        ReDim TestX(TestCnt - 1, DomainLen - 1)
+        
+        idx = 0
+        For i = 0 To TestCnt - 1
+            For j = 0 To DomainLen - 1
+                TestX(i, j) = buf(16 + idx) / 256!
+                idx = idx + 1
+            Next
         Next
 
 
@@ -257,11 +264,13 @@ End Sub
 
 
     Sub SetBatchData(x() As Single, batch_X() As Single, batch_Y() As Single, label() As Byte, batch_size As Long, idxes() As Long)
-        Dim i As Long, batch_idx As Long, ix As Long
+        Dim i As Long, batch_idx As Long
         Dim is_array As Boolean: is_array = IsArray2(idxes)
         
-        For i = 0 To UBound(batch_Y)
-            batch_Y(i) = 0
+        For i = 0 To UBound(batch_Y, 1)
+            For batch_idx = 0 To UBound(batch_Y, 2)
+                batch_Y(i, batch_idx) = 0
+            Next
         Next
 
         For batch_idx = 0 To batch_size - 1
@@ -272,24 +281,16 @@ End Sub
                 idx = idxes(idx)
             End If
 
-            For ix = 0 To DomainLen - 1
-                batch_X(ix * batch_size + batch_idx) = x(idx * DomainLen + ix)
+            For i = 0 To DomainLen - 1
+                batch_X(i, batch_idx) = x(idx, i)
             Next
 
-            batch_Y(label(idx) * batch_size + batch_idx) = 1
+            batch_Y(label(idx), batch_idx) = 1
         Next
     End Sub
 
     ' 損失関数の微分
-    Sub CostDerivative(cost_derivative() As Single, last_y() As Single, batch_Y() As Single, size As Long)
-        Dim i As Long
-        
-        For i = 0 To size - 1
-            cost_derivative(i) = last_y(i) - batch_Y(i)
-        Next
-    End Sub
-
-    Sub CostDerivative2(cost_derivative() As Single, last_y() As Single, batch_Y() As Single)
+    Sub CostDerivative(cost_derivative() As Single, last_y() As Single, batch_Y() As Single)
         Dim i As Long, batch_idx As Long
         
         For i = 0 To UBound(last_y, 1)
@@ -301,14 +302,19 @@ End Sub
 
 
     ' 損失関数
-    Function Cost(cost_derivative() As Single, size As Long) As Single
-        Dim i As Long
+    Function Cost(cost_derivative() As Single) As Single
+        Dim i As Long, batch_idx As Long, cd As Single
         Dim sum As Double: sum = 0
-        For i = 0 To size - 1
-            Dim cd As Single: cd = cost_derivative(i)
-            sum = sum + cd * cd
+        
+        For i = 0 To UBound(cost_derivative, 1)
+            For batch_idx = 0 To UBound(cost_derivative, 2)
+            
+                cd = cost_derivative(i, batch_idx)
+                sum = sum + cd * cd
+            Next
         Next
 
+        Dim size As Long: size = (UBound(cost_derivative, 1) + 1) * (UBound(cost_derivative, 2) + 1)
         Cost = CSng(sum / size)
     End Function
 
@@ -352,96 +358,42 @@ End Sub
     '    ミニバッチごとにパラメータを更新します。
 
     Sub UpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Single, cost_derivative() As Single)
-        '-------------------------------------------------- 入力をセットします。
         Dim i As Long
         Dim batch_size As Long: batch_size = TrainBatchSize
         
-        
-        
-        
-        
-        Dim xx() As Single, yy() As Single, batch_idx As Long, ix As Long
-        ReDim xx(DomainLen - 1, TrainBatchSize - 1)
-        ReDim yy(DomainLen - 1, TrainBatchSize - 1)
-        
-        For batch_idx = 0 To TrainBatchSize - 1
-            For ix = 0 To DomainLen - 1
-                xx(ix, batch_idx) = batch_X(ix * batch_size + batch_idx)
-            Next
-        Next
-        
-        FirstLayer.SetInputData2 xx
-        
-        FirstLayer.GetInputData yy
-        
-        For batch_idx = 0 To TrainBatchSize - 1
-            For ix = 0 To DomainLen - 1
-                Debug.Assert yy(ix, batch_idx) = batch_X(ix * batch_size + batch_idx)
-                If batch_X(ix * batch_size + batch_idx) <> 0 Then
-'                    Debug.Print yy(ix, batch_idx), batch_X(ix * batch_size + batch_idx)
-                End If
-            Next
-        Next
-        
-'        FirstLayer.SetInputData batch_X, CLng(DomainLen * TrainBatchSize * SizeOfSingle)
+        ' 入力をセットします。
+        FirstLayer.SetInputData batch_X
 
+        ' 順伝播の計算をします。
         For i = 0 To UBound(Layers)
             Layers(i).Forward
         Next
+        
+        Dev.DeviceSynchronize
 
-        '-------------------------------------------------- 出力を得ます。
-        Dim last_y_len As Long: last_y_len = TrainBatchSize * RangeLen
+        ' 出力を得ます。
+        LastLayer.GetOutputData last_y
+                
+                
+        ' 損失関数の微分を計算します。
+        CostDerivative cost_derivative, last_y, batch_Y
 
-        LastLayer.GetOutputData last_y, last_y_len * SizeOfSingle
-        
-        Dim last_y2() As Single
-        ReDim last_y2(RangeLen - 1, TrainBatchSize - 1)
-        LastLayer.GetOutputData2 last_y2
-        For batch_idx = 0 To TrainBatchSize - 1
-            For i = 0 To RangeLen - 1
-                Debug.Assert last_y2(i, batch_idx) = last_y(i * batch_size + batch_idx)
-                If last_y(i * batch_size + batch_idx) <> 0 Then
-'                    Debug.Print yy(i, batch_idx), last_y(i * batch_size + batch_idx)
-                End If
-            Next
-        Next
-        
 
-        '-------------------------------------------------- 損失関数を計算します。
-        CostDerivative cost_derivative, last_y, batch_Y, last_y_len
-        
-        
-        Dim cost_derivative2() As Single, batch_Y2() As Single
-        ReDim cost_derivative2(RangeLen - 1, TrainBatchSize - 1)
-        ReDim batch_Y2(RangeLen - 1, TrainBatchSize - 1)
-        
-        For batch_idx = 0 To TrainBatchSize - 1
-            For i = 0 To RangeLen - 1
-                batch_Y2(i, batch_idx) = batch_Y(i * batch_size + batch_idx)
-            Next
-        Next
-        
-        CostDerivative2 cost_derivative2, last_y2, batch_Y2
-        
-        For batch_idx = 0 To TrainBatchSize - 1
-            For i = 0 To RangeLen - 1
-                Debug.Assert cost_derivative2(i, batch_idx) = cost_derivative(i * batch_size + batch_idx)
-            Next
-        Next
-        
+        ' 損失関数を計算します。
+        Dim cost1 As Single: cost1 = Cost(cost_derivative)
 
-        Dim cost1 As Single: cost1 = Cost(cost_derivative, last_y_len)
 
-        '-------------------------------------------------- δyをセットします。
-        
-        LastLayer.SetOutputDeltaData2 cost_derivative2
-'        LastLayer.SetOutputDeltaData cost_derivative, last_y_len * SizeOfSingle
+        ' δyをセットします。
+        LastLayer.SetOutputDeltaData cost_derivative
 
+        ' 誤差逆伝播の計算をします。
         For i = UBound(Layers) To 0 Step -1
             Layers(i).Backward
         Next
+        
         Dev.DeviceSynchronize
 
+        ' パラメータを更新します。
         For i = UBound(Layers) To 0 Step -1
             Layers(i).UpdateParameter
         Next
@@ -459,7 +411,7 @@ End Sub
             Dim max_val As Single: max_val = -10000
             Dim max_idx As Long: max_idx = 0
             For i = 0 To RangeLen - 1
-                Dim val As Single: val = result_Y(i * batch_size + batch_idx)
+                Dim val As Single: val = result_Y(i, batch_idx)
                 If max_val < val Then
 
                     max_val = val
@@ -482,13 +434,13 @@ End Sub
     Function Evaluate(batch_X() As Single, batch_Y() As Single, last_y() As Single, batch_size As Long, arg_max() As Byte, label() As Byte) As Long
         Dim i As Long
         
-        FirstLayer.SetInputData batch_X, batch_size * DomainLen * SizeOfSingle
+        FirstLayer.SetInputData batch_X
 
         For i = 0 To UBound(Layers)
             Layers(i).Forward
         Next
 
-        LastLayer.GetOutputData last_y, batch_size * RangeLen * SizeOfSingle
+        LastLayer.GetOutputData last_y
 
         Dim eq_cnt As Long: eq_cnt = ArgMax(last_y, batch_size, arg_max, label)
 
@@ -527,15 +479,15 @@ End Sub
         Dim train_batch_cnt As Long: train_batch_cnt = TrainCnt / TrainBatchSize
         Dim test_batch_cnt As Long: test_batch_cnt = TestCnt / TestBatchSize
 
-        ReDim train_batch_X(TrainBatchSize * DomainLen - 1) As Single
-        ReDim train_batch_Y(TrainBatchSize * RangeLen - 1) As Single
-        ReDim train_last_Y(TrainBatchSize * RangeLen - 1) As Single
+        ReDim train_batch_X(DomainLen - 1, TrainBatchSize - 1) As Single
+        ReDim train_batch_Y(RangeLen - 1, TrainBatchSize - 1) As Single
+        ReDim train_last_Y(RangeLen - 1, TrainBatchSize - 1) As Single
 
-        ReDim cost_derivative(TrainBatchSize * RangeLen - 1) As Single
+        ReDim cost_derivative(RangeLen - 1, TrainBatchSize - 1) As Single
 
-        ReDim test_batch_X(TestBatchSize * DomainLen - 1) As Single
-        ReDim test_batch_Y(TestBatchSize * RangeLen - 1) As Single
-        ReDim test_last_Y(TestBatchSize * RangeLen - 1) As Single
+        ReDim test_batch_X(DomainLen - 1, TestBatchSize - 1) As Single
+        ReDim test_batch_Y(RangeLen - 1, TestBatchSize - 1) As Single
+        ReDim test_last_Y(RangeLen - 1, TestBatchSize - 1) As Single
 
         ReDim test_arg_max(TestBatchSize) As Byte
 
@@ -763,7 +715,7 @@ End Sub
         Dim t As Long, i As Long
 
         '-------------------------------------------------- 入力をセットします。
-        FirstLayer.SetInputData batch_X, DomainLen * TrainBatchSize * SizeOfSingle
+        FirstLayer.SetInputData batch_X
 
         ' 順方向の時刻
         For t = 0 To Time - 1
@@ -793,7 +745,7 @@ End Sub
 
             '-------------------------------------------------- 出力を得ます。
             Dim last_y_len As Long: last_y_len = TrainBatchSize * RangeLen
-            LastLayer.GetOutputData last_y, last_y_len * SizeOfSingle
+            LastLayer.GetOutputData last_y
 
             Dim cost1 As Single: cost1 = 0
             For batch_idx = 0 To TrainBatchSize
@@ -850,7 +802,7 @@ End Sub
             End If
 
             '-------------------------------------------------- δyをセットします。
-            LastLayer.SetOutputDeltaData cost_derivative, last_y_len * SizeOfSingle
+            LastLayer.SetOutputDeltaData cost_derivative
 
             '-------------------------------------------------- 逆伝播
             ' RNN以外のレイヤーの逆伝播をします。

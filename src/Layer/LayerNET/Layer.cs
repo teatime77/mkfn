@@ -586,13 +586,10 @@ namespace LayerNET {
         void SetOutputDelta(IntPtr src);
         IntPtr GetOutputDelta(int t = 0);
         IntPtr GetInputDelta(int t = 0);
-        void SetInputData(ref float[] src, int size);
         void GetInputData(ref object app);
-        void SetInputData2(ref object app);
-        void SetOutputDeltaData(ref float[] src, int size);
-        void SetOutputDeltaData2(ref object app);
-        void GetOutputData(ref float[] dst, int size);
-        void GetOutputData2(ref object app);
+        void SetInputData(ref object app);
+        void SetOutputDeltaData(ref object app);
+        void GetOutputData(ref object app);
     }
 
     [ClassInterface(ClassInterfaceType.None)]
@@ -804,20 +801,6 @@ namespace LayerNET {
             return DLL.GetInputDelta(Handle, t);
         }
 
-        unsafe public void SetInputData(ref float[] src, int size) {
-            bool b = IsGPU();
-            if (IsGPU()) {
-
-                fixed (float* p = src) {
-                    Cuda.MemcpyHostToDevice(DLL.GetInput(Handle), new IntPtr(p), size);
-                }
-            }
-            else {
-
-                Marshal.Copy(src, 0, DLL.GetInput(Handle), size / sizeof(float));
-            }
-        }
-
         void CopyData(IntPtr dev, IntPtr app, uint size, CopyDir dir) {
             if (IsGPU()) {
 
@@ -846,7 +829,7 @@ namespace LayerNET {
         unsafe void CopyArrayData(IntPtr dev, object app, CopyDir dir) {
             if(!(app is Array)) {
 
-                throw new Exception("SetInputData : 引数が配列でありません。");
+                throw new Exception("CopyArrayData : 引数が配列でありません。");
             }
             Array arr = app as Array;
 
@@ -883,7 +866,7 @@ namespace LayerNET {
                     break;
 
                 default:
-                    throw new Exception("SetInputData : 引数が配列の次元が5を超えています。");
+                    throw new Exception("CopyArrayData : 引数が配列の次元が5を超えています。");
                 }
             }
             else if (arr.GetType().GetElementType() == typeof(double)) {
@@ -919,16 +902,16 @@ namespace LayerNET {
                     break;
 
                 default:
-                    throw new Exception("SetInputData : 引数が配列の次元が5を超えています。");
+                    throw new Exception("CopyArrayData : 引数が配列の次元が5を超えています。");
                 }
             }
             else {
 
-                throw new Exception("SetInputData : 引数の配列の要素型が不正です。");
+                throw new Exception("CopyArrayData : 引数の配列の要素型が不正です。");
             }
         }
 
-        unsafe public void SetInputData2(ref object app) {
+        unsafe public void SetInputData(ref object app) {
             CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Set);
         }
 
@@ -936,38 +919,12 @@ namespace LayerNET {
             CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Get);
         }
 
-        unsafe public void GetOutputData2(ref object app) {
+        public void GetOutputData(ref object app) {
             CopyArrayData(DLL.GetOutput(Handle), app, CopyDir.Get);
         }
 
-        public void SetOutputDeltaData2(ref object app) {
+        public void SetOutputDeltaData(ref object app) {
             CopyArrayData(DLL.GetOutputDelta(Handle), app, CopyDir.Set);
-        }
-
-        unsafe public void SetOutputDeltaData(ref float[] src, int size) {
-            if (IsGPU()) {
-
-                fixed (float* p = src) {
-                    Cuda.MemcpyHostToDevice(DLL.GetOutputDelta(Handle), new IntPtr(p), size);
-                }
-            }
-            else {
-
-                Marshal.Copy(src, 0, DLL.GetOutputDelta(Handle), size / sizeof(float));
-            }
-        }
-
-        unsafe public void GetOutputData(ref float[] dst, int size) {
-            if (IsGPU()) {
-
-                fixed (float* p = dst) {
-                    Cuda.MemcpyDeviceToHost(new IntPtr(p), DLL.GetOutput(Handle), size);
-                }
-            }
-            else {
-
-                Marshal.Copy(DLL.GetOutput(Handle), dst, 0, size / sizeof(float));
-            }
         }
     }
 }
