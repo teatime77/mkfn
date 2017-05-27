@@ -99,11 +99,17 @@ double UniformRandom() {
 
 // ³‹K—”
 class NormalRandom {
-	bool Flag = false;
+	bool Flag;
 	double C;
 	double Theta;
 
 public:
+	NormalRandom() {
+		Flag	= false;
+		C		= 0;
+		Theta	= 0;
+	}
+
 	float Next() {
 		Flag = !Flag;
 		if (Flag) {

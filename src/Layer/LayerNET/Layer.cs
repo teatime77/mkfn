@@ -105,6 +105,7 @@ namespace LayerNET {
         [DllImport("Layer.Dll")]
         public static extern IntPtr MakeLSTMLayerD(int t_size, int x_size, int y_size);
 
+#if USE_CUDA
         //----------------------------------------------------------------------------------------------------
 
         [DllImport("LayerCUDA.Dll")]
@@ -138,6 +139,7 @@ namespace LayerNET {
 
         [DllImport("LayerCUDA.Dll")]
         public static extern IntPtr MakeLSTMLayerCudaD(int t_size, int x_size, int y_size);
+#endif
 
         //----------------------------------------------------------------------------------------------------
         [DllImport("Layer.Dll")]
@@ -257,6 +259,7 @@ namespace LayerNET {
         public static extern bool IsGPU(IntPtr layer);
     }
 
+#if USE_CUDA
     public class Cuda {
         [DllImport("LayerCUDA.Dll")]
         public static extern void DeviceSynchronize();
@@ -279,6 +282,7 @@ namespace LayerNET {
         [DllImport("LayerCUDA.Dll")]
         public static extern void MemcpyHostToDevice(IntPtr dst, IntPtr src, long size);
     }
+#endif
 
 
     [ComVisible(true)]
@@ -385,6 +389,7 @@ namespace LayerNET {
         void DeviceInit();
         void DeviceEnd();
         IntPtr DeviceMalloc(long size);
+        IntPtr DeviceMalloc32(int size);
         void DeviceFree(IntPtr p);
     }
 
@@ -406,11 +411,16 @@ namespace LayerNET {
             return DLL.DeviceMalloc(size);
         }
 
+        public IntPtr DeviceMalloc32(int size) {
+            return DLL.DeviceMalloc(size);
+        }
+
         public void DeviceFree(IntPtr p) {
             DLL.DeviceFree(p);
         }
     }
 
+#if USE_CUDA
     [ClassInterface(ClassInterfaceType.None)]
     public class DeviceCuda : IDevice {
         public void DeviceSynchronize() {
@@ -429,10 +439,15 @@ namespace LayerNET {
             return Cuda.DeviceMalloc(size);
         }
 
+        public IntPtr DeviceMalloc32(int size) {
+            return Cuda.DeviceMalloc(size);
+        }
+
         public void DeviceFree(IntPtr p) {
             Cuda.DeviceFree(p);
         }
     }
+#endif
 
     [ComVisible(true)]
     public interface ILayerFactory {
@@ -489,6 +504,7 @@ namespace LayerNET {
         }
     }
 
+#if USE_CUDA
     [ClassInterface(ClassInterfaceType.None)]
     public class LayerFactoryCudaF : ILayerFactory {
         public Layer MakeFullyConnectedLayer(int x_size, int y_size) {
@@ -534,6 +550,7 @@ namespace LayerNET {
             return new Layer(DLL.MakeLSTMLayerCudaD(t_size, x_size, y_size));
         }
     }
+#endif
 
     [ComVisible(true)]
     public interface ILayer {
@@ -804,7 +821,8 @@ namespace LayerNET {
         void CopyData(IntPtr dev, IntPtr app, uint size, CopyDir dir) {
             if (IsGPU()) {
 
-                if(dir == CopyDir.Set) {
+#if USE_CUDA
+                if (dir == CopyDir.Set) {
 
                     Cuda.MemcpyHostToDevice(dev, app, size);
                 }
@@ -812,6 +830,7 @@ namespace LayerNET {
 
                     Cuda.MemcpyDeviceToHost(app, dev, size);
                 }
+#endif
             }
             else {
 
@@ -827,13 +846,13 @@ namespace LayerNET {
         }
 
         unsafe void CopyArrayData(IntPtr dev, object app, CopyDir dir) {
-            if(!(app is Array)) {
+            if (!(app is Array)) {
 
                 throw new Exception("CopyArrayData : 引数が配列でありません。");
             }
             Array arr = app as Array;
 
-            if(arr.GetType().GetElementType() == typeof(float)) {
+            if (arr.GetType().GetElementType() == typeof(float)) {
                 switch (arr.Rank) {
                 case 1:
                     fixed (float* p = (float[])arr) {

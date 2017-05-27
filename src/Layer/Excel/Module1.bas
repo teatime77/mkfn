@@ -1,9 +1,7 @@
 Attribute VB_Name = "Module1"
 Option Explicit
 
-Declare PtrSafe Function GetTickCount64 Lib "kernel32" () As LongLong
-
-Public Const IsCuda As Boolean = True
+Declare PtrSafe Function GetTickCount Lib "kernel32" () As Long
 
 
 Public CorrectAns() As Long
@@ -56,7 +54,7 @@ Public Const LONG_MAX As Long = 2147483647
 
     Public LineIdx As Long
     Public CharBuf As String
-    Public LastTick As LongLong
+    Public LastTick As Long
     Public StopNetworkTest As Boolean
 
     Public Sub SetDataDir()
@@ -97,13 +95,11 @@ Public Const LONG_MAX As Long = 2147483647
         Next
 
         Select Case NetType
-            Case NetworkType.Simple
-            Case NetworkType.CNN
+            Case NetworkType.Simple, NetworkType.CNN
                 ReadMNIST
                 SGD
 
-            Case NetworkType.RNN
-            Case NetworkType.LSTM
+            Case NetworkType.RNN, NetworkType.LSTM
                 RNNSGD
 
         End Select
@@ -228,10 +224,10 @@ End Sub
     ' すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
     Sub AllocateConnectLayers(batch_size As Long)
         Dim i As Long
-        Dim p As LongPtr: p = Dev.DeviceMalloc(batch_size * DomainLen * SizeOfSingle)
+        Dim p As LongPtr: p = Dev.DeviceMalloc32(batch_size * DomainLen * SizeOfSingle)
         FirstLayer.SetInput (p)
 
-        p = Dev.DeviceMalloc(batch_size * RangeLen * SizeOfSingle)
+        p = Dev.DeviceMalloc32(batch_size * RangeLen * SizeOfSingle)
         LastLayer.SetOutputDelta (p)
 
         For i = 0 To UBound(Layers)
@@ -451,13 +447,13 @@ End Sub
 
     Sub HandleDoEvents()
         If LastTick = 0 Then
-            LastTick = GetTickCount64
+            LastTick = GetTickCount
         Else
-            Dim t As LongLong: t = GetTickCount64() - LastTick
+            Dim t As Long: t = GetTickCount() - LastTick
             If 1000 < t Then
             
               DoEvents
-              LastTick = GetTickCount64
+              LastTick = GetTickCount
             End If
         End If
     End Sub
@@ -549,20 +545,20 @@ Public Sub NetworkTest()
         StopNetworkTest = False
         SetDataDir
 
-        Set Dev = New DeviceCuda
+        Set Dev = New Device ' DeviceCuda
         Dev.DeviceInit
 
         EpochSize = 100
         TestBatchSize = 20
 
-        Dim factory As LayerFactoryF: Set factory = New LayerFactoryCudaF
+        Dim factory As LayerFactoryF: Set factory = New LayerFactoryF ' LayerFactoryCudaF
         
         Dim learning_rate As Single: learning_rate = 1#
         For run_idx = 0 To LONG_MAX
-            NetType = NetworkType.Simple
             NetType = NetworkType.RNN
-            NetType = NetworkType.CNN
             NetType = NetworkType.LSTM
+            NetType = NetworkType.Simple
+            NetType = NetworkType.CNN
 
             Select Case NetType
                 Case NetworkType.Simple

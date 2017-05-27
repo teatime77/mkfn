@@ -183,7 +183,7 @@ extern "C" DllExport void SetTimeCount(PLayer layer, int time_count) {
 	((Layer*)layer)->SetTimeCount(time_count);
 }
 
-extern "C" DllExport bool IsGPU(PLayer layer) { 
+extern "C" DllExport BOOL IsGPU(PLayer layer) {
 	//return ((Layer*)layer)->IsGPU();
 	bool b = ((Layer*)layer)->IsGPU();
 	return b;

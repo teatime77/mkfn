@@ -352,7 +352,7 @@ Public Sub RNNSGD()
             AllocateConnectLayers (TrainBatchSize)
 
             Dim delta_y_sz As Long: delta_y_sz = TrainBatchSize * Time * y * SizeOfDouble
-            Dim out_delta_y As LongPtr: out_delta_y = Dev.DeviceMalloc(delta_y_sz)
+            Dim out_delta_y As LongPtr: out_delta_y = Dev.DeviceMalloc32(delta_y_sz)
 
             FirstLayer.SetOutputDelta (out_delta_y)
 
