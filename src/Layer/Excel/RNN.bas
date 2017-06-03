@@ -5,9 +5,30 @@ Const CHAR_COUNT As Long = 256& * 256&
 Const INVALID_CHAR_IDX As Long = &HFFFF
 '    Const INVALID_CHAR As Char = ChrW(INVALID_CHAR_IDX)
 
-Public CharToCharIdx(CHAR_COUNT - 1) As Long
-Public CharIdxToChar(CHAR_COUNT - 1) As Long
+Public FSO As FileSystemObject
 
+Dim CharToCharIdx(CHAR_COUNT - 1) As Long
+Dim CharIdxToChar(CHAR_COUNT - 1) As Long
+Dim CharBuf As String
+Dim CostSum As Single
+Dim CostCount As Long
+Dim DataDir As String
+
+Sub SetDataDir()
+    Set FSO = CreateObject("Scripting.FileSystemObject")
+    Dim path As String: path = FSO.GetParentFolderName(ThisWorkbook.FullName)
+
+    Do While True
+        DataDir = path + "\data"
+        If dir(DataDir, vbDirectory) <> "" Then
+            Exit Do
+        End If
+
+    path = FSO.GetParentFolderName(path)
+    Loop
+    
+'        Set FSO = Nothing
+End Sub
 
 Function ReadAllText(path As String) As String
     Dim buf As String
@@ -160,8 +181,50 @@ Sub CharToOneHotY(batch_Y() As Single, Time As Long, one_hot_size As Long, batch
 End Sub
 
 
-' ミニバッチごとにパラメータを更新します。
+Public Sub SetZero(v() As Single)
+    Dim i As Long, j As Long
+    
+    For i = 0 To UBound(v, 1)
+        For j = 0 To UBound(v, 2)
+            v(i, j) = 0
+        Next
+    Next
+End Sub
 
+
+' 損失関数の微分
+Function SoftMax(cost_derivative() As Single, last_y() As Single, batch_Y() As Single, exp_work() As Single, range_len As Long, batch_size As Long, ByVal batch_idx As Integer) As Single
+    Dim max_val As Single: max_val = -10000
+    Dim i As Long
+    
+    For i = 0 To range_len - 1
+        If max_val < last_y(i, batch_idx) Then
+            max_val = last_y(i, batch_idx)
+        End If
+    Next
+
+    Dim sum As Single: sum = 0
+    For i = 0 To range_len - 1
+
+        Dim d As Single: d = CSng(Math.Exp(last_y(i, batch_idx) - max_val))
+        sum = sum + d
+        exp_work(i, batch_idx) = d
+    Next
+
+    Dim cost_sum As Single: cost_sum = 0
+    For i = 0 To range_len - 1
+
+        Dim y As Single: y = exp_work(i, batch_idx) / sum
+        cost_derivative(i, batch_idx) = y - batch_Y(i, batch_idx)
+
+        cost_sum = cost_sum + CSng(batch_Y(i, batch_idx) * Math.Log(y))
+    Next
+
+    SoftMax = -cost_sum
+End Function
+
+
+' ミニバッチごとにパラメータを更新します。
 Sub RNNUpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Single, cost_derivative() As Single, exp_work() As Single, text As String)
     Dim input_text As String * 100
     '       wchar_t input2(100)
@@ -217,7 +280,7 @@ Sub RNNUpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Sin
         CostSum = CostSum + cost1
         CostCount = CostCount + 1
 
-        If StopNetworkTest Then
+        If StopDeepLearning Then
             Exit Sub
         End If
         HandleDoEvents
@@ -310,10 +373,7 @@ Sub RNNUpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Sin
     Dev.DeviceSynchronize
 End Sub
 
-
-
 '    RNN用SGD
-
 Public Sub RNNSGD()
     ReadCharTable
 
@@ -372,7 +432,7 @@ Public Sub RNNSGD()
                 RNNUpdateMiniBatch train_batch_X, train_batch_Y, train_last_Y, cost_derivative, exp_work, text
                 UpdateMiniBatchCount = UpdateMiniBatchCount + 1
 
-                If StopNetworkTest Then
+                If StopDeepLearning Then
                 
                     Exit Do
                 End If
@@ -381,11 +441,91 @@ Public Sub RNNSGD()
             FreeLayers
             Dev.DeviceFree (out_delta_y)
 
-            If StopNetworkTest Then
+            If StopDeepLearning Then
             
                 Exit Sub
             End If
         Next
     Loop
 End Sub
+
+Public Sub TestRNN()
+    Msg "開始しました。"
+    
+    StopDeepLearning = False
+    SetDataDir
+
+    Set Dev = New Device ' DeviceCuda
+    Dev.DeviceInit
+
+    EpochSize = 100
+    TestBatchSize = 20
+
+    Dim factory As LayerFactoryF: Set factory = New LayerFactoryF ' LayerFactoryCudaF
+    
+    NetType = NetworkType.RNN
+    NetType = NetworkType.LSTM
+
+    Dim learning_rate As Single: learning_rate = 1#
+    Select Case NetType
+        Case NetworkType.RNN
+            learning_rate = 0.1
+            TrainBatchSize = 7
+            
+            ReDim Layers(1)
+            Set Layers(0) = factory.MakeRecurrentLayer(20, 28, 100)
+            Set Layers(1) = factory.MakeFullyConnectedLayer(10, 28)
+
+        Case NetworkType.LSTM
+            learning_rate = 0.1
+            TrainBatchSize = 7
+            
+            ReDim Layers(1)
+            Set Layers(0) = factory.MakeLSTMLayer(20, 28, 100)
+            Set Layers(1) = factory.MakeFullyConnectedLayer(100, 28)
+    End Select
+
+    ' 学習率をセットします。
+    Dim i As Long
+    For i = 0 To UBound(Layers)
+        Layers(i).LearningRate = learning_rate / TrainBatchSize '3.0f
+    Next
+
+    
+    Set FirstLayer = Layers(0)
+    Set LastLayer = Layers(UBound(Layers))
+
+    
+    Dim cnt As Long: cnt = FirstLayer.GetFieldCount()
+    For i = 0 To cnt - 1
+        Dim name As String: name = FirstLayer.GetFieldName(i)
+        Debug.Assert FirstLayer.GetFieldIndexByName(name) = i
+        Dim v As Variant: v = FirstLayer.GetFieldSize(i)
+        Dim s As String: s = IIf(IsArray2(v), "S", "A")
+        Debug.Print name, FirstLayer.GetFieldDimension(i), FirstLayer.GetFieldElementCount(i), s
+    Next
+
+    RNNSGD
+
+    For i = 0 To UBound(Layers)
+        Layers(i).Destroy
+    Next
+    Erase Layers
+    
+    Dev.DeviceEnd
+
+    Msg "終了しました。"
+End Sub
+
+
+'型宣言文字  >変数の型
+'％  Integer(整数型)
+'＆  Long(長整数型)
+'＄  String(文字列型)
+'！  Single(単精度浮動小数点型)
+'＃  Double(倍精度浮動小数点型)
+'＠  Currency(通貨型)
+
+' Data Type Summary
+' https://msdn.microsoft.com/ja-jp/library/office/gg251528.aspx
 
