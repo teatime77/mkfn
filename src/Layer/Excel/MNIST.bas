@@ -154,8 +154,8 @@ Public Function ValidArray(x As Variant) As Boolean
 End Function
 
 ' シートにメッセージを表示します。
-Sub Msg(s As String)
-    ThisWorkbook.ActiveSheet.Cells(2, 1) = s
+Public Sub Msg(row, col, s As String)
+    ThisWorkbook.ActiveSheet.Cells(row, col) = s
 End Sub
 
 ' ファイルからバイト配列を読み込みます。
@@ -483,7 +483,6 @@ End Sub
 
 ' 確率的勾配降下法 (stochastic gradient descent, SGD)
 Sub SGD()
-
     ' トレーニング データのバッチサイズ
     Dim train_batch_cnt As Long: train_batch_cnt = TrainCnt / TrainBatchSize
     
@@ -516,6 +515,9 @@ Sub SGD()
     ' 入力データのインデックスの配列
     Dim idxes() As Long
 
+    ' 前回のメッセージ表示の時刻
+    Dim last_msg_tick As Long: last_msg_tick = 0
+
     ' エポックのループ
     For EpochIdx = 0 To EpochSize - 1
 
@@ -538,6 +540,13 @@ Sub SGD()
                 ' 停止ボタンが押された場合
                 
                 Exit For
+            End If
+            
+            If 3000 < GetTickCount() - last_msg_tick Then
+                ' 前回のメッセージ表示から3秒経過した場合
+            
+                last_msg_tick = GetTickCount()
+                Msg 1, 1, "ミニバッチ = " + Format(MiniBatchIdx) + " / " + Format(train_batch_cnt)
             End If
             
             ' フリーズ状態にならないようにDoEventsを実行します。
@@ -571,7 +580,7 @@ Sub SGD()
             Dim eq_cnt As Long: eq_cnt = Evaluate(test_batch_X, test_batch_Y, test_last_Y, TestBatchSize, test_arg_max, TestLabel)
             eq_cnt_sum = eq_cnt_sum + eq_cnt
         Next
-        Msg "エポック = " + Format(EpochIdx) + " : 正解数 = " + Format(eq_cnt_sum) + " / " + Format(TestCnt)
+        Msg 2, 1, "エポック = " + Format(EpochIdx) + " : 正解数 = " + Format(eq_cnt_sum) + " / " + Format(TestCnt)
         
         ' 正解数の配列に追加します。
         AddArray CorrectAns, eq_cnt_sum
@@ -585,7 +594,7 @@ End Sub
 
 ' ディープラーニングのメインルーチン
 Public Sub DeepLearning()
-    Msg "開始しました。"
+    Msg 2, 1, "開始しました。"
     
     '---------------------------------------- 大域変数のセット
     
@@ -602,37 +611,32 @@ Public Sub DeepLearning()
     TestBatchSize = 20
 
     
-    '---------------------------------------- デバイスの初期処理
+    '---------------------------------------- デバイスの初期処理をしてから、レイヤー作成オブジェクトを作ります。
 
-    Dim use_cuda As Boolean: use_cuda = True
-    If use_cuda Then
-        ' CUDAを使う場合
-        
-        Set Dev = New DeviceCuda
-    Else
-        ' CUDAを使わない場合
-        
-        Set Dev = New Device
-    End If
-    
-    ' デバイスを開始します。(CUDAでのみ必要)
-    Dev.DeviceInit
-
-
-    '---------------------------------------- レイヤー作成オブジェクトを作ります。
-    
     Dim layer_factory As LayerFactoryF:
-    If use_cuda Then
-        ' CUDAを使う場合
-        
-        ' CUDAの短精度浮動小数(Single)のレイヤー作成オブジェクト
-        Set layer_factory = New LayerFactoryCudaF
-    Else
-        ' CUDAを使わない場合
-        
-        ' CPUの短精度浮動小数(Single)のレイヤー作成オブジェクト
-        Set layer_factory = New LayerFactoryF
-    End If
+
+' CUDAを使う場合は以下のUseCUDAをTrueにします。
+#Const UseCUDA = False
+
+#If UseCUDA Then
+    ' CUDAを使う場合
+
+    ' デバイスの初期処理をします。
+    Set Dev = New DeviceCuda
+    Dev.DeviceInit
+    
+    ' レイヤー作成オブジェクトを作ります。
+    Set layer_factory = New LayerFactoryCudaF
+#Else
+    ' CUDAを使わない場合
+    
+    ' デバイスの初期処理をします。
+    Set Dev = New Device
+    Dev.DeviceInit
+ 
+    ' レイヤー作成オブジェクトを作ります。
+    Set layer_factory = New LayerFactoryF
+#End If
     
     
     '---------------------------------------- ニューラルネットワークの初期処理
@@ -693,10 +697,10 @@ Public Sub DeepLearning()
     Next
     Erase Layers
     
-    ' デバイスを終了します。(CUDAでのみ必要)
+    ' デバイスを終了します。
     Dev.DeviceEnd
 
-    Msg "終了しました。"
+    Msg 2, 1, "終了しました。"
 End Sub
 
 ' 停止ボタンのクリック処理

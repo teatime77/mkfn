@@ -130,7 +130,7 @@ Function InitText(batch_size As Long, line_len As Long) As Long
         End If
     Next
 
-    Msg "文字数:" + Format(char_idx)
+    Msg 2, 1, "文字数:" + Format(char_idx)
 
     ' 文字テーブルを-1でクリアします。
     For i = 0 To CHAR_COUNT - 1
@@ -456,7 +456,7 @@ Public Sub RNNSGD()
 End Sub
 
 Public Sub TestRNN()
-    Msg "開始しました。"
+    Msg 2, 1, "開始しました。"
     
     ' 実行停止フラグをクリアします。
     StopFlag = False
@@ -522,7 +522,7 @@ Public Sub TestRNN()
     
     Dev.DeviceEnd
 
-    Msg "終了しました。"
+    Msg 2, 1, "終了しました。"
 End Sub
 
 
