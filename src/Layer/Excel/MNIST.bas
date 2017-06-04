@@ -246,6 +246,10 @@ End Sub
 Sub AllocateConnectLayers(batch_size As Long)
     Dim i As Long
     
+    ' レイヤーのAllocateメソッドでは入力のメモリと出力の微分のメモリは割り当てません。
+    ' 入力のメモリは直前のレイヤーの出力のメモリと同じ、出力の微分のメモリは直後のレイヤーの入力の微分のメモリと同じです。
+    ' ただし、最初のレイヤーでは入力のメモリを割り当て、最後のレイヤーでは出力の微分のメモリを割り当てます。
+    
     ' 最初のレイヤーの入力のメモリを割り当てます。
     Dim p As LongPtr: p = Dev.DeviceMalloc32(batch_size * DomainLen * SizeOfSingle)
     FirstLayer.SetInput (p)
@@ -362,6 +366,7 @@ Sub UpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Single
         Layers(i).Forward
     Next
     
+    ' デバイスの同期をとります。
     Dev.DeviceSynchronize
 
     ' 出力を得ます。
@@ -381,6 +386,7 @@ Sub UpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Single
         Layers(i).Backward
     Next
     
+    ' デバイスの同期をとります。
     Dev.DeviceSynchronize
 
     ' パラメータを更新します。
@@ -388,6 +394,7 @@ Sub UpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Single
         Layers(i).UpdateParameter
     Next
 
+    ' デバイスの同期をとります。
     Dev.DeviceSynchronize
 End Sub
 

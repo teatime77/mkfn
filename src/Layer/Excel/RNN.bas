@@ -374,6 +374,7 @@ Sub RNNUpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Sin
     'Dmp("fc3-w", fc.w, fc.Y * fc.X)
 
 
+    ' デバイスの同期をとります。
     Dev.DeviceSynchronize
 End Sub
 
