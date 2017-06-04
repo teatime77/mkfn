@@ -14,6 +14,8 @@ Dim CostSum As Single
 Dim CostCount As Long
 Dim DataDir As String
 
+Dim UpdateMiniBatchCount As Long
+
 Sub SetDataDir()
     Set FSO = CreateObject("Scripting.FileSystemObject")
     Dim path As String: path = FSO.GetParentFolderName(ThisWorkbook.FullName)
@@ -280,7 +282,9 @@ Sub RNNUpdateMiniBatch(batch_X() As Single, batch_Y() As Single, last_y() As Sin
         CostSum = CostSum + cost1
         CostCount = CostCount + 1
 
-        If StopDeepLearning Then
+        If StopFlag Then
+            ' 停止ボタンが押された場合
+            
             Exit Sub
         End If
         HandleDoEvents
@@ -432,7 +436,8 @@ Public Sub RNNSGD()
                 RNNUpdateMiniBatch train_batch_X, train_batch_Y, train_last_Y, cost_derivative, exp_work, text
                 UpdateMiniBatchCount = UpdateMiniBatchCount + 1
 
-                If StopDeepLearning Then
+                If StopFlag Then
+                    ' 停止ボタンが押された場合
                 
                     Exit Do
                 End If
@@ -441,7 +446,8 @@ Public Sub RNNSGD()
             FreeLayers
             Dev.DeviceFree (out_delta_y)
 
-            If StopDeepLearning Then
+            If StopFlag Then
+                ' 停止ボタンが押された場合
             
                 Exit Sub
             End If
@@ -452,7 +458,9 @@ End Sub
 Public Sub TestRNN()
     Msg "開始しました。"
     
-    StopDeepLearning = False
+    ' 実行停止フラグをクリアします。
+    StopFlag = False
+    
     SetDataDir
 
     Set Dev = New Device ' DeviceCuda
@@ -461,7 +469,7 @@ Public Sub TestRNN()
     EpochSize = 100
     TestBatchSize = 20
 
-    Dim factory As LayerFactoryF: Set factory = New LayerFactoryF ' LayerFactoryCudaF
+    Dim layer_factory As LayerFactoryF: Set layer_factory = New LayerFactoryF ' LayerFactoryCudaF
     
     NetType = NetworkType.RNN
     NetType = NetworkType.LSTM
@@ -473,16 +481,16 @@ Public Sub TestRNN()
             TrainBatchSize = 7
             
             ReDim Layers(1)
-            Set Layers(0) = factory.MakeRecurrentLayer(20, 28, 100)
-            Set Layers(1) = factory.MakeFullyConnectedLayer(10, 28)
+            Set Layers(0) = layer_factory.MakeRecurrentLayer(20, 28, 100)
+            Set Layers(1) = layer_factory.MakeFullyConnectedLayer(10, 28)
 
         Case NetworkType.LSTM
             learning_rate = 0.1
             TrainBatchSize = 7
             
             ReDim Layers(1)
-            Set Layers(0) = factory.MakeLSTMLayer(20, 28, 100)
-            Set Layers(1) = factory.MakeFullyConnectedLayer(100, 28)
+            Set Layers(0) = layer_factory.MakeLSTMLayer(20, 28, 100)
+            Set Layers(1) = layer_factory.MakeFullyConnectedLayer(100, 28)
     End Select
 
     ' 学習率をセットします。
@@ -501,7 +509,7 @@ Public Sub TestRNN()
         Dim name As String: name = FirstLayer.GetFieldName(i)
         Debug.Assert FirstLayer.GetFieldIndexByName(name) = i
         Dim v As Variant: v = FirstLayer.GetFieldSize(i)
-        Dim s As String: s = IIf(IsArray2(v), "S", "A")
+        Dim s As String: s = IIf(ValidArray(v), "S", "A")
         Debug.Print name, FirstLayer.GetFieldDimension(i), FirstLayer.GetFieldElementCount(i), s
     Next
 

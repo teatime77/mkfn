@@ -1,63 +1,118 @@
 Attribute VB_Name = "MNIST"
 Option Explicit
 
+' システムを起動した後の経過時間(ミリ秒)を得ます。
 Declare PtrSafe Function GetTickCount Lib "kernel32" () As Long
 
-Public CorrectAns() As Long
-
-Public MySeries As Series
-
+' ニューラルネットワークのタイプ
 Enum NetworkType
-    Simple = 1
-    CNN = 2
-    RNN = 3
-    LSTM = 4
+    Simple = 1  ' 全結合
+    CNN = 2     ' 畳み込み
+    RNN = 3     ' 再帰型
+    LSTM = 4    ' 長・短期記憶
 End Enum
 
+' Singleのバイトサイズ
 Public Const SizeOfSingle As Long = 4
+
+' Doubleのバイトサイズ
 Public Const SizeOfDouble As Long = 8
 
+' デバイス
 Public Dev As Device
 
+' ニューラルネットワークのタイプ
 Public NetType As NetworkType
-Public EpochSize As Long
-Public TrainBatchSize As Long
-Public TestBatchSize As Long
-Public TrainCnt As Long
-Public TestCnt As Long
-Public DomainLen As Long
-Public RangeLen As Long
-Public TrainLabel() As Byte
-Public TestLabel() As Byte
-Public EpochIdx As Long
-Public MiniBatchIdx As Long
-Public UpdateMiniBatchCount As Long
 
+' エポックの数
+Public EpochSize As Long
+
+' エポックのインデックス
+Public EpochIdx As Long
+
+' ミニバッチのインデックス
+Public MiniBatchIdx As Long
+
+' レイヤーの配列
 Public Layers() As Layer
+
+' 最初のレイヤー
 Public FirstLayer As Layer
+
+' 最後のレイヤー
 Public LastLayer As Layer
 
+' 入力ベクトルの次元
+Public DomainLen As Long
 
+' 出力ベクトルの次元
+Public RangeLen As Long
+
+' 実行停止フラグ
+Public StopFlag As Boolean
+
+' 正解数の配列
+Public CorrectAns() As Long
+
+' 正解数のグラフのデータ系列
+Public CorrectChartSeries As Series
+
+' 前回のDoEventsの時間 ( フリーズ状態を避けるため )
+Public LastDoEventsTick As Long
+
+
+'------------------------------ トレーニング データ
+
+' バッチサイズ
+Public TrainBatchSize As Long
+
+' データ数
+Public TrainCnt As Long
+
+' 入力ベクトル
 Public TrainX() As Single
+
+' 出力ベクトル
 Public TrainY() As Single
+
+' ラベル
+Public TrainLabel() As Byte
+
+
+'------------------------------ テスト データ
+
+' バッチサイズ
+Public TestBatchSize As Long
+
+' データ数
+Public TestCnt As Long
+
+' 入力ベクトル
 Public TestX() As Single
+
+' 出力ベクトル
 Public TestY() As Single
 
-Public LastTick As Long
-Public StopDeepLearning As Boolean
+' ラベル
+Public TestLabel() As Byte
+
 
 ' 配列に要素を追加します。
 Public Sub AddArray(arr As Variant, x As Variant)
-    If Not IsArray2(arr) Then
+    If Not ValidArray(arr) Then
+        ' Eraseされた場合
     
         ReDim arr(0)
     Else
+        ' 有効な配列の場合
+        
         ReDim Preserve arr(UBound(arr) + 1)
     End If
     
     arr(UBound(arr)) = x
 End Sub
 
+' バイト配列の指定した位置の整数値を得ます。
 Public Function BytesToInt(v() As Byte, offset As Long) As Long
     BytesToInt = v(offset) * &H1000000 + v(offset + 1) * &H10000 + v(offset + 2) * &H100& + v(offset + 3)
 End Function
@@ -89,14 +144,16 @@ Public Function RandomSampling(all_count As Long, sample_count As Long) As Long(
     RandomSampling = ret
 End Function
 
-Public Function IsArray2(x As Variant) As Boolean
+' Eraseされてない配列ならTrueを返します。
+Public Function ValidArray(x As Variant) As Boolean
     Dim n As Long: n = -1
     On Error Resume Next
     n = UBound(x)
     Err.Clear
-    IsArray2 = (n <> -1)
+    ValidArray = (n <> -1)
 End Function
 
+' シートにメッセージを表示します。
 Sub Msg(s As String)
     ThisWorkbook.ActiveSheet.Cells(2, 1) = s
 End Sub
@@ -112,7 +169,6 @@ Public Function ReadAllBytes(path As String) As Byte()
     
     ReadAllBytes = buf
 End Function
-
 
 ' MNISTのデータファイルを読み込みます。
 Public Sub ReadMNIST()
@@ -224,7 +280,7 @@ End Sub
 ' ミニバッチのデータをセットします。
 Sub SetBatchData(x() As Single, batch_X() As Single, batch_Y() As Single, label() As Byte, batch_size As Long, idxes() As Long)
     Dim i As Long, batch_idx As Long
-    Dim is_array As Boolean: is_array = IsArray2(idxes)
+    Dim is_array As Boolean: is_array = ValidArray(idxes)
     
     ' 出力ベクトルの各次元に対して
     For i = 0 To UBound(batch_Y, 1)
@@ -373,7 +429,6 @@ Function ArgMax(result_Y() As Single, batch_size As Long, arg_max() As Byte, lab
     ArgMax = eq_cnt
 End Function
 
-
 ' テスト データの評価をします。
 Function Evaluate(batch_X() As Single, batch_Y() As Single, last_y() As Single, batch_size As Long, arg_max() As Byte, label() As Byte) As Long
     Dim i As Long
@@ -409,19 +464,19 @@ End Sub
 
 ' フリーズ状態にならないようにDoEventsを実行します。
 Sub HandleDoEvents()
-    If LastTick = 0 Then
+    If LastDoEventsTick = 0 Then
         ' 最初の場合
         
-        LastTick = GetTickCount
+        LastDoEventsTick = GetTickCount
     Else
         ' 2回目以降の場合
         
-        Dim t As Long: t = GetTickCount() - LastTick
+        Dim t As Long: t = GetTickCount() - LastDoEventsTick
         If 500 < t Then
             ' 前回から500ミリ秒経過した場合
         
             DoEvents
-            LastTick = GetTickCount
+            LastDoEventsTick = GetTickCount
         End If
     End If
 End Sub
@@ -479,7 +534,7 @@ Sub SGD()
             ' ミニバッチごとにパラメータを更新します。
             UpdateMiniBatch train_batch_X, train_batch_Y, train_last_Y, cost_derivative
                         
-            If StopDeepLearning Then
+            If StopFlag Then
                 ' 停止ボタンが押された場合
                 
                 Exit For
@@ -495,7 +550,7 @@ Sub SGD()
         ' 入力データのインデックスの配列を削除します。
         Erase idxes
         
-        If StopDeepLearning Then
+        If StopFlag Then
             ' 停止ボタンが押された場合
             
             Exit For
@@ -521,22 +576,35 @@ Sub SGD()
         ' 正解数の配列に追加します。
         AddArray CorrectAns, eq_cnt_sum
         
-        ' チャートの表示を更新します。
-        MySeries.Values = CorrectAns
+        ' 正解数のグラフの表示を更新します。
+        CorrectChartSeries.Values = CorrectAns
         
         FreeLayers
     Next
 End Sub
 
-
+' ディープラーニングのメインルーチン
 Public Sub DeepLearning()
-    Dim use_cuda As Boolean: use_cuda = True
-    
     Msg "開始しました。"
     
-    ' 処理の中断フラグをクリア
-    StopDeepLearning = False
+    '---------------------------------------- 大域変数のセット
+    
+    ' 実行停止フラグをクリアします。
+    StopFlag = False
 
+    ' エポックの数
+    EpochSize = 100
+    
+    ' トレーニング データのバッチサイズ
+    TrainBatchSize = 10
+    
+    ' テスト データのバッチサイズ
+    TestBatchSize = 20
+
+    
+    '---------------------------------------- デバイスの初期処理
+
+    Dim use_cuda As Boolean: use_cuda = True
     If use_cuda Then
         ' CUDAを使う場合
         
@@ -550,41 +618,48 @@ Public Sub DeepLearning()
     ' デバイスを開始します。(CUDAでのみ必要)
     Dev.DeviceInit
 
-    EpochSize = 100
-    TrainBatchSize = 10
-    TestBatchSize = 20
 
-    Dim factory As LayerFactoryF:
+    '---------------------------------------- レイヤー作成オブジェクトを作ります。
     
+    Dim layer_factory As LayerFactoryF:
     If use_cuda Then
         ' CUDAを使う場合
         
-        Set factory = New LayerFactoryCudaF
+        ' CUDAの短精度浮動小数(Single)のレイヤー作成オブジェクト
+        Set layer_factory = New LayerFactoryCudaF
     Else
         ' CUDAを使わない場合
         
-        Set factory = New LayerFactoryF
+        ' CPUの短精度浮動小数(Single)のレイヤー作成オブジェクト
+        Set layer_factory = New LayerFactoryF
     End If
+    
+    
+    '---------------------------------------- ニューラルネットワークの初期処理
     
     NetType = NetworkType.Simple
     NetType = NetworkType.CNN
 
     Select Case NetType
     Case NetworkType.Simple
+        ' 全結合レイヤーのみの場合
+        
         ' 2層のレイヤーを作ります。
         ReDim Layers(1)
         
-        Set Layers(0) = factory.MakeFullyConnectedLayer(28 * 28, 30)
-        Set Layers(1) = factory.MakeFullyConnectedLayer(30, 10)
+        Set Layers(0) = layer_factory.MakeFullyConnectedLayer(28 * 28, 30)
+        Set Layers(1) = layer_factory.MakeFullyConnectedLayer(30, 10)
 
     Case NetworkType.CNN
+        ' 畳み込みニューラルネットワークの場合
         
         ' 4層のレイヤーを作ります。
         ReDim Layers(3)
-        Set Layers(0) = factory.MakeConvolutionalLayer(28, 28, 5, 5)
-        Set Layers(1) = factory.MakeMaxPoolingLayer(24, 24, 5, 2)
-        Set Layers(2) = factory.MakeFullyConnectedLayer(12 * 12 * 5, 100)
-        Set Layers(3) = factory.MakeFullyConnectedLayer(100, 10)
+        
+        Set Layers(0) = layer_factory.MakeConvolutionalLayer(28, 28, 5, 5)        ' 畳み込みレイヤー
+        Set Layers(1) = layer_factory.MakeMaxPoolingLayer(24, 24, 5, 2)           ' マックスプーリング レイヤー
+        Set Layers(2) = layer_factory.MakeFullyConnectedLayer(12 * 12 * 5, 100)   ' 全結合レイヤー
+        Set Layers(3) = layer_factory.MakeFullyConnectedLayer(100, 10)            ' 全結合レイヤー
     End Select
 
     ' 学習率をセットします。
@@ -603,9 +678,15 @@ Public Sub DeepLearning()
     ' MNISTのデータファイルを読み込みます。
     ReadMNIST
     
-    ' 確率的勾配降下法 (stochastic gradient descent, SGD)
+
+    '---------------------------------------- メインの学習処理
+        
+    ' 確率的勾配降下法
     SGD
 
+
+    '---------------------------------------- 終了処理
+    
     ' レイヤーを削除します。
     For i = 0 To UBound(Layers)
         Layers(i).Destroy
@@ -618,10 +699,10 @@ Public Sub DeepLearning()
     Msg "終了しました。"
 End Sub
 
-
 ' 停止ボタンのクリック処理
 Sub StopButton_OnAction()
-    StopDeepLearning = True
+    ' 実行停止フラグをオンにします。
+    StopFlag = True
 End Sub
 
 ' 停止ボタンを作ります。
@@ -635,41 +716,52 @@ Sub MakeStopButton()
     
     ' 停止ボタンを作ります。
     With ActiveSheet.Buttons.Add(Range("B5").Left, Range("B5").Top, Range("B5:C6").Width, Range("B5:C6").Height)
+    
+        ' クリック時の処理を指定します。
         .OnAction = "StopButton_OnAction"
+        
+        ' タイトルをセットします。
         .Characters.text = "停止"
     End With
 End Sub
 
-' 正解数のチャートを作ります。
+' 正解数のグラフを作ります。
 Sub MakeChart()
     If ActiveSheet.ChartObjects.Count() <> 0 Then
-        ' チャートを作成済みの場合
+        ' グラフを作成済みの場合
         
         ' 削除します。
         ActiveSheet.ChartObjects.Delete
     End If
     
-    
-    ' 正解数のチャートを作ります。
+    ' 正解数のグラフを作ります。
     With ActiveSheet.ChartObjects.Add(250, 20, 300, 200).Chart
+        ' 縦棒のグラフにします。
         .ChartType = xlColumnClustered
-        Set MySeries = .SeriesCollection.NewSeries
-        With MySeries
-'            .Values = Array(1, 3, 5, 7, 11, 13, 17, 19)
-'            .Values = Array(1, 3, 5, 7, 11, 13, 17, 19)
-            .name = "正解数"
-        End With
+        
+        ' グラフのデータ系列を作ります。
+        Set CorrectChartSeries = .SeriesCollection.NewSeries
+        
+        ' グラフのタイトルをセットします。
+        CorrectChartSeries.name = "正解数"
     End With
     
     ' 正解数の配列をクリアします。
-    If IsArray2(CorrectAns) Then
+    If ValidArray(CorrectAns) Then
+        ' Eraseされてない場合
+        
         Erase CorrectAns
     End If
 End Sub
 
 ' MNISTのテスト
 Public Sub TestMNIST()
+    ' 停止ボタンを作ります。
     MakeStopButton
+    
+    ' 正解数のグラフを作ります。
     MakeChart
+    
+    ' ディープラーニングのメインルーチン
     DeepLearning
 End Sub
