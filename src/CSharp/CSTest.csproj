@@ -57,7 +57,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="LayerNET, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="LayerNET, Version=1.0.0.0, Culture=neutral, PublicKeyToken=f9f2d5b6bd8c2a42, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Layer\LayerNET\bin\x64\Debug\LayerNET.dll</HintPath>
     </Reference>

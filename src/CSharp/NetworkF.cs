@@ -8,15 +8,62 @@ using System.IO;
 using System.Diagnostics;
 
 namespace CSTest {
-    public class NetworkF : Network {
+    public partial class Network {
         float[] TrainX;
         //float[] TrainY;
         float[] TestX;
         //float[] TestY;
         float CostSum;
 
+        public static void ReadMNIST(string data_dir, out float[,,] train_X, out byte[] train_label, out float[,,] test_X, out byte[] test_label) {
+            string mnist_dir = data_dir + "\\MNIST\\";
 
-        public override void ReadMNIST() {
+            byte[] buf;
+
+            buf = File.ReadAllBytes(mnist_dir + "train-images.idx3-ubyte");
+
+            int train_cnt = Network.BytesToInt(buf, 4);
+            int img_h = Network.BytesToInt(buf, 8);
+            int img_w = Network.BytesToInt(buf, 12);
+
+            train_X = new float[train_cnt, img_h, img_w];
+
+            int idx = 0;
+            for (int i = 0; i < train_cnt; i++) {
+                for (int y = 0; y < img_h; y++) {
+                    for (int x = 0; x < img_w; x++) {
+                        train_X[i, y, x] = buf[16 + idx] / 256.0f;
+                        idx++;
+                    }
+                }
+            }
+
+            buf = File.ReadAllBytes(mnist_dir + "train-labels.idx1-ubyte");
+            train_label = new byte[train_cnt];
+            Array.Copy(buf, 8, train_label, 0, train_cnt);
+
+
+            buf = File.ReadAllBytes(mnist_dir + "t10k-images.idx3-ubyte");
+            int test_cnt = Network.BytesToInt(buf, 4);
+
+            test_X = new float[test_cnt, img_h, img_w];
+
+            idx = 0;
+            for (int i = 0; i < test_cnt; i++) {
+                for (int y = 0; y < img_h; y++) {
+                    for (int x = 0; x < img_w; x++) {
+                        test_X[i, y, x] = buf[16 + idx] / 256.0f;
+                        idx++;
+                    }
+                }
+            }
+
+            buf = File.ReadAllBytes(mnist_dir + "t10k-labels.idx1-ubyte");
+            test_label = new byte[test_cnt];
+            Array.Copy(buf, 8, test_label, 0, test_cnt);
+        }
+
+        public void ReadMNIST() {
             string mnist_dir = DataDir + "\\MNIST\\";
 
             byte[] buf;
@@ -54,6 +101,34 @@ namespace CSTest {
             buf = File.ReadAllBytes(mnist_dir + "t10k-labels.idx1-ubyte");
             TestLabel = new byte[TestCnt];
             Array.Copy(buf, 8, TestLabel, 0, TestCnt);
+
+
+            float[,,] train_X;
+            byte[] train_label;
+            float[,,] test_X;
+            byte[] test_label;
+            ReadMNIST(DataDir, out train_X, out train_label, out test_X, out test_label);
+            Debug.Assert(train_X.GetLength(0) == TrainCnt && train_X.GetLength(1) == img_h && train_X.GetLength(2) == img_w && test_X.GetLength(0) == TestCnt);
+            int idx = 0;
+            for (int i = 0; i < TrainCnt; i++) {
+                for (int y = 0; y < img_h; y++) {
+                    for (int x = 0; x < img_w; x++) {
+                        Debug.Assert( train_X[i, y, x] == TrainX[idx]);
+                        idx++;
+                    }
+                }
+                Debug.Assert(train_label[i] == TrainLabel[i]);
+            }
+            idx = 0;
+            for (int i = 0; i < TestCnt; i++) {
+                for (int y = 0; y < img_h; y++) {
+                    for (int x = 0; x < img_w; x++) {
+                        Debug.Assert(test_X[i, y, x] == TestX[idx]);
+                        idx++;
+                    }
+                }
+                Debug.Assert(test_label[i] == TestLabel[i]);
+            }
         }
 
 
@@ -90,7 +165,7 @@ namespace CSTest {
         }
 
 
-        void SetBatchData(float[] X, float[] batch_X, float[] batch_Y, byte[] label, int batch_size, int[] idxes) {
+        void SetBatchData(float[,,] X, float[] batch_X, float[] batch_Y, byte[] label, int batch_size, int[] idxes) {
             for (int i = 0; i < batch_Y.Length; i++) {
                 batch_Y[i] = 0;
             }
@@ -103,8 +178,14 @@ namespace CSTest {
                     idx = idxes[idx];
                 }
 
-                for (int ix = 0; ix < DomainLen; ix++) {
-                    batch_X[ix * batch_size + batch_idx] = X[idx * DomainLen + ix];
+                int h = X.GetLength(1);
+                int w = X.GetLength(2);
+                int offset = batch_idx;
+                for(int iy = 0; iy < h; iy++) {
+                    for (int ix = 0; ix < w; ix++) {
+                        batch_X[offset] = X[idx, iy, ix];
+                        offset += batch_size;
+                    }
                 }
 
                 batch_Y[label[idx] * batch_size + batch_idx] = 1;
@@ -177,7 +258,7 @@ namespace CSTest {
         unsafe void UpdateMiniBatch(float[] batch_X, float[] batch_Y, float[] last_y, float[] cost_derivative) {
             //-------------------------------------------------- 入力をセットします。
 
-            FirstLayer.SetInputData(ref batch_X, DomainLen * TrainBatchSize * sizeof(float));
+            FirstLayer.SetInputData(batch_X);
 
             for (int i = 0; i < Layers.Count; i++) {
                 Layers[i].Forward();
@@ -186,7 +267,7 @@ namespace CSTest {
             //-------------------------------------------------- 出力を得ます。
             int last_y_len = TrainBatchSize * RangeLen;
 
-            LastLayer.GetOutputData(ref last_y, last_y_len * sizeof(float));
+            LastLayer.GetOutputData(last_y);
 
             //-------------------------------------------------- 損失関数を計算します。
             CostDerivative(cost_derivative, last_y, batch_Y, last_y_len);
@@ -194,7 +275,7 @@ namespace CSTest {
             float cost = Cost(cost_derivative, last_y_len);
 
             //-------------------------------------------------- δyをセットします。
-            LastLayer.SetOutputDeltaData(ref cost_derivative, last_y_len * sizeof(float));
+            LastLayer.SetOutputDeltaData(cost_derivative);
 
             for (int i = (int)Layers.Count - 1; 0 <= i; i--) {
                 Layers[i].Backward();
@@ -208,20 +289,23 @@ namespace CSTest {
             if(MiniBatchIdx % 100 == 0) {
 
                 int iw = FirstLayer.GetFieldIndexByName("w");
-                int[] sz = FirstLayer.GetFieldSize(iw);
-                Debug.Assert(sz[1] == 28 * 28);
-                int cnt = FirstLayer.GetFieldElementCount(iw);
-                float[,] w = null;
-                FirstLayer.GetFieldValue(iw, ref w);
-                float[,] buf = new float[28, 28];
-                for (int i = 0; i < sz[0]; i++) {
-                    for (int y = 0; y < 28; y++) {
-                        for (int x = 0; x < 28; x++) {
-                            buf[y, x] = w[i, y * 28 + x];
+                if(iw != -1) {
+
+                    int[] sz = FirstLayer.GetFieldSize(iw);
+                    Debug.Assert(sz[1] == 28 * 28);
+                    int cnt = FirstLayer.GetFieldElementCount(iw);
+                    float[,] w = null;
+                    FirstLayer.GetFieldValue(iw, ref w);
+                    float[,] buf = new float[28, 28];
+                    for (int i = 0; i < sz[0]; i++) {
+                        for (int y = 0; y < 28; y++) {
+                            for (int x = 0; x < 28; x++) {
+                                buf[y, x] = w[i, y * 28 + x];
+                            }
                         }
+                        string path = string.Format("{0}\\img\\a{1}.png", DataDir, i);
+                        Util.SaveImage(path, buf);
                     }
-                    string path = string.Format("{0}\\img\\a{1}.png", DataDir, i);
-                    Util.SaveImage(path, buf);
                 }
             }
 
@@ -264,13 +348,13 @@ namespace CSTest {
         }
 
         int Evaluate(float[] batch_X, float[] batch_Y, float[] last_y, int batch_size, byte[] arg_max, byte[] label) {
-            FirstLayer.SetInputData(ref batch_X, batch_size * DomainLen * sizeof(float));
+            FirstLayer.SetInputData(batch_X);
 
             for (int i = 0; i < Layers.Count; i++) {
                 Layers[i].Forward();
             }
 
-            LastLayer.GetOutputData(ref last_y, batch_size * RangeLen * sizeof(float));
+            LastLayer.GetOutputData(last_y);
 
             int eq_cnt = ArgMax(last_y, batch_size, arg_max, label);
 
@@ -293,9 +377,12 @@ namespace CSTest {
         /*
         確率的勾配降下法 (stochastic gradient descent, SGD)
         */
-        public override void SGD() {
+        public void SGD(float[,,] train_X, byte[] train_label, float[,,] test_X, byte[] test_label) {
+            int train_cnt    = train_X.GetLength(0);
+            Debug.Assert(DomainLen == train_X.GetLength(1) * train_X.GetLength(2));
+            Debug.Assert(TestCnt == test_X.GetLength(0));
 
-            int train_batch_cnt = TrainCnt / TrainBatchSize;
+            int train_batch_cnt = train_cnt / TrainBatchSize;
             int test_batch_cnt = TestCnt / TestBatchSize;
 
             float[] train_batch_X = new float[TrainBatchSize * DomainLen];
@@ -312,14 +399,14 @@ namespace CSTest {
 
             for (EpochIdx = 0; EpochIdx < EpochSize; EpochIdx++) {
 
-                int[] idxes = RandomSampling(TrainCnt, TrainCnt);
+                int[] idxes = RandomSampling(train_cnt, train_cnt);
 
                 // すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
                 AllocateConnectLayers(TrainBatchSize);
 
                 for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt; MiniBatchIdx++) {
 
-                    SetBatchData(TrainX, train_batch_X, train_batch_Y, TrainLabel, TrainBatchSize, idxes);
+                    SetBatchData(train_X, train_batch_X, train_batch_Y, TrainLabel, TrainBatchSize, idxes);
 
                     UpdateMiniBatch(train_batch_X, train_batch_Y, train_last_Y, cost_derivative);
                 }
@@ -332,7 +419,7 @@ namespace CSTest {
                 int eq_cnt_sum = 0;
                 for (MiniBatchIdx = 0; MiniBatchIdx < test_batch_cnt; MiniBatchIdx++) {
 
-                    SetBatchData(TestX, test_batch_X, test_batch_Y, TestLabel, TestBatchSize, null);
+                    SetBatchData(test_X, test_batch_X, test_batch_Y, TestLabel, TestBatchSize, null);
 
                     int eq_cnt = Evaluate(test_batch_X, test_batch_Y, test_last_Y, TestBatchSize, test_arg_max, TestLabel);
                     eq_cnt_sum += eq_cnt;
@@ -488,7 +575,7 @@ namespace CSTest {
 
 
             //-------------------------------------------------- 入力をセットします。
-            FirstLayer.SetInputData(ref batch_X, DomainLen * TrainBatchSize * sizeof(float));
+            FirstLayer.SetInputData(batch_X);
 
             // 順方向の時刻
             for (int t = 0; t < Time; t++) {
@@ -518,7 +605,7 @@ namespace CSTest {
 
                 //-------------------------------------------------- 出力を得ます。
                 int last_y_len = TrainBatchSize * RangeLen;
-                LastLayer.GetOutputData(ref last_y, last_y_len * sizeof(float));
+                LastLayer.GetOutputData(last_y);
 
                 float cost = 0;
                 for (int batch_idx = 0; batch_idx < TrainBatchSize; batch_idx++) {
@@ -593,7 +680,7 @@ namespace CSTest {
                 }
 
                 //-------------------------------------------------- δyをセットします。
-                LastLayer.SetOutputDeltaData(ref cost_derivative, last_y_len * sizeof(float));
+                LastLayer.SetOutputDeltaData(cost_derivative);
 
                 //-------------------------------------------------- 逆伝播
                 // RNN以外のレイヤーの逆伝播をします。
@@ -647,7 +734,7 @@ namespace CSTest {
         /*
             RNN用SGD
         */
-        public override void RNNSGD() {
+        public void RNNSGD() {
             char[] char_tbl = new char[CHAR_COUNT];
             char[] char_tbl_inv = new char[CHAR_COUNT];
 

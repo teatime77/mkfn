@@ -18,9 +18,9 @@ namespace CSTest {
     }
 
 
-    public abstract class Network {
+    public partial class Network {
         public LayerUtil Util;
-        public Device Dev;
+        public DeviceCuda Dev;
         public string DataDir;
 
         public NetworkType Type;
@@ -58,15 +58,9 @@ namespace CSTest {
 
         }
 
-        public int BytesToInt(byte[] v, int offset) {
+        public static int BytesToInt(byte[] v, int offset) {
             return v[offset] * 0x1000000 + v[offset + 1] * 0x10000 + v[offset + 2] * 0x100 + v[offset + 3];
         }
-
-
-
-        public abstract void ReadMNIST();
-        public abstract void SGD();
-        public abstract void RNNSGD();
 
         public void DeepLearning() {
             FirstLayer = Layers[0];
@@ -76,7 +70,12 @@ namespace CSTest {
             case NetworkType.Simple:
             case NetworkType.CNN:
                 ReadMNIST();
-                SGD();
+                float[,,] train_X;
+                byte[] train_label;
+                float[,,] test_X;
+                byte[] test_label;
+                ReadMNIST(DataDir, out train_X, out train_label, out test_X, out test_label);
+                SGD(train_X, train_label, test_X, test_label);
                 break;
 
             case NetworkType.RNN:
@@ -122,6 +121,7 @@ namespace CSTest {
     }
 
     class Program {
+        static Network net;
         static void Init() {
 
         }
@@ -130,22 +130,22 @@ namespace CSTest {
             // 初期処理をします。
             Init();
 
-            Device dev = new Device();
+            DeviceCuda dev = new DeviceCuda();
             dev.DeviceInit();
 
-            NetworkF net = new NetworkF();
+            net = new Network();
             net.Dev = dev;
             net.EpochSize = 100;
             net.TestBatchSize = 20;
 
-            LayerFactoryF factory = new LayerFactoryF();
+            LayerFactoryCudaF factory = new LayerFactoryCudaF();
 
             float learning_rate = 1.0f;
             for (int run_idx = 0; ; run_idx++) {
                 net.Type = NetworkType.RNN;
-                net.Type = NetworkType.LSTM;
-                net.Type = NetworkType.CNN;
                 net.Type = NetworkType.Simple;
+                net.Type = NetworkType.CNN;
+                net.Type = NetworkType.LSTM;
                 switch (net.Type) {
                 case NetworkType.Simple:
                     net.TrainBatchSize = 10;
@@ -161,8 +161,8 @@ namespace CSTest {
                         //new ConvolutionalLayer(28, 28, 20, 5),
                         //new MaxPoolingLayer(24, 24, 20, 2),
                         //new FullyConnectedLayerF(12 * 12 * 20, 100),
-                        factory.MakeConvolutionalLayer(28, 28, 5, 5),
-                        factory.MakeMaxPoolingLayer(24, 24, 5, 2),
+                        factory.MakeConvolution2DLayer(28, 28, 5, 5, 5),
+                        factory.MakeMaxPooling2DLayer(24, 24, 5, 2, 2),
                         factory.MakeFullyConnectedLayer(12 * 12 * 5, 100),
                         factory.MakeFullyConnectedLayer(100, 10)
                     };
@@ -199,8 +199,24 @@ namespace CSTest {
             }
         }
 
+        void ModelTest() {
+            Model model = new Sequential();
+            model.AddDense(30, Activation.Sigmoid);
+            model.AddDense(10, Activation.Sigmoid);
+        }
+
         static void Main(string[] args) {
-            NetworkTest();
+            Program prg = new Program();
+            prg.ModelTest();
+
+            Task t = Task.Run(() => {
+                NetworkTest();
+            });
+
+
+            while (true) {
+                Task.Delay(1000);
+            }
         }
     }
 }
