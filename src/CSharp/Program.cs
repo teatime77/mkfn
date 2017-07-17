@@ -27,12 +27,7 @@ namespace CSTest {
         public int EpochSize;
         public int TrainBatchSize;
         public int TestBatchSize;
-        public int TrainCnt;
-        public int TestCnt;
-        public int DomainLen;
         public int RangeLen;
-        public byte[] TrainLabel;
-        public byte[] TestLabel;
         public int EpochIdx;
         public int MiniBatchIdx;
         public int CostCount;
@@ -69,7 +64,6 @@ namespace CSTest {
             switch (Type) {
             case NetworkType.Simple:
             case NetworkType.CNN:
-                ReadMNIST();
                 float[,,] train_X;
                 byte[] train_label;
                 float[,,] test_X;

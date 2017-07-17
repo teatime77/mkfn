@@ -9,10 +9,6 @@ using System.Diagnostics;
 
 namespace CSTest {
     public partial class Network {
-        float[] TrainX;
-        //float[] TrainY;
-        float[] TestX;
-        //float[] TestY;
         float CostSum;
 
         public static void ReadMNIST(string data_dir, out float[,,] train_X, out byte[] train_label, out float[,,] test_X, out byte[] test_label) {
@@ -63,80 +59,11 @@ namespace CSTest {
             Array.Copy(buf, 8, test_label, 0, test_cnt);
         }
 
-        public void ReadMNIST() {
-            string mnist_dir = DataDir + "\\MNIST\\";
-
-            byte[] buf;
-
-            buf = File.ReadAllBytes(mnist_dir + "train-images.idx3-ubyte");
-
-            TrainCnt = BytesToInt(buf, 4);
-            int img_h = BytesToInt(buf, 8);
-            int img_w = BytesToInt(buf, 12);
-
-            DomainLen = img_h * img_w;
-            RangeLen = 10;
-
-            int sz = TrainCnt * DomainLen;
-            TrainX = new float[sz];
-            for (int i = 0; i < sz; i++) {
-                TrainX[i] = buf[16 + i] / 256.0f;
-            }
-
-
-            buf = File.ReadAllBytes(mnist_dir + "train-labels.idx1-ubyte");
-            TrainLabel = new byte[TrainCnt];
-            Array.Copy(buf, 8, TrainLabel, 0, TrainCnt);
-
-
-            buf = File.ReadAllBytes(mnist_dir + "t10k-images.idx3-ubyte");
-            TestCnt = BytesToInt(buf, 4);
-            int test_sz = TestCnt * img_h * img_w;
-            TestX = new float[test_sz];
-            for (int i = 0; i < test_sz; i++) {
-                TestX[i] = buf[16 + i] / 256.0f;
-            }
-
-
-            buf = File.ReadAllBytes(mnist_dir + "t10k-labels.idx1-ubyte");
-            TestLabel = new byte[TestCnt];
-            Array.Copy(buf, 8, TestLabel, 0, TestCnt);
-
-
-            float[,,] train_X;
-            byte[] train_label;
-            float[,,] test_X;
-            byte[] test_label;
-            ReadMNIST(DataDir, out train_X, out train_label, out test_X, out test_label);
-            Debug.Assert(train_X.GetLength(0) == TrainCnt && train_X.GetLength(1) == img_h && train_X.GetLength(2) == img_w && test_X.GetLength(0) == TestCnt);
-            int idx = 0;
-            for (int i = 0; i < TrainCnt; i++) {
-                for (int y = 0; y < img_h; y++) {
-                    for (int x = 0; x < img_w; x++) {
-                        Debug.Assert( train_X[i, y, x] == TrainX[idx]);
-                        idx++;
-                    }
-                }
-                Debug.Assert(train_label[i] == TrainLabel[i]);
-            }
-            idx = 0;
-            for (int i = 0; i < TestCnt; i++) {
-                for (int y = 0; y < img_h; y++) {
-                    for (int x = 0; x < img_w; x++) {
-                        Debug.Assert(test_X[i, y, x] == TestX[idx]);
-                        idx++;
-                    }
-                }
-                Debug.Assert(test_label[i] == TestLabel[i]);
-            }
-        }
-
-
         /*
         すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
         */
-        void AllocateConnectLayers(int batch_size) {
-            IntPtr p = Dev.DeviceMalloc(batch_size * DomainLen * sizeof(float));
+        void AllocateConnectLayers(int domain_len, int batch_size) {
+            IntPtr p = Dev.DeviceMalloc(batch_size * domain_len * sizeof(float));
             FirstLayer.SetInput(p);
 
             p = Dev.DeviceMalloc(batch_size * RangeLen * sizeof(float));
@@ -378,20 +305,22 @@ namespace CSTest {
         確率的勾配降下法 (stochastic gradient descent, SGD)
         */
         public void SGD(float[,,] train_X, byte[] train_label, float[,,] test_X, byte[] test_label) {
-            int train_cnt    = train_X.GetLength(0);
-            Debug.Assert(DomainLen == train_X.GetLength(1) * train_X.GetLength(2));
-            Debug.Assert(TestCnt == test_X.GetLength(0));
+            RangeLen = LastLayer.GetOutputCount();
+
+            int train_cnt   = train_X.GetLength(0);
+            int test_cnt    = test_X.GetLength(0);
+            int domain_len   = train_X.GetLength(1) * train_X.GetLength(2);
 
             int train_batch_cnt = train_cnt / TrainBatchSize;
-            int test_batch_cnt = TestCnt / TestBatchSize;
+            int test_batch_cnt = test_cnt / TestBatchSize;
 
-            float[] train_batch_X = new float[TrainBatchSize * DomainLen];
+            float[] train_batch_X = new float[TrainBatchSize * domain_len];
             float[] train_batch_Y = new float[TrainBatchSize * RangeLen];
             float[] train_last_Y = new float[TrainBatchSize * RangeLen];
 
             float[] cost_derivative = new float[TrainBatchSize * RangeLen];
 
-            float[] test_batch_X = new float[TestBatchSize * DomainLen];
+            float[] test_batch_X = new float[TestBatchSize * domain_len];
             float[] test_batch_Y = new float[TestBatchSize * RangeLen];
             float[] test_last_Y = new float[TestBatchSize * RangeLen];
 
@@ -402,11 +331,11 @@ namespace CSTest {
                 int[] idxes = RandomSampling(train_cnt, train_cnt);
 
                 // すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
-                AllocateConnectLayers(TrainBatchSize);
+                AllocateConnectLayers(domain_len, TrainBatchSize);
 
                 for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt; MiniBatchIdx++) {
 
-                    SetBatchData(train_X, train_batch_X, train_batch_Y, TrainLabel, TrainBatchSize, idxes);
+                    SetBatchData(train_X, train_batch_X, train_batch_Y, train_label, TrainBatchSize, idxes);
 
                     UpdateMiniBatch(train_batch_X, train_batch_Y, train_last_Y, cost_derivative);
                 }
@@ -414,17 +343,17 @@ namespace CSTest {
                 FreeLayers();
 
                 // すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
-                AllocateConnectLayers(TestBatchSize);
+                AllocateConnectLayers(domain_len, TestBatchSize);
 
                 int eq_cnt_sum = 0;
                 for (MiniBatchIdx = 0; MiniBatchIdx < test_batch_cnt; MiniBatchIdx++) {
 
-                    SetBatchData(test_X, test_batch_X, test_batch_Y, TestLabel, TestBatchSize, null);
+                    SetBatchData(test_X, test_batch_X, test_batch_Y, test_label, TestBatchSize, null);
 
-                    int eq_cnt = Evaluate(test_batch_X, test_batch_Y, test_last_Y, TestBatchSize, test_arg_max, TestLabel);
+                    int eq_cnt = Evaluate(test_batch_X, test_batch_Y, test_last_Y, TestBatchSize, test_arg_max, test_label);
                     eq_cnt_sum += eq_cnt;
                 }
-                Debug.WriteLine("epoch {0} : {1} / {2}", EpochIdx, eq_cnt_sum, TestCnt);
+                Debug.WriteLine("epoch {0} : {1} / {2}", EpochIdx, eq_cnt_sum, test_cnt);
 
                 FreeLayers();
 
@@ -749,8 +678,9 @@ namespace CSTest {
                     int time_len = EpochIdx + 5;
                     int line_len = time_len + 1;
 
-                    InitText(TrainBatchSize, line_len, out TrainCnt, char_tbl, char_tbl_inv);
-                    if (TrainCnt == 0) {
+                    int train_cnt;
+                    InitText(TrainBatchSize, line_len, out train_cnt, char_tbl, char_tbl_inv);
+                    if (train_cnt == 0) {
                         break;
                     }
 
@@ -759,12 +689,12 @@ namespace CSTest {
                     int Y = FirstLayer.GetTimeOutputCount();
                     int Time = FirstLayer.GetTimeCount();
 
-                    DomainLen = FirstLayer.GetInputCount();
+                    int domain_len = FirstLayer.GetInputCount();
                     RangeLen = LastLayer.GetOutputCount();
 
-                    int train_batch_cnt = TrainCnt / TrainBatchSize;
+                    int train_batch_cnt = train_cnt / TrainBatchSize;
 
-                    float[] train_batch_X = new float[DomainLen * TrainBatchSize];
+                    float[] train_batch_X = new float[domain_len * TrainBatchSize];
                     float[] train_batch_Y = new float[RangeLen * TrainBatchSize];
                     float[] train_last_Y = new float[RangeLen * TrainBatchSize];
 
@@ -772,7 +702,7 @@ namespace CSTest {
                     float[] exp_work = new float[RangeLen * TrainBatchSize];
 
                     // すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
-                    AllocateConnectLayers(TrainBatchSize);
+                    AllocateConnectLayers(domain_len, TrainBatchSize);
 
                     int delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
                     IntPtr out_delta_y = Dev.DeviceMalloc(delta_y_sz);
