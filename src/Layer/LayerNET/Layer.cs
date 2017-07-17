@@ -77,10 +77,10 @@ namespace LayerNET {
         public static extern IntPtr MakeFullyConnectedLayerF(int x_size, int y_size);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr MakeConvolutionalLayerF(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeConvolution2DLayerF(int m_size, int n_size, int k_size, int cm_size, int cn_size);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr MakeMaxPoolingLayerF(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeMaxPooling2DLayerF(int m_size, int n_size, int k_size, int pm_size, int pn_size);
 
         [DllImport("Layer.Dll")]
         public static extern IntPtr MakeRecurrentLayerF(int t_size, int x_size, int y_size);
@@ -94,10 +94,10 @@ namespace LayerNET {
         public static extern IntPtr MakeFullyConnectedLayerD(int x_size, int y_size);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr MakeConvolutionalLayerD(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeConvolution2DLayerD(int m_size, int n_size, int k_size, int cm_size, int cn_size);
 
         [DllImport("Layer.Dll")]
-        public static extern IntPtr MakeMaxPoolingLayerD(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeMaxPooling2DLayerD(int m_size, int n_size, int k_size, int pm_size, int pn_size);
 
         [DllImport("Layer.Dll")]
         public static extern IntPtr MakeRecurrentLayerD(int t_size, int x_size, int y_size);
@@ -112,10 +112,10 @@ namespace LayerNET {
         public static extern IntPtr MakeFullyConnectedLayerCudaF(int x_size, int y_size);
 
         [DllImport("LayerCUDA.Dll")]
-        public static extern IntPtr MakeConvolutionalLayerCudaF(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeConvolution2DLayerCudaF(int m_size, int n_size, int k_size, int cm_size, int cn_size);
 
         [DllImport("LayerCUDA.Dll")]
-        public static extern IntPtr MakeMaxPoolingLayerCudaF(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeMaxPooling2DLayerCudaF(int m_size, int n_size, int k_size, int pm_size, int pn_size);
 
         [DllImport("LayerCUDA.Dll")]
         public static extern IntPtr MakeRecurrentLayerCudaF(int t_size, int x_size, int y_size);
@@ -129,10 +129,10 @@ namespace LayerNET {
         public static extern IntPtr MakeFullyConnectedLayerCudaD(int x_size, int y_size);
 
         [DllImport("LayerCUDA.Dll")]
-        public static extern IntPtr MakeConvolutionalLayerCudaD(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeConvolution2DLayerCudaD(int m_size, int n_size, int k_size, int cm_size, int cn_size);
 
         [DllImport("LayerCUDA.Dll")]
-        public static extern IntPtr MakeMaxPoolingLayerCudaD(int m_size, int n_size, int k_size, int h_size);
+        public static extern IntPtr MakeMaxPooling2DLayerCudaD(int m_size, int n_size, int k_size, int pm_size, int pn_size);
 
         [DllImport("LayerCUDA.Dll")]
         public static extern IntPtr MakeRecurrentLayerCudaD(int t_size, int x_size, int y_size);
@@ -287,8 +287,8 @@ namespace LayerNET {
 
     [ComVisible(true)]
     public interface ILayerUtil {
-        void SaveImage(string path, int with, int height,ref float[] buf);
-        void SaveImage2(string path, ref float[,] buf);
+        void SaveImage(string path, int with, int height, float[] buf);
+        void SaveImage(string path, float[,] buf);
     }
 
     [ClassInterface(ClassInterfaceType.None)]
@@ -359,13 +359,13 @@ namespace LayerNET {
 
         }
 
-        unsafe public void SaveImage(string path, int with, int height,ref float[] buf) {
+        unsafe public void SaveImage(string path, int with, int height, float[] buf) {
             fixed (float* pf = buf) {
                 SaveImage(path, with, height, buf.Min(), buf.Max(), pf);
             }
         }
 
-        unsafe public void SaveImage2(string path, ref float[,] buf) {
+        unsafe public void SaveImage(string path,  float[,] buf) {
             int h = buf.GetLength(0);
             int w = buf.GetLength(1);
             float min1 = float.MaxValue;
@@ -452,8 +452,8 @@ namespace LayerNET {
     [ComVisible(true)]
     public interface ILayerFactory {
         Layer MakeFullyConnectedLayer(int x_size, int y_size);
-        Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size);
-        Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size);
+        Layer MakeConvolution2DLayer(int m_size, int n_size, int k_size, int cm_size, int cn_size);
+        Layer MakeMaxPooling2DLayer(int m_size, int n_size, int k_size, int pm_size, int pn_size);
         Layer MakeRecurrentLayer(int t_size, int x_size, int y_size);
         Layer MakeLSTMLayer(int t_size, int x_size, int y_size);
     }
@@ -464,12 +464,12 @@ namespace LayerNET {
             return new Layer(DLL.MakeFullyConnectedLayerF(x_size, y_size));
         }
 
-        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeConvolutionalLayerF(m_size, n_size, k_size, h_size));
+        public Layer MakeConvolution2DLayer(int m_size, int n_size, int k_size, int cm_size, int cn_size) {
+            return new Layer(DLL.MakeConvolution2DLayerF(m_size, n_size, k_size, cm_size, cn_size));
         }
 
-        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeMaxPoolingLayerF(m_size, n_size, k_size, h_size));
+        public Layer MakeMaxPooling2DLayer(int m_size, int n_size, int k_size, int pm_size, int pn_size) {
+            return new Layer(DLL.MakeMaxPooling2DLayerF(m_size, n_size, k_size, pm_size, pn_size));
         }
 
         public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
@@ -487,12 +487,12 @@ namespace LayerNET {
             return new Layer(DLL.MakeFullyConnectedLayerD(x_size, y_size));
         }
 
-        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeConvolutionalLayerD(m_size, n_size, k_size, h_size));
+        public Layer MakeConvolution2DLayer(int m_size, int n_size, int k_size, int cm_size, int cn_size) {
+            return new Layer(DLL.MakeConvolution2DLayerD(m_size, n_size, k_size, cm_size, cn_size));
         }
 
-        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeMaxPoolingLayerD(m_size, n_size, k_size, h_size));
+        public Layer MakeMaxPooling2DLayer(int m_size, int n_size, int k_size, int pm_size, int pn_size) {
+            return new Layer(DLL.MakeMaxPooling2DLayerD(m_size, n_size, k_size, pm_size, pn_size));
         }
 
         public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
@@ -511,12 +511,12 @@ namespace LayerNET {
             return new Layer(DLL.MakeFullyConnectedLayerCudaF(x_size, y_size));
         }
 
-        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeConvolutionalLayerCudaF(m_size, n_size, k_size, h_size));
+        public Layer MakeConvolution2DLayer(int m_size, int n_size, int k_size, int cm_size, int cn_size) {
+            return new Layer(DLL.MakeConvolution2DLayerCudaF(m_size, n_size, k_size, cm_size, cn_size));
         }
 
-        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeMaxPoolingLayerCudaF(m_size, n_size, k_size, h_size));
+        public Layer MakeMaxPooling2DLayer(int m_size, int n_size, int k_size, int pm_size, int pn_size) {
+            return new Layer(DLL.MakeMaxPooling2DLayerCudaF(m_size, n_size, k_size, pm_size, pn_size));
         }
 
         public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
@@ -534,12 +534,12 @@ namespace LayerNET {
             return new Layer(DLL.MakeFullyConnectedLayerCudaD(x_size, y_size));
         }
 
-        public Layer MakeConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeConvolutionalLayerCudaD(m_size, n_size, k_size, h_size));
+        public Layer MakeConvolution2DLayer(int m_size, int n_size, int k_size, int cm_size, int cn_size) {
+            return new Layer(DLL.MakeConvolution2DLayerCudaD(m_size, n_size, k_size, cm_size, cn_size));
         }
 
-        public Layer MakeMaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
-            return new Layer(DLL.MakeMaxPoolingLayerCudaD(m_size, n_size, k_size, h_size));
+        public Layer MakeMaxPooling2DLayer(int m_size, int n_size, int k_size, int pm_size, int pn_size) {
+            return new Layer(DLL.MakeMaxPooling2DLayerCudaD(m_size, n_size, k_size, pm_size, pn_size));
         }
 
         public Layer MakeRecurrentLayer(int t_size, int x_size, int y_size) {
@@ -603,10 +603,16 @@ namespace LayerNET {
         void SetOutputDelta(IntPtr src);
         IntPtr GetOutputDelta(int t = 0);
         IntPtr GetInputDelta(int t = 0);
+
         void GetInputData(ref object app);
         void SetInputData(ref object app);
-        void SetOutputDeltaData(ref object app);
         void GetOutputData(ref object app);
+        void SetOutputDeltaData(ref object app);
+        
+        void GetInputData(float[] app);
+        void SetInputData(float[] app);
+        void GetOutputData(float[] app);
+        void SetOutputDeltaData(float[] app);
     }
 
     [ClassInterface(ClassInterfaceType.None)]
@@ -943,6 +949,24 @@ namespace LayerNET {
         }
 
         public void SetOutputDeltaData(ref object app) {
+            CopyArrayData(DLL.GetOutputDelta(Handle), app, CopyDir.Set);
+        }
+
+
+
+        unsafe public void SetInputData(float[] app) {
+            CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Set);
+        }
+
+        unsafe public void GetInputData(float[] app) {
+            CopyArrayData(DLL.GetInput(Handle), app, CopyDir.Get);
+        }
+
+        public void GetOutputData(float[] app) {
+            CopyArrayData(DLL.GetOutput(Handle), app, CopyDir.Get);
+        }
+
+        public void SetOutputDeltaData(float[] app) {
             CopyArrayData(DLL.GetOutputDelta(Handle), app, CopyDir.Set);
         }
     }

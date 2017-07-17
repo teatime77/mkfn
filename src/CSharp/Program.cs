@@ -28,7 +28,6 @@ namespace CSTest {
         public int TrainBatchSize;
         public int TestBatchSize;
         public int RangeLen;
-        public int EpochIdx;
         public int MiniBatchIdx;
         public int CostCount;
         public int UpdateMiniBatchCount;

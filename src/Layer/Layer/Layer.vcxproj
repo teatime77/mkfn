@@ -170,13 +170,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Lib\Lib.h" />
-    <ClInclude Include="ConvolutionalLayerD.h" />
-    <ClInclude Include="ConvolutionalLayerF.h" />
+    <ClInclude Include="Convolution2DLayerD.h" />
+    <ClInclude Include="Convolution2DLayerF.h" />
     <ClInclude Include="FullyConnectedLayerD.h" />
     <ClInclude Include="FullyConnectedLayerF.h" />
+    <ClInclude Include="LSTMLayerD.h" />
     <ClInclude Include="LSTMLayerF.h" />
-    <ClInclude Include="MaxPoolingLayerD.h" />
-    <ClInclude Include="MaxPoolingLayerF.h" />
+    <ClInclude Include="MaxPooling2DLayerD.h" />
+    <ClInclude Include="MaxPooling2DLayerF.h" />
     <ClInclude Include="mkfn.h" />
     <ClInclude Include="RecurrentLayerD.h" />
     <ClInclude Include="RecurrentLayerF.h" />
@@ -185,8 +186,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Lib\Lib.cpp" />
-    <ClCompile Include="ConvolutionalLayerD.cpp" />
-    <ClCompile Include="ConvolutionalLayerF.cpp" />
+    <ClCompile Include="Convolution2DLayerD.cpp" />
+    <ClCompile Include="Convolution2DLayerF.cpp" />
     <ClCompile Include="dllmain.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -206,8 +207,8 @@
     <ClCompile Include="Layer.cpp" />
     <ClCompile Include="LSTMLayerD.cpp" />
     <ClCompile Include="LSTMLayerF.cpp" />
-    <ClCompile Include="MaxPoolingLayerD.cpp" />
-    <ClCompile Include="MaxPoolingLayerF.cpp" />
+    <ClCompile Include="MaxPooling2DLayerD.cpp" />
+    <ClCompile Include="MaxPooling2DLayerF.cpp" />
     <ClCompile Include="MkFn.cpp" />
     <ClCompile Include="RecurrentLayerD.cpp" />
     <ClCompile Include="RecurrentLayerF.cpp" />

@@ -326,7 +326,7 @@ namespace CSTest {
 
             byte[] test_arg_max = new byte[TestBatchSize];
 
-            for (EpochIdx = 0; EpochIdx < EpochSize; EpochIdx++) {
+            for (int epoch_idx = 0; epoch_idx < EpochSize; epoch_idx++) {
 
                 int[] idxes = RandomSampling(train_cnt, train_cnt);
 
@@ -353,7 +353,7 @@ namespace CSTest {
                     int eq_cnt = Evaluate(test_batch_X, test_batch_Y, test_last_Y, TestBatchSize, test_arg_max, test_label);
                     eq_cnt_sum += eq_cnt;
                 }
-                Debug.WriteLine("epoch {0} : {1} / {2}", EpochIdx, eq_cnt_sum, test_cnt);
+                Debug.WriteLine("epoch {0} : {1} / {2}", epoch_idx, eq_cnt_sum, test_cnt);
 
                 FreeLayers();
 
@@ -604,7 +604,7 @@ namespace CSTest {
                         Debug.WriteLine("IN : {0}", new string(input, 0, t), "");
                         Debug.WriteLine("OUT: {0}", new string(output, 0, t), "");
 
-                        Debug.WriteLine("epock : {0}  cost : {1}", EpochIdx, CostSum / CostCount);
+                        Debug.WriteLine("cost : {0}", CostSum / CostCount);
                     }
                 }
 
@@ -669,68 +669,57 @@ namespace CSTest {
 
             ReadCharTable(char_tbl, char_tbl_inv);
 
+            int time_len = 5;
+            int line_len = time_len + 1;
+
+            int train_cnt;
+            InitText(TrainBatchSize, line_len, out train_cnt, char_tbl, char_tbl_inv);
+            Debug.Assert(train_cnt != 0);
+
+            char[] text = new char[TrainBatchSize * (line_len + 1)];
+            MiniBatchIdx = 0;
+            ReadText(TrainBatchSize, line_len, MiniBatchIdx, text);
+
             CostSum = 0;
             CostCount = 0;
             UpdateMiniBatchCount = 0;
-            while (true) {
 
-                for (EpochIdx = 0; EpochIdx < EpochSize; EpochIdx++) {
-                    int time_len = EpochIdx + 5;
-                    int line_len = time_len + 1;
+            FirstLayer.SetTimeCount(time_len);
+            int X = FirstLayer.GetTimeInputCount();
+            int Y = FirstLayer.GetTimeOutputCount();
+            int Time = FirstLayer.GetTimeCount();
 
-                    int train_cnt;
-                    InitText(TrainBatchSize, line_len, out train_cnt, char_tbl, char_tbl_inv);
-                    if (train_cnt == 0) {
-                        break;
-                    }
+            int domain_len = FirstLayer.GetInputCount();
+            RangeLen = LastLayer.GetOutputCount();
 
-                    FirstLayer.SetTimeCount(time_len);
-                    int X = FirstLayer.GetTimeInputCount();
-                    int Y = FirstLayer.GetTimeOutputCount();
-                    int Time = FirstLayer.GetTimeCount();
+            int train_batch_cnt = train_cnt / TrainBatchSize;
 
-                    int domain_len = FirstLayer.GetInputCount();
-                    RangeLen = LastLayer.GetOutputCount();
+            float[] train_batch_X = new float[domain_len * TrainBatchSize];
+            float[] train_batch_Y = new float[RangeLen * TrainBatchSize];
+            float[] train_last_Y = new float[RangeLen * TrainBatchSize];
 
-                    int train_batch_cnt = train_cnt / TrainBatchSize;
+            float[] cost_derivative = new float[RangeLen * TrainBatchSize];
+            float[] exp_work = new float[RangeLen * TrainBatchSize];
 
-                    float[] train_batch_X = new float[domain_len * TrainBatchSize];
-                    float[] train_batch_Y = new float[RangeLen * TrainBatchSize];
-                    float[] train_last_Y = new float[RangeLen * TrainBatchSize];
+            // すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
+            AllocateConnectLayers(domain_len, TrainBatchSize);
 
-                    float[] cost_derivative = new float[RangeLen * TrainBatchSize];
-                    float[] exp_work = new float[RangeLen * TrainBatchSize];
+            int delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
+            IntPtr out_delta_y = Dev.DeviceMalloc(delta_y_sz);
 
-                    // すべてのレイヤーのメモリを割り当て、レイヤーの入出力を結合します。
-                    AllocateConnectLayers(domain_len, TrainBatchSize);
+            FirstLayer.SetOutputDelta(out_delta_y);
 
-                    int delta_y_sz = TrainBatchSize * Time * Y * sizeof(double);
-                    IntPtr out_delta_y = Dev.DeviceMalloc(delta_y_sz);
 
-                    FirstLayer.SetOutputDelta(out_delta_y);
+            SetZero(train_batch_X);
+            CharToOneHotX(char_tbl, train_batch_X, Time, X, TrainBatchSize, text);
 
-                    char[] text = new char[TrainBatchSize * (line_len + 1)];
-                    for (MiniBatchIdx = 0; MiniBatchIdx < train_batch_cnt;) {//MiniBatchIdx++
+            for (; UpdateMiniBatchCount < int.MaxValue; UpdateMiniBatchCount++) {
 
-                        ReadText(TrainBatchSize, line_len, MiniBatchIdx, text);
-
-                        SetZero(train_batch_X);
-                        CharToOneHotX(char_tbl, train_batch_X, Time, X, TrainBatchSize, text);
-
-                        RNNUpdateMiniBatch(train_batch_X, train_batch_Y, train_last_Y, cost_derivative, exp_work, char_tbl, char_tbl_inv, text);
-                        UpdateMiniBatchCount++;
-
-                        if (MiniBatchIdx % 100 == 0) {
-                            //Log("epock : %d   mini batch: %d  cost : %f", EpochIdx, MiniBatchIdx, CostSum / CostCount);
-                        }
-                    }
-
-                    FreeLayers();
-                    Dev.DeviceFree(out_delta_y);
-
-                    //Log("epock : %d  cost : %f", EpochIdx, CostSum / CostCount);
-                }
+                RNNUpdateMiniBatch(train_batch_X, train_batch_Y, train_last_Y, cost_derivative, exp_work, char_tbl, char_tbl_inv, text);
             }
+
+            FreeLayers();
+            Dev.DeviceFree(out_delta_y);
         }
     }
 }

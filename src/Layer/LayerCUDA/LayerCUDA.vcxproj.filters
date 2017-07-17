@@ -5,20 +5,11 @@
     <CudaCompile Include="RecurrentLayerCudaD.cu">
       <Filter>src\D</Filter>
     </CudaCompile>
-    <CudaCompile Include="MaxPoolingLayerCudaD.cu">
-      <Filter>src\D</Filter>
-    </CudaCompile>
     <CudaCompile Include="LSTMLayerCudaD.cu">
       <Filter>src\D</Filter>
     </CudaCompile>
     <CudaCompile Include="FullyConnectedLayerCudaD.cu">
       <Filter>src\D</Filter>
-    </CudaCompile>
-    <CudaCompile Include="ConvolutionalLayerCudaD.cu">
-      <Filter>src\D</Filter>
-    </CudaCompile>
-    <CudaCompile Include="ConvolutionalLayerCudaF.cu">
-      <Filter>src\F</Filter>
     </CudaCompile>
     <CudaCompile Include="FullyConnectedLayerCudaF.cu">
       <Filter>src\F</Filter>
@@ -26,10 +17,19 @@
     <CudaCompile Include="LSTMLayerCudaF.cu">
       <Filter>src\F</Filter>
     </CudaCompile>
-    <CudaCompile Include="MaxPoolingLayerCudaF.cu">
+    <CudaCompile Include="RecurrentLayerCudaF.cu">
       <Filter>src\F</Filter>
     </CudaCompile>
-    <CudaCompile Include="RecurrentLayerCudaF.cu">
+    <CudaCompile Include="MaxPooling2DLayerCudaD.cu">
+      <Filter>src\D</Filter>
+    </CudaCompile>
+    <CudaCompile Include="MaxPooling2DLayerCudaF.cu">
+      <Filter>src\F</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Convolution2DLayerCudaD.cu">
+      <Filter>src\D</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Convolution2DLayerCudaF.cu">
       <Filter>src\F</Filter>
     </CudaCompile>
   </ItemGroup>
@@ -54,16 +54,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ConvolutionalLayerCudaD.h">
-      <Filter>inc\D</Filter>
-    </ClInclude>
     <ClInclude Include="FullyConnectedLayerCudaD.h">
       <Filter>inc\D</Filter>
     </ClInclude>
     <ClInclude Include="LSTMLayerCudaD.h">
-      <Filter>inc\D</Filter>
-    </ClInclude>
-    <ClInclude Include="MaxPoolingLayerCudaD.h">
       <Filter>inc\D</Filter>
     </ClInclude>
     <ClInclude Include="RecurrentLayerCudaD.h">
@@ -75,16 +69,10 @@
     <ClInclude Include="..\..\Lib\Lib.h">
       <Filter>inc</Filter>
     </ClInclude>
-    <ClInclude Include="ConvolutionalLayerCudaF.h">
-      <Filter>inc\F</Filter>
-    </ClInclude>
     <ClInclude Include="FullyConnectedLayerCudaF.h">
       <Filter>inc\F</Filter>
     </ClInclude>
     <ClInclude Include="LSTMLayerCudaF.h">
-      <Filter>inc\F</Filter>
-    </ClInclude>
-    <ClInclude Include="MaxPoolingLayerCudaF.h">
       <Filter>inc\F</Filter>
     </ClInclude>
     <ClInclude Include="RecurrentLayerCudaF.h">
@@ -92,6 +80,18 @@
     </ClInclude>
     <ClInclude Include="LibCuda.h">
       <Filter>inc</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPooling2DLayerCudaD.h">
+      <Filter>inc\D</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPooling2DLayerCudaF.h">
+      <Filter>inc\F</Filter>
+    </ClInclude>
+    <ClInclude Include="Convolution2DLayerCudaD.h">
+      <Filter>inc\D</Filter>
+    </ClInclude>
+    <ClInclude Include="Convolution2DLayerCudaF.h">
+      <Filter>inc\F</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -128,11 +128,12 @@ public override void Forward() {
     }
 }
 
-public class ConvolutionalLayer : Layer {
+public class Convolution2DLayer : Layer {
     public int M;   // 行数
     public int N;   // 列数
     public int K;   // フィルター数
-    public int H;
+    public int CM;  // 畳み込み行数
+    public int CN;  // 畳み込み行数
 
     public float[,] x;
     public float[,,] y;
@@ -141,25 +142,26 @@ public class ConvolutionalLayer : Layer {
     public float[,,] h;
     public float[] b;
 
-    public ConvolutionalLayer(int m_size, int n_size, int k_size, int h_size) {
+    public Convolution2DLayer(int m_size, int n_size, int k_size, int cm_size, int cn_size) {
         M = m_size;
         N = n_size;
         K = k_size;
-        H = h_size;
+        CM = cm_size;
+        CN = cn_size;
 
         x = new float[M, N];
-        u = new float[M - H + 1, N - H + 1, K];
-        y = new float[M - H + 1, N - H + 1, K];
+        u = new float[M - CM + 1, N - CN + 1, K];
+        y = new float[M - CM + 1, N - CN + 1, K];
 
-        h = new float[H, H, K];
+        h = new float[CM, CN, K];
         b = new float[K];
     }
 
 public override void Forward() {
-        foreach (int i in Range(M - H + 1)) {
-            foreach (int j in Range(N - H + 1)) {
+        foreach (int i in Range(M - CM + 1)) {
+            foreach (int j in Range(N - CN + 1)) {
                 foreach (int k in Range(K)) {
-                    u[i, j, k] = (from p in Range(H) from q in Range(H) select x[i + p, j + q] * h[p, q, k]).Sum() + b[k];
+                    u[i, j, k] = (from p in Range(CM) from q in Range(CN) select x[i + p, j + q] * h[p, q, k]).Sum() + b[k];
                     y[i, j, k] = σ(u[i, j, k]);
                 }
             }
@@ -167,24 +169,27 @@ public override void Forward() {
     }
 }
 
-public class MaxPoolingLayer : Layer {
+
+public class MaxPooling2DLayer : Layer {
     public int M;   // 入力行数
     public int N;   // 入力列数
     public int K;   // フィルター数
-    public int H;   // フィルターの幅
+    public int PM;  // プーリングの行数
+    public int PN;  // プーリングの列数
     public int MH;  // 出力行数
     public int NH;  // 出力列数
 
     public float[,,] x;
     public float[,,] y;
 
-    public MaxPoolingLayer(int m_size, int n_size, int k_size, int h_size) {
+    public MaxPooling2DLayer(int m_size, int n_size, int k_size, int pm_size, int pn_size) {
         M = m_size;
         N = n_size;
         K = k_size;
-        H = h_size;
-        MH = M / H;
-        NH = N / H;
+        PM = pm_size;
+        PN = pn_size;
+        MH = M / PM;
+        NH = N / PN;
 
         x = new float[M, N, K];
         y = new float[MH, NH, K];
@@ -194,7 +199,7 @@ public class MaxPoolingLayer : Layer {
         foreach (int i in Range(MH)) {
             foreach (int j in Range(NH)) {
                 foreach (int k in Range(K)) {
-                    y[i, j, k] = (from p in Range(H) from q in Range(H) select x[i * H + p, j * H + q, k]).Max();
+                    y[i, j, k] = (from p in Range(PM) from q in Range(PN) select x[i * PM + p, j * PN + q, k]).Max();
                 }
             }
         }

@@ -162,29 +162,29 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="ConvolutionalLayerCudaD.cu" />
-    <CudaCompile Include="ConvolutionalLayerCudaF.cu" />
+    <CudaCompile Include="Convolution2DLayerCudaD.cu" />
+    <CudaCompile Include="Convolution2DLayerCudaF.cu" />
     <CudaCompile Include="FullyConnectedLayerCudaD.cu" />
     <CudaCompile Include="FullyConnectedLayerCudaF.cu" />
     <CudaCompile Include="kernel.cu" />
     <CudaCompile Include="LSTMLayerCudaD.cu" />
     <CudaCompile Include="LSTMLayerCudaF.cu" />
-    <CudaCompile Include="MaxPoolingLayerCudaD.cu" />
-    <CudaCompile Include="MaxPoolingLayerCudaF.cu" />
+    <CudaCompile Include="MaxPooling2DLayerCudaD.cu" />
+    <CudaCompile Include="MaxPooling2DLayerCudaF.cu" />
     <CudaCompile Include="RecurrentLayerCudaD.cu" />
     <CudaCompile Include="RecurrentLayerCudaF.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Lib\Lib.h" />
-    <ClInclude Include="ConvolutionalLayerCudaD.h" />
-    <ClInclude Include="ConvolutionalLayerCudaF.h" />
+    <ClInclude Include="Convolution2DLayerCudaD.h" />
+    <ClInclude Include="Convolution2DLayerCudaF.h" />
     <ClInclude Include="FullyConnectedLayerCudaD.h" />
     <ClInclude Include="FullyConnectedLayerCudaF.h" />
     <ClInclude Include="LibCuda.h" />
     <ClInclude Include="LSTMLayerCudaD.h" />
     <ClInclude Include="LSTMLayerCudaF.h" />
-    <ClInclude Include="MaxPoolingLayerCudaD.h" />
-    <ClInclude Include="MaxPoolingLayerCudaF.h" />
+    <ClInclude Include="MaxPooling2DLayerCudaD.h" />
+    <ClInclude Include="MaxPooling2DLayerCudaF.h" />
     <ClInclude Include="MkFn.h" />
     <ClInclude Include="RecurrentLayerCudaD.h" />
     <ClInclude Include="RecurrentLayerCudaF.h" />

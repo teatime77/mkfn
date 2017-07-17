@@ -36,16 +36,10 @@
     <ClInclude Include="targetver.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="ConvolutionalLayerF.h">
-      <Filter>ヘッダー ファイル\F</Filter>
-    </ClInclude>
     <ClInclude Include="FullyConnectedLayerF.h">
       <Filter>ヘッダー ファイル\F</Filter>
     </ClInclude>
     <ClInclude Include="LSTMLayerF.h">
-      <Filter>ヘッダー ファイル\F</Filter>
-    </ClInclude>
-    <ClInclude Include="MaxPoolingLayerF.h">
       <Filter>ヘッダー ファイル\F</Filter>
     </ClInclude>
     <ClInclude Include="RecurrentLayerF.h">
@@ -54,13 +48,7 @@
     <ClInclude Include="..\..\Lib\Lib.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="ConvolutionalLayerD.h">
-      <Filter>ヘッダー ファイル\D</Filter>
-    </ClInclude>
     <ClInclude Include="FullyConnectedLayerD.h">
-      <Filter>ヘッダー ファイル\D</Filter>
-    </ClInclude>
-    <ClInclude Include="MaxPoolingLayerD.h">
       <Filter>ヘッダー ファイル\D</Filter>
     </ClInclude>
     <ClInclude Include="RecurrentLayerD.h">
@@ -68,6 +56,21 @@
     </ClInclude>
     <ClInclude Include="mkfn.h">
       <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPooling2DLayerD.h">
+      <Filter>ヘッダー ファイル\D</Filter>
+    </ClInclude>
+    <ClInclude Include="MaxPooling2DLayerF.h">
+      <Filter>ヘッダー ファイル\F</Filter>
+    </ClInclude>
+    <ClInclude Include="Convolution2DLayerD.h">
+      <Filter>ヘッダー ファイル\D</Filter>
+    </ClInclude>
+    <ClInclude Include="Convolution2DLayerF.h">
+      <Filter>ヘッダー ファイル\F</Filter>
+    </ClInclude>
+    <ClInclude Include="LSTMLayerD.h">
+      <Filter>ヘッダー ファイル\D</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -83,16 +86,10 @@
     <ClCompile Include="RecurrentLayerF.cpp">
       <Filter>ソース ファイル\F</Filter>
     </ClCompile>
-    <ClCompile Include="MaxPoolingLayerF.cpp">
-      <Filter>ソース ファイル\F</Filter>
-    </ClCompile>
     <ClCompile Include="LSTMLayerF.cpp">
       <Filter>ソース ファイル\F</Filter>
     </ClCompile>
     <ClCompile Include="FullyConnectedLayerF.cpp">
-      <Filter>ソース ファイル\F</Filter>
-    </ClCompile>
-    <ClCompile Include="ConvolutionalLayerF.cpp">
       <Filter>ソース ファイル\F</Filter>
     </ClCompile>
     <ClCompile Include="MkFn.cpp">
@@ -104,17 +101,23 @@
     <ClCompile Include="RecurrentLayerD.cpp">
       <Filter>ソース ファイル\D</Filter>
     </ClCompile>
-    <ClCompile Include="MaxPoolingLayerD.cpp">
-      <Filter>ソース ファイル\D</Filter>
-    </ClCompile>
     <ClCompile Include="LSTMLayerD.cpp">
       <Filter>ソース ファイル\D</Filter>
     </ClCompile>
     <ClCompile Include="FullyConnectedLayerD.cpp">
       <Filter>ソース ファイル\D</Filter>
     </ClCompile>
-    <ClCompile Include="ConvolutionalLayerD.cpp">
+    <ClCompile Include="MaxPooling2DLayerF.cpp">
+      <Filter>ソース ファイル\F</Filter>
+    </ClCompile>
+    <ClCompile Include="MaxPooling2DLayerD.cpp">
       <Filter>ソース ファイル\D</Filter>
+    </ClCompile>
+    <ClCompile Include="Convolution2DLayerD.cpp">
+      <Filter>ソース ファイル\D</Filter>
+    </ClCompile>
+    <ClCompile Include="Convolution2DLayerF.cpp">
+      <Filter>ソース ファイル\F</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
