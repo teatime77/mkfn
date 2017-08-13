@@ -10,14 +10,14 @@ namespace MkFn {
             newならtrueを返します。
         */
         public static bool IsNew(Term t) {
-            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.NewFnc;
+            return t is Apply && t.AsApply().FunctionApp.VarRef == MkFn.Singleton.NewFnc;
         }
 
         /*
             Rangeならtrueを返します。
         */
         public static bool IsRange(Term t) {
-            return t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.RangeFnc;
+            return t is Apply && t.AsApply().FunctionApp.VarRef == MkFn.Singleton.RangeFnc;
         }
 
         /*
@@ -29,6 +29,7 @@ namespace MkFn {
                 return (obj as Variable).Name == "t";
             }
             else if (obj is Reference) {
+                // 変数参照の場合
 
                 return (obj as Reference).Name == "t";
             }
@@ -45,6 +46,7 @@ namespace MkFn {
                 return (obj as Variable).Name == "T";
             }
             else if (obj is Reference) {
+                // 変数参照の場合
 
                 return (obj as Reference).Name == "T";
             }
@@ -56,7 +58,7 @@ namespace MkFn {
             t+1ならtrueを返します。
         */
         public static bool Is_t_plus(Term t) {
-            if( t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.AddFnc) {
+            if( t is Apply && t.AsApply().FunctionApp.VarRef == MkFn.Singleton.AddFnc) {
                 Apply app = t as Apply;
 
                 if(app.Args.Length == 2 && app.Args[0] is Reference && (app.Args[0] as Reference).Name == MkFn.Singleton.t_var.Name) {
@@ -74,7 +76,7 @@ namespace MkFn {
             t-1ならtrueを返します。
         */
         public static bool Is_t_minus(Term t) {
-            if (t is Apply && t.AsApply().Function.VarRef == MkFn.Singleton.AddFnc) {
+            if (t is Apply && t.AsApply().FunctionApp.VarRef == MkFn.Singleton.AddFnc) {
                 Apply app = t as Apply;
 
                 if (app.Args.Length == 2 && app.Args[0] is Reference && (app.Args[0] as Reference).Name == MkFn.Singleton.t_var.Name) {
@@ -99,7 +101,7 @@ namespace MkFn {
                 Apply app1 = t1 as Apply;
                 Apply app2 = t2 as Apply;
 
-                if (app1.Function.VarRef == RangeFnc && app2.Function.VarRef == RangeFnc) {
+                if (app1.FunctionApp.VarRef == RangeFnc && app2.FunctionApp.VarRef == RangeFnc) {
 
                     Apply min = new Apply(maxFnc, new Term[] { MinRange(t1), MinRange(t2) });
                     Apply max = new Apply(minFnc, new Term[] { MaxRange(t1), MaxRange(t2) });
@@ -116,7 +118,7 @@ namespace MkFn {
 
                 Apply app = rng as Apply;
 
-                if (app.Function.VarRef == RangeFnc) {
+                if (app.FunctionApp.VarRef == RangeFnc) {
 
                     if (app.Args.Length == 1) {
 
@@ -138,7 +140,7 @@ namespace MkFn {
 
                 Apply app = rng as Apply;
 
-                if (app.Function.VarRef == RangeFnc) {
+                if (app.FunctionApp.VarRef == RangeFnc) {
 
                     if (app.Args.Length == 1) {
 
@@ -223,7 +225,7 @@ namespace MkFn {
             項を含む文を返します。
         */
         Statement ParentStatement(Term t1) {
-            for (Object obj = t1.Parent; ;) {
+            for (object obj = t1.Parent; ;) {
                 Debug.Assert(obj != null);
 
                 if (obj is Statement) {
@@ -302,7 +304,7 @@ namespace MkFn {
                     // 関数適用の場合
 
                     Apply app = obj as Apply;
-                    Traverse(app.Function, before, after);
+                    Traverse(app.FunctionApp, before, after);
                     foreach (Term t in app.Args) {
                         Traverse(t, before, after);
                     }
@@ -439,10 +441,10 @@ namespace MkFn {
                     // 関数適用の場合
 
                     Apply app = obj as Apply;
-                    app.Function = TraverseRep(app.Function, before, after) as Reference;
+                    app.FunctionApp = TraverseRep(app.FunctionApp, before, after) as Reference;
                     app.Args = (from t in app.Args select TraverseRep(t, before, after) as Term).ToArray();
 
-                    app.Function.Parent = app;
+                    app.FunctionApp.Parent = app;
                     foreach (Term t in app.Args) {
                         t.Parent = obj;
                     }

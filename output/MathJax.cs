@@ -102,7 +102,7 @@ namespace MkFn {
 
                 Apply app = t1 as Apply;
 
-                if ("+-*/%".Contains(app.Function.Name[0])) {
+                if ("+-*/%".Contains(app.FunctionApp.Name[0])) {
                     // 演算子の場合
 
                     string s;
@@ -118,7 +118,7 @@ namespace MkFn {
                     }
                     else {
 
-                        s = string.Join(" " + app.Function.Name + " ", from x in app.Args select MathJax(x));
+                        s = string.Join(" " + app.FunctionApp.Name + " ", from x in app.Args select MathJax(x));
                     }
 
                     if (app.Parent is Apply && (app.Parent as Apply).Precedence() <= app.Precedence()) {
@@ -131,25 +131,25 @@ namespace MkFn {
                 else {
                     // 演算子でない場合
 
-                    string name = app.Function.Name;
+                    string name = app.FunctionApp.Name;
 
-                    if (app.Function.VarRef == DiffFnc) {
+                    if (app.FunctionApp.VarRef == DiffFnc) {
 
                         if (MathJaxDelta && app.Args[0] is Reference && (app.Args[0] as Reference).VarRef == EFnc) {
 
                             return string.Format(@"\delta^{{ {0} }}", MathJax(app.Args[1]));
                         }
                         string arg0 = MathJax(app.Args[0]);
-                        if (app.Args[0] is Apply && !Char.IsLetter((app.Args[0] as Apply).Function.Name[0])) {
+                        if (app.Args[0] is Apply && !Char.IsLetter((app.Args[0] as Apply).FunctionApp.Name[0])) {
 
                             arg0 = "(" + arg0 + ")";
                         }
                         return string.Format(@"\frac{{ \partial {0} }}{{ \partial {1} }}", arg0, MathJax(app.Args[1]));
                     }
-                    if (app.Function.VarRef == σ_prime) {
+                    if (app.FunctionApp.VarRef == σ_prime) {
                         name = "σ'";
                     }
-                    if (app.Function.VarRef == tanh_prime) {
+                    if (app.FunctionApp.VarRef == tanh_prime) {
                         name = "tanh'";
                     }
                     return name + "(" + string.Join(", ", from x in app.Args select MathJax(x)) + ")";

@@ -53,8 +53,12 @@ namespace MkFn {
         public Class FloatClass = new Class("float");
         public Class DoubleClass = new Class("double");
         public Class ArgClass = new Class("arg type");
-        public Number Zero() { return new Number(0); }
-        public Number One() { return new Number(1) ; }
+        public Number Zero() {
+            return new Number(0);
+        }
+        public Number One() {
+            return new Number(1) ;
+        }
 
         public Variable AddFnc;
         public Variable MulFnc;

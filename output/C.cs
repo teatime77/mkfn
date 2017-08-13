@@ -100,6 +100,7 @@ namespace MkFn {
                         // 最大値の場合
 
                         if (! (lnq.Select is Reference)) {
+                            // 変数参照でない場合
 
                             throw new Exception();
                         }

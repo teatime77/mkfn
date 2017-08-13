@@ -368,12 +368,12 @@ namespace MkFn {
         /*
             係数を除く本体が同じならtrueを返します。
         */
-        public abstract bool EqBody(Object obj);
+        public abstract bool EqBody(object obj);
 
         /*
             係数と本体が同じならtrueを返します。
         */
-        public virtual bool Eq(Object obj) {
+        public virtual bool Eq(object obj) {
             return obj is Term && Value == (obj as Term).Value && EqBody(obj);
         }
 
@@ -431,14 +431,14 @@ namespace MkFn {
             加算ならtrueを返します。
         */
         public bool IsAdd() {
-            return this is Apply && AsApply().Function.VarRef == MkFn.Singleton.AddFnc;
+            return this is Apply && AsApply().FunctionApp.VarRef == MkFn.Singleton.AddFnc;
         }
 
         /*
             乗算ならtrueを返します。
         */
         public bool IsMul() {
-            return this is Apply && AsApply().Function.VarRef == MkFn.Singleton.MulFnc;
+            return this is Apply && AsApply().FunctionApp.VarRef == MkFn.Singleton.MulFnc;
         }
 
         public virtual string Code() {
@@ -537,7 +537,7 @@ namespace MkFn {
         /*
             係数を除く本体が同じならtrueを返します。
         */
-        public override bool EqBody(Object obj) {
+        public override bool EqBody(object obj) {
             return obj is Number;
         }
 
@@ -614,7 +614,7 @@ namespace MkFn {
         /*
             係数を除く本体が同じならtrueを返します。
         */
-        public override bool EqBody(Object obj) {
+        public override bool EqBody(object obj) {
             if (!(obj is Reference)) {
                 // 変数参照でない場合
 
@@ -708,7 +708,7 @@ namespace MkFn {
     */
     public class Apply : Term {
         // 関数
-        public Reference Function;
+        public Reference FunctionApp;
 
         public Class NewClass;
 
@@ -718,10 +718,10 @@ namespace MkFn {
         public Class Cast;
 
         public Apply(Reference function, Term[] args) {
-            Function = function;
+            FunctionApp = function;
             Args = args;
 
-            Function.Parent = this;
+            FunctionApp.Parent = this;
             foreach (Term t in Args) {
                 t.Parent = this;
             }
@@ -740,7 +740,7 @@ namespace MkFn {
         */
         public new Apply Clone(Dictionary<Variable, Variable> var_tbl = null) {
             Term[] args = (from t in Args select t.Clone(var_tbl)).ToArray();
-            Apply app = new Apply(Function.Clone(var_tbl), args);
+            Apply app = new Apply(FunctionApp.Clone(var_tbl), args);
             app.NewClass = NewClass;
             app.Value = Value;
             app.TypeTerm = TypeTerm;
@@ -749,7 +749,7 @@ namespace MkFn {
         }
 
         public override string ToStringBody() {
-            if ("+-*/%".Contains(Function.Name[0])) {
+            if ("+-*/%".Contains(FunctionApp.Name[0])) {
                 string s;
 
                 Debug.Assert(Args.Length != 1);
@@ -763,7 +763,7 @@ namespace MkFn {
                 else {
                     // 加算でない場合
 
-                    s = string.Join(" " + Function.Name + " ", from x in Args select x.ToString());
+                    s = string.Join(" " + FunctionApp.Name + " ", from x in Args select x.ToString());
                 }
 
                 if (Parent is Apply && (Parent as Apply).Precedence() <= Precedence()) {
@@ -779,11 +779,11 @@ namespace MkFn {
             else {
                 // 演算子でない場合
 
-                if (Function.VarRef == MkFn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
+                if (FunctionApp.VarRef == MkFn.Singleton.DiffFnc && Args[0] is Reference && (Args[0] as Reference).VarRef == MkFn.Singleton.EFnc) {
 
                     return "δ_" + Args[1].ToString();
                 }
-                else if (Function.VarRef == MkFn.Singleton.MaxPoolPrimeFnc) {
+                else if (FunctionApp.VarRef == MkFn.Singleton.MaxPoolPrimeFnc) {
                     Reference x = Args[0] as Reference;
                     Reference y = Args[1] as Reference;
 
@@ -794,11 +794,11 @@ namespace MkFn {
                 }
                 else if (MkFn.IsNew(this)) {
 
-                    return Function.Name + " " + NewClass.Name + "[" + string.Join(", ", from x in Args select x.ToString()) + "]";
+                    return FunctionApp.Name + " " + NewClass.Name + "[" + string.Join(", ", from x in Args select x.ToString()) + "]";
                 }
                 else {
 
-                    return Function.Name + "(" + string.Join(", ", from x in Args select x.ToString()) + ")";
+                    return FunctionApp.Name + "(" + string.Join(", ", from x in Args select x.ToString()) + ")";
                 }
             }
         }
@@ -806,7 +806,7 @@ namespace MkFn {
         /*
             係数を除く本体が同じならtrueを返します。
         */
-        public override bool EqBody(Object obj) {
+        public override bool EqBody(object obj) {
             if (!(obj is Apply)) {
                 // 関数適用でない場合
 
@@ -815,7 +815,7 @@ namespace MkFn {
 
             Apply app = obj as Apply;
 
-            if ( ! Function.Eq(app.Function) ) {
+            if ( ! FunctionApp.Eq(app.FunctionApp) ) {
                 // 関数が違う場合
 
                 return false;
@@ -842,15 +842,15 @@ namespace MkFn {
             演算子の優先順位を返します。
         */
         public int Precedence() {
-            if (Char.IsLetter(Function.Name[0])) {
+            if (Char.IsLetter(FunctionApp.Name[0])) {
                 return 20;
             }
 
-            if ("*/%".Contains(Function.Name[0])) {
+            if ("*/%".Contains(FunctionApp.Name[0])) {
                 return 1;
             }
 
-            if (Args.Length == 1 && "+-!".Contains(Function.Name[0])) {
+            if (Args.Length == 1 && "+-!".Contains(FunctionApp.Name[0])) {
                 return 2;
             }
 
@@ -858,7 +858,7 @@ namespace MkFn {
         }
 
         public override int HashCode() {
-            int n = GetType().GetHashCode() + ((int)Value) + Function.HashCode();
+            int n = GetType().GetHashCode() + ((int)Value) + FunctionApp.HashCode();
 
             n += (int)Args.Sum(x => (double)x.HashCode());
 
@@ -879,9 +879,9 @@ namespace MkFn {
         // 集計関数
         public Reference Aggregate;
 
-        public LINQ(Variable[] variables, Term select, Reference aggregate, double val = 1) {
+        public LINQ(Variable[] variables, Term select1, Reference aggregate, double val = 1) {
             Variables = variables;
-            Select = select;
+            Select = select1;
             Aggregate = aggregate;
             Value = val;
 
@@ -898,7 +898,7 @@ namespace MkFn {
         /*
             係数を除く本体が同じならtrueを返します。
         */
-        public override bool EqBody(Object obj) {
+        public override bool EqBody(object obj) {
             return this == obj;
         }
 

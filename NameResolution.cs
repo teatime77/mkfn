@@ -148,7 +148,7 @@ namespace MkFn {
 
                                 trm.TypeTerm = GetArrayType(app.NewClass, app.Args.Length);
                             }
-                            else if (app.Function.VarRef.TypeVar == ArgClass) {
+                            else if (app.FunctionApp.VarRef.TypeVar == ArgClass) {
 
                                 Class tp1 = app.Args[0].TypeTerm;
                                 for (int i = 1; i < app.Args.Length; i++) {
@@ -162,7 +162,7 @@ namespace MkFn {
                                 trm.TypeTerm = tp1;
                             }
                             else {
-                                trm.TypeTerm = app.Function.VarRef.TypeVar;
+                                trm.TypeTerm = app.FunctionApp.VarRef.TypeVar;
                             }
                         }
                         else if (trm is LINQ) {

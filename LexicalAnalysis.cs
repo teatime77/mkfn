@@ -57,14 +57,14 @@ namespace MkFn {
     }
 
     public class Token {
-        public TokenType Type;
+        public TokenType TypeTkn;
         public TokenSubType SubType;
         public string Text;
         public int LineIndex;
         public int CharPos;
 
         public Token(TokenType type, TokenSubType sub_type, string text, int line_index, int char_pos) {
-            Type = type;
+            TypeTkn = type;
             SubType = sub_type;
             Text = text;
             LineIndex = line_index;
@@ -514,7 +514,7 @@ namespace MkFn {
         }
 
         public Token[] RemoveComment(Token[] tokens) {
-            return tokens.Where(x => x.Type != TokenType.LineComment && x.Type != TokenType.BlockComment).ToArray();
+            return tokens.Where(x => x.TypeTkn != TokenType.LineComment && x.TypeTkn != TokenType.BlockComment).ToArray();
         }
     }
 }

@@ -141,12 +141,12 @@ namespace MkFn {
 
                 Term[] diffs = (from t in app.Args select Differential(t, r1, var_tbl)).ToArray();
 
-                if (app.Function.VarRef == AddFnc) {
+                if (app.FunctionApp.VarRef == AddFnc) {
                     // 加算の場合
 
                     return Add(diffs);
                 }
-                else if (app.Function.VarRef == MulFnc) {
+                else if (app.FunctionApp.VarRef == MulFnc) {
                     // 乗算の場合
 
                     Term[] args = new Term[app.Args.Length];
@@ -156,20 +156,20 @@ namespace MkFn {
 
                     return Add(args);
                 }
-                else if (app.Function.VarRef == MaxPoolFnc) {
+                else if (app.FunctionApp.VarRef == MaxPoolFnc) {
                     return new Apply(MaxPoolPrimeFnc, app.Args.Select(x => x.Clone(var_tbl)).ToArray());
                 }
-                else if (app.Function.Name == "σ") {
+                else if (app.FunctionApp.Name == "σ") {
 
                     Term[] args = (from t in app.Args select t.Clone(var_tbl)).ToArray();
                     return Mul(new Apply(new Reference(σ_prime), args), diffs[0]);
                 }
-                else if (app.Function.Name == "tanh") {
+                else if (app.FunctionApp.Name == "tanh") {
 
                     Term[] args = (from t in app.Args select t.Clone(var_tbl)).ToArray();
                     return Mul(new Apply(new Reference(tanh_prime), args), diffs[0]);
                 }
-                else if (app.Function.Name == "Mat" || app.Function.Name == "Row" || app.Function.Name == "C") {
+                else if (app.FunctionApp.Name == "Mat" || app.FunctionApp.Name == "Row" || app.FunctionApp.Name == "C") {
                     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 未実装 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     return Zero();
                 }
@@ -234,7 +234,7 @@ namespace MkFn {
                             List<Term> args2 = new List<Term>();
 
                             foreach (Term t2 in args1) {
-                                if (t2 is Apply && (t2 as Apply).Function.VarRef == app.Function.VarRef) {
+                                if (t2 is Apply && (t2 as Apply).FunctionApp.VarRef == app.FunctionApp.VarRef) {
                                     // 引数が同じ演算の場合
 
                                     args2.AddRange(t2.AsApply().Args);
@@ -338,7 +338,7 @@ namespace MkFn {
                             }
                         }
 
-                        ret = new Apply(app.Function.VarRef, args1);
+                        ret = new Apply(app.FunctionApp.VarRef, args1);
 
                         return true;
                     }
